@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logo Pulsante</title>
+<style>
+  :root { --bg:#0b0b10; --panel:#16161f; --text:#e8e8f0; --muted:#8a8aa0; --accent:#7c5cff; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:#000; color:var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; overflow:hidden; }
+
+  #world { position:absolute; inset:0; will-change:transform; z-index:0; }
+  #bgwrap { position:absolute; inset:-12%; will-change:transform, filter; }
+  #bgbase, #bgimg { position:absolute; inset:0; }
+  #bgimg { inset:-3%; background-position:center; background-repeat:no-repeat; background-size:cover; }
+  #flash { position:absolute; inset:0; pointer-events:none; opacity:0;
+    background: radial-gradient(circle at center, var(--accent) 0%, transparent 60%); }
+  #fx { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  #stage { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
+  #logo { width:40vmin; height:auto; max-width:none; max-height:none;
+    will-change:transform, filter; user-select:none; -webkit-user-drag:none; }
+
+  #vig { position:absolute; inset:0; pointer-events:none; opacity:0; z-index:5;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0) 40%, rgba(0,0,0,.95) 100%); }
+  #scan { position:absolute; inset:0; pointer-events:none; opacity:0; z-index:6;
+    background: repeating-linear-gradient(to bottom, rgba(0,0,0,.6) 0, rgba(0,0,0,.6) 1px, transparent 1px, transparent 3px); }
+  #grainWrap { position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:7; }
+  #grain { position:absolute; left:-50%; top:-50%; width:200%; height:200%; opacity:0; mix-blend-mode:overlay; }
+
+  #hint { position:absolute; top:12px; right:16px; font-size:12px; color:var(--muted); text-align:right; z-index:8;
+    text-shadow:0 1px 3px #000; }
+  #panel { position:absolute; left:16px; bottom:16px; width:min(350px, calc(100vw - 32px)); z-index:10;
+    background:var(--panel); border:1px solid #2a2a3a; border-radius:14px; padding:14px 16px;
+    max-height:calc(100vh - 32px); overflow:auto; transition: opacity .2s, transform .2s; }
+  #panel.hidden { opacity:0; pointer-events:none; transform: translateY(10px); }
+  h1 { font-size:15px; margin:0 0 10px; }
+  details { border-top:1px solid #262636; margin-top:10px; padding-top:8px; }
+  summary { cursor:pointer; font-size:13px; font-weight:600; padding:2px 0; }
+  .row { margin:10px 0; }
+  .row label { display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-bottom:4px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  select { width:100%; background:#23233a; color:var(--text); border:1px solid #34344d; border-radius:8px; padding:6px; }
+  button, .btn { background:#23233a; color:var(--text); border:1px solid #34344d; border-radius:9px;
+    padding:8px 12px; font-size:13px; cursor:pointer; margin:3px 4px 3px 0; display:inline-block; }
+  button:hover, .btn:hover { background:#2d2d4a; }
+  button.on { background:var(--accent); border-color:var(--accent); }
+  input[type=file] { display:none; }
+  #meter { height:6px; background:#23233a; border-radius:4px; overflow:hidden; margin-top:8px; }
+  #meter > div { height:100%; width:0; background:var(--accent); }
+  #status { font-size:12px; color:var(--muted); margin-top:8px; min-height:16px; }
+  #inmeter { height:6px; background:#23233a; border-radius:4px; overflow:hidden; margin-top:4px; }
+  #inmeter > div { height:100%; width:0; background:#3ddc84; }
+  #bpm { font-size:12px; color:var(--text); margin-top:6px; }
+</style>
+</head>
+<body>
+
+<div id="world">
+  <div id="bgwrap">
+    <div id="bgbase"></div>
+    <div id="bgimg"></div>
+  </div>
+  <div id="flash"></div>
+  <canvas id="fx"></canvas>
+  <div id="stage"><img id="logo" alt="Logo"></div>
+</div>
+<div id="vig"></div>
+<div id="scan"></div>
+<div id="grainWrap"><div id="grain"></div></div>
+
+<div id="hint">H: esconder/mostrar painel · F: tela cheia · Roda do mouse: tamanho da logo · Arraste uma foto aqui para o fundo</div>
+
+<div id="panel">
+  <h1>🔊 Logo Pulsante</h1>
+
+  <div class="row">
+    <label class="btn" for="logoFile">Escolher logo</label>
+    <input type="file" id="logoFile" accept="image/*">
+    <label class="btn" for="bgImgFile">📷 Foto de fundo</label>
+    <button id="screenBtn">🔊 Captar som do PC</button>
+  </div>
+  <div class="row" style="margin-top:0">
+    <label class="btn" for="audioFile">Tocar arquivo de música</label>
+    <input type="file" id="audioFile" accept="audio/*">
+    <button id="micBtn">🎤 Ouvir pelo microfone</button>
+  </div>
+  <div id="help" style="font-size:11.5px;color:var(--muted);line-height:1.4;">
+    <b>Som do PC (qualquer app, vídeo ou música):</b> clique em “Captar som do PC”, escolha a aba <b>Tela inteira</b>,
+    selecione a tela e marque <b>“Compartilhar áudio do sistema”</b>. Depois pode minimizar a janela de captura.
+  </div>
+  <div id="playerBox" style="display:none;align-items:center;gap:8px;margin-top:8px;">
+    <button id="playBtn" style="min-width:42px;">▶</button>
+    <input type="range" id="seek" min="0" max="1000" value="0" style="flex:1">
+    <span id="tm" style="font-size:12px;color:var(--muted);min-width:34px;text-align:right;">0:00</span>
+  </div>
+  <div id="meter"><div id="bar"></div></div>
+  <div id="bpm">BPM: —</div>
+  <div id="status">Escolha sua logo e uma fonte de áudio.</div>
+
+  <details open>
+    <summary>Entrada de áudio (som de outro aparelho)</summary>
+    <div style="font-size:11.5px;color:var(--muted);line-height:1.4;margin:6px 0;">
+      Para o som que NÃO sai deste PC (caixa de som, celular, mesa de DJ, TV): clique em
+      <b>🎤 Ouvir pelo microfone</b>. Se tiver interface/cabo de linha, escolha-o abaixo.
+      A barra verde mostra o nível que chega; ajuste o ganho até ela balançar bastante sem ficar vermelha.
+    </div>
+    <div class="row"><label>Dispositivo de entrada</label>
+      <select id="micDev"><option value="">Padrão do sistema</option></select></div>
+    <div class="row"><label>Ganho do microfone <span id="v_inGain"></span></label>
+      <input type="range" id="inGain" min="0.5" max="40" step="0.5" value="6" data-d="1" data-u="×"></div>
+    <div class="row"><label>Corte de ruído de ambiente <span id="v_gate"></span></label>
+      <input type="range" id="gate" min="0" max="0.2" step="0.005" value="0.015" data-d="3"></div>
+    <div class="row"><button id="calBtn">🎚 Calibrar ruído do ambiente (2 s de silêncio)</button></div>
+    <div id="inmeter"><div id="inbar"></div></div>
+    <div id="inlvl" style="font-size:11.5px;color:var(--muted);margin-top:4px;">Nível de entrada: —</div>
+  </details>
+
+  <details open>
+    <summary>Logo e pulso</summary>
+    <div class="row"><label>Tamanho da logo <span id="v_size"></span></label>
+      <input type="range" id="size" min="10" max="150" step="1" value="40" data-u="%"></div>
+    <div class="row"><label>Intensidade do pulso <span id="v_amount"></span></label>
+      <input type="range" id="amount" min="0" max="1.5" step="0.01" value="0.45" data-d="2"></div>
+    <div class="row"><label>Aberração cromática <span id="v_chroma"></span></label>
+      <input type="range" id="chroma" min="0" max="12" step="0.5" value="0" data-d="1" data-u=" px"></div>
+    <div class="row"><label>Brilho (glow) <span id="v_glow"></span></label>
+      <input type="range" id="glow" min="0" max="1" step="0.01" value="0.6" data-d="2"></div>
+    <div class="row"><label>Cor do brilho</label>
+      <input type="color" id="color" value="#7c5cff"></div>
+    <div class="row"><label style="justify-content:flex-start;gap:8px;">
+      <input type="checkbox" id="rmwhite"> Remover fundo branco da logo</label></div>
+    <div class="row"><label>Tolerância do branco <span id="v_white"></span></label>
+      <input type="range" id="white" min="200" max="254" step="1" value="230"></div>
+  </details>
+
+  <details>
+    <summary>Detecção de kick e BPM</summary>
+    <div class="row"><label>Sensibilidade do kick <span id="v_sens"></span></label>
+      <input type="range" id="sens" min="0.5" max="3" step="0.05" value="1.4" data-d="2" data-u="×"></div>
+    <div class="row"><label>Frequência máxima do grave <span id="v_cut"></span></label>
+      <input type="range" id="cut" min="60" max="300" step="5" value="120" data-u=" Hz"></div>
+    <div class="row"><label>Duração do pulso <span id="v_rel"></span></label>
+      <input type="range" id="rel" min="0.03" max="0.5" step="0.01" value="0.12" data-d="2" data-u=" s"></div>
+    <div class="row"><label>Seguir a onda quando não há kick <span id="v_wave"></span></label>
+      <input type="range" id="wave" min="0" max="1" step="0.01" value="0.8" data-d="2"></div>
+    <div class="row"><label style="justify-content:flex-start;gap:8px;">
+      <input type="checkbox" id="bpmAuto" checked> Qualquer música (BPM automático, 80–200)</label></div>
+    <div class="row"><label>BPM mínimo da música <span id="v_bpmMin"></span></label>
+      <input type="range" id="bpmMin" min="100" max="220" step="1" value="140" data-u=" BPM"></div>
+    <div class="row"><label>BPM máximo da música <span id="v_bpmMax"></span></label>
+      <input type="range" id="bpmMax" min="100" max="220" step="1" value="160" data-u=" BPM"></div>
+  </details>
+
+  <details open>
+    <summary>Fundo</summary>
+    <div class="row"><label>Cor 1</label><input type="color" id="bgc1" value="#0b0b10"></div>
+    <div class="row"><label style="justify-content:flex-start;gap:8px;">
+      <input type="checkbox" id="bgGrad"> Usar degradê (cor 1 → cor 2)</label></div>
+    <div class="row"><label>Cor 2</label><input type="color" id="bgc2" value="#2a1060"></div>
+    <div class="row"><label>Ângulo do degradê <span id="v_bgAngle"></span></label>
+      <input type="range" id="bgAngle" min="0" max="360" step="1" value="160" data-u="°"></div>
+    <div class="row">
+      <label class="btn" for="bgImgFile">Imagem de fundo</label>
+      <input type="file" id="bgImgFile" accept="image/*">
+      <button id="bgImgClear">Remover imagem</button>
+    </div>
+    <div class="row"><label>Ajuste da imagem</label>
+      <select id="bgFit"><option value="cover">Preencher (cover)</option><option value="contain">Caber inteira (contain)</option></select></div>
+    <div class="row"><label>Opacidade da imagem <span id="v_bgImgOpacity"></span></label>
+      <input type="range" id="bgImgOpacity" min="0" max="1" step="0.01" value="1" data-d="2"></div>
+    <div class="row"><label>Desfoque da imagem <span id="v_bgBlur"></span></label>
+      <input type="range" id="bgBlur" min="0" max="40" step="1" value="0" data-u=" px"></div>
+    <div class="row"><label>Brilho da imagem <span id="v_bgDim"></span></label>
+      <input type="range" id="bgDim" min="0" max="150" step="1" value="100" data-u="%"></div>
+    <div class="row"><label>Girar matiz do fundo <span id="v_bgHue"></span></label>
+      <input type="range" id="bgHue" min="-180" max="180" step="1" value="0" data-u="°/s"></div>
+    <div class="row"><label>Zoom do fundo na batida <span id="v_bgPulse"></span></label>
+      <input type="range" id="bgPulse" min="0" max="0.4" step="0.01" value="0.05" data-d="2"></div>
+    <div class="row"><label>Brilho do fundo na batida <span id="v_bgFlash"></span></label>
+      <input type="range" id="bgFlash" min="0" max="1" step="0.01" value="0.15" data-d="2"></div>
+  </details>
+
+  <details>
+    <summary>Efeitos de tela</summary>
+    <div class="row"><label>Flash de luz na batida <span id="v_fxFlash"></span></label>
+      <input type="range" id="fxFlash" min="0" max="1" step="0.01" value="0.35" data-d="2"></div>
+    <div class="row"><label>Ondas (anéis) a cada kick <span id="v_fxRings"></span></label>
+      <input type="range" id="fxRings" min="0" max="1" step="0.01" value="0.4" data-d="2"></div>
+    <div class="row"><label>Barras de espectro <span id="v_fxBars"></span></label>
+      <input type="range" id="fxBars" min="0" max="1" step="0.01" value="0" data-d="2"></div>
+    <div class="row"><label>Vinheta <span id="v_fxVig"></span></label>
+      <input type="range" id="fxVig" min="0" max="1" step="0.01" value="0.4" data-d="2"></div>
+    <div class="row"><label>Linhas de TV (scanlines) <span id="v_fxScan"></span></label>
+      <input type="range" id="fxScan" min="0" max="1" step="0.01" value="0" data-d="2"></div>
+    <div class="row"><label>Granulado (ruído) <span id="v_fxGrain"></span></label>
+      <input type="range" id="fxGrain" min="0" max="1" step="0.01" value="0" data-d="2"></div>
+    <div class="row"><label>Tremor da tela no kick <span id="v_fxShake"></span></label>
+      <input type="range" id="fxShake" min="0" max="30" step="1" value="0" data-u=" px"></div>
+  </details>
+
+  <details>
+    <summary>Outros</summary>
+    <div class="row"><button id="resetBtn">Restaurar padrões</button></div>
+  </details>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const panel = $('panel');
+
+  // ---------- salvar / restaurar ajustes (localStorage) ----------
+  const SKEY = 'logoPulseSettings2';
+  const saveable = [...panel.querySelectorAll('input[type=range],input[type=color],input[type=checkbox],select')]
+    .filter(el => el.id && el.id !== 'seek' && el.id !== 'micDev');
+  try {
+    const s = JSON.parse(localStorage.getItem(SKEY) || '{}');
+    saveable.forEach(el => {
+      if (!(el.id in s)) return;
+      if (el.type === 'checkbox') el.checked = !!s[el.id]; else el.value = s[el.id];
+    });
+  } catch (_) {}
+  function saveSettings() {
+    try {
+      const s = {};
+      saveable.forEach(el => { s[el.id] = el.type === 'checkbox' ? el.checked : el.value; });
+      localStorage.setItem(SKEY, JSON.stringify(s));
+    } catch (_) {}
+  }
+  panel.addEventListener('input', saveSettings);
+  panel.addEventListener('change', saveSettings);
+  $('resetBtn').addEventListener('click', () => {
+    try { localStorage.removeItem(SKEY); localStorage.removeItem('logoPulse'); } catch (_) {}
+    location.reload();
+  });
+
+  const world = $('world'), logo = $('logo'), flash = $('flash'), bar = $('bar'), statusEl = $('status');
+  const bgwrap = $('bgwrap'), bgbase = $('bgbase'), bgimg = $('bgimg');
+  const vig = $('vig'), scan = $('scan'), grain = $('grain');
+  const fxc = $('fx'), fxx = fxc.getContext('2d');
+  const params = {};
+
+  // ---------- logo ----------
+  const defaultLogo = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">' +
+    '<circle cx="100" cy="100" r="90" fill="#7c5cff"/>' +
+    '<path d="M60 100 L85 100 L100 60 L120 140 L135 100 L145 100" stroke="#fff" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '</svg>');
+  let originalSrc = null;
+  function setLogo(src) { originalSrc = src; applyLogo(); }
+
+  // Remove o fundo branco (e o branco da margem do adesivo) deixando transparente
+  function applyLogo() {
+    if (!originalSrc) return;
+    if (!$('rmwhite').checked) { logo.src = originalSrc; return; }
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      const x = c.getContext('2d');
+      x.drawImage(img, 0, 0);
+      const d = x.getImageData(0, 0, c.width, c.height);
+      const t = parseInt($('white').value, 10), p = d.data;
+      for (let i = 0; i < p.length; i += 4) {
+        const m = Math.min(p[i], p[i+1], p[i+2]);
+        if (m >= t) p[i+3] = 0;
+        else if (m >= t - 25) p[i+3] = Math.round(p[i+3] * (t - m) / 25);
+      }
+      x.putImageData(d, 0, 0);
+      logo.src = c.toDataURL('image/png');
+    };
+    img.src = originalSrc;
+  }
+
+  $('logoFile').addEventListener('change', e => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      setLogo(r.result);
+      try { localStorage.setItem('logoPulse', r.result); } catch (_) {}
+    };
+    r.readAsDataURL(f);
+  });
+  $('rmwhite').addEventListener('change', applyLogo);
+
+  // ---------- fundo ----------
+  let bgImgData = null;
+  function applyBg() {
+    bgbase.style.background = $('bgGrad').checked
+      ? `linear-gradient(${params.bgAngle}deg, ${$('bgc1').value}, ${$('bgc2').value})`
+      : $('bgc1').value;
+    bgimg.style.backgroundImage = bgImgData ? `url("${bgImgData}")` : 'none';
+    bgimg.style.backgroundSize = $('bgFit').value;
+    bgimg.style.opacity = params.bgImgOpacity;
+    bgimg.style.filter = `blur(${params.bgBlur}px) brightness(${params.bgDim}%)`;
+  }
+  // a foto fica guardada no IndexedDB (aguenta imagens grandes; o localStorage não)
+  const idb = {
+    open() {
+      return new Promise((res, rej) => {
+        const q = indexedDB.open('logoPulse', 1);
+        q.onupgradeneeded = () => q.result.createObjectStore('kv');
+        q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error);
+      });
+    },
+    async get(k) {
+      const db = await this.open();
+      return new Promise((res, rej) => { const r = db.transaction('kv').objectStore('kv').get(k); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+    },
+    async set(k, v) {
+      const db = await this.open();
+      return new Promise((res, rej) => {
+        const st = db.transaction('kv', 'readwrite').objectStore('kv');
+        const r = v == null ? st.delete(k) : st.put(v, k);
+        r.onsuccess = () => res(); r.onerror = () => rej(r.error);
+      });
+    }
+  };
+  function setBgImage(f) {
+    if (!f || !f.type.startsWith('image/')) return;
+    const r = new FileReader();
+    r.onload = () => {
+      bgImgData = r.result; applyBg();
+      try { idb.set('bg', bgImgData).catch(() => {}); } catch (_) {}
+    };
+    r.readAsDataURL(f);
+  }
+  $('bgImgFile').addEventListener('change', e => { setBgImage(e.target.files[0]); e.target.value = ''; });
+  $('bgImgClear').addEventListener('click', () => {
+    bgImgData = null; applyBg();
+    try { idb.set('bg', null).catch(() => {}); } catch (_) {}
+  });
+  try { idb.get('bg').then(v => { if (v) { bgImgData = v; applyBg(); } }).catch(() => {}); } catch (_) {}
+  addEventListener('dragover', e => e.preventDefault());
+  addEventListener('drop', e => {
+    e.preventDefault();
+    const f = e.dataTransfer && e.dataTransfer.files[0];
+    if (!f) return;
+    if (f.type.startsWith('image/')) setBgImage(f);
+    else if (f.type.startsWith('audio/')) loadAudioFile(f);
+  });
+  addEventListener('paste', e => {
+    const it = [...(e.clipboardData ? e.clipboardData.items : [])].find(i => i.type.startsWith('image/'));
+    if (it) setBgImage(it.getAsFile());
+  });
+  ['bgc1', 'bgc2', 'bgGrad', 'bgFit'].forEach(id => $(id).addEventListener('input', applyBg));
+
+  // ---------- granulado (SVG de ruído) ----------
+  const grainSvg = "<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'>" +
+    "<filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/></filter>" +
+    "<rect width='100%' height='100%' filter='url(#n)'/></svg>";
+  grain.style.backgroundImage = 'url("data:image/svg+xml;utf8,' + encodeURIComponent(grainSvg) + '")';
+
+  // ---------- controles (sliders) ----------
+  function onParam(id) {
+    if (id === 'size') logo.style.width = params.size + 'vmin';
+    else if (id === 'white') applyLogo();
+    else if (id.startsWith('bg')) applyBg();
+    else if (id === 'fxVig') vig.style.opacity = params.fxVig;
+    else if (id === 'fxScan') scan.style.opacity = params.fxScan;
+    else if (id === 'fxGrain') grain.style.opacity = params.fxGrain;
+  }
+  saveable.filter(el => el.type === 'range').forEach(el => {
+    const upd = () => {
+      params[el.id] = parseFloat(el.value);
+      const lab = $('v_' + el.id);
+      if (lab) lab.textContent = params[el.id].toFixed(+(el.dataset.d || 0)) + (el.dataset.u || '');
+      onParam(el.id);
+    };
+    el.addEventListener('input', upd); upd();
+  });
+
+  params.color = $('color').value;
+  document.documentElement.style.setProperty('--accent', params.color);
+  $('color').addEventListener('input', e => {
+    params.color = e.target.value;
+    document.documentElement.style.setProperty('--accent', params.color);
+  });
+
+  try { setLogo(localStorage.getItem('logoPulse') || defaultLogo); } catch (_) { setLogo(defaultLogo); }
+  applyBg();
+
+  // roda do mouse = tamanho da logo
+  world.addEventListener('wheel', e => {
+    e.preventDefault();
+    const el = $('size');
+    el.value = Math.max(10, Math.min(150, parseFloat(el.value) - Math.sign(e.deltaY) * 3));
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }, { passive: false });
+
+  // ---------- áudio ----------
+  let ctx, analyser, fdata, tdata, source, currentStream, hp, inGainNode, mode = 'file';
+  function ensureCtx() {
+    if (ctx) return;
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = ctx.createAnalyser();
+    analyser.fftSize = 2048;
+    analyser.smoothingTimeConstant = 0;   // sem suavização: preserva o ataque do kick
+    // entrada externa (microfone / som do PC): filtro anti-ruído grave + ganho -> analisador
+    hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 25;
+    inGainNode = ctx.createGain(); inGainNode.gain.value = 1;
+    hp.connect(inGainNode); inGainNode.connect(analyser);
+    fdata = new Float32Array(analyser.frequencyBinCount);
+    tdata = new Float32Array(analyser.fftSize);
+  }
+  function disconnectSource() {
+    if (source) { try { source.disconnect(); } catch (_) {} }
+    if (currentStream) { currentStream.getTracks().forEach(t => t.stop()); currentStream = null; }
+    source = null;
+  }
+  function setActive(btn) {
+    ['micBtn', 'screenBtn'].forEach(id => $(id).classList.remove('on'));
+    if (btn) $(btn).classList.add('on');
+  }
+
+  // Música em arquivo (decodifica na memória e toca pela Web Audio API)
+  let buf = null, bsrc = null, startedAt = 0, offset = 0, playing = false;
+  const fmt = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+
+  function stopBuf(keep) {
+    if (bsrc) {
+      bsrc.onended = null;
+      try { bsrc.stop(); } catch (_) {}
+      try { bsrc.disconnect(); } catch (_) {}
+      bsrc = null;
+    }
+    if (playing && keep && buf) offset = Math.min(buf.duration, ctx.currentTime - startedAt);
+    playing = false;
+    $('playBtn').textContent = '▶';
+  }
+  function playBuf() {
+    if (!buf) return;
+    ctx.resume();
+    stopBuf(false);
+    bsrc = ctx.createBufferSource();
+    bsrc.buffer = buf;
+    bsrc.connect(analyser);
+    analyser.connect(ctx.destination);
+    startedAt = ctx.currentTime - offset;
+    bsrc.start(0, offset);
+    playing = true;
+    $('playBtn').textContent = '⏸';
+    bsrc.onended = () => { if (playing) { playing = false; offset = 0; $('playBtn').textContent = '▶'; } };
+  }
+  const player = {
+    pause() { stopBuf(true); },
+    set hidden(v) { $('playerBox').style.display = v ? 'none' : 'flex'; }
+  };
+
+  $('playBtn').addEventListener('click', () => { if (playing) stopBuf(true); else playBuf(); });
+  $('seek').addEventListener('input', () => {
+    if (!buf) return;
+    offset = $('seek').value / 1000 * buf.duration;
+    if (playing) playBuf();
+  });
+  setInterval(() => {
+    if (!buf) return;
+    const pos = playing ? Math.min(buf.duration, ctx.currentTime - startedAt) : offset;
+    if (document.activeElement !== $('seek')) $('seek').value = Math.round(pos / buf.duration * 1000);
+    $('tm').textContent = fmt(pos);
+  }, 250);
+
+  async function loadAudioFile(f) {
+    ensureCtx(); await ctx.resume();
+    disconnectSource(); setActive(null); mode = 'file';
+    stopBuf(false);
+    statusEl.textContent = 'Carregando ' + f.name + '…';
+    try {
+      const ab = await f.arrayBuffer();
+      buf = await ctx.decodeAudioData(ab);
+      offset = 0;
+      player.hidden = false;
+      playBuf();
+      statusEl.textContent = 'Tocando: ' + f.name;
+    } catch (err) {
+      statusEl.textContent = 'Não consegui ler esse áudio: ' + err.message;
+    }
+  }
+  $('audioFile').addEventListener('change', e => { if (e.target.files[0]) loadAudioFile(e.target.files[0]); });
+
+  $('calBtn').addEventListener('click', () => {
+    if (!analyser) { statusEl.textContent = 'Primeiro clique em “Ouvir pelo microfone”.'; return; }
+    calMax = 0; calUntil = performance.now() + 2500;
+    statusEl.textContent = 'Calibrando… deixe o ambiente em silêncio por 2 segundos.';
+  });
+
+  // Microfone / entrada de linha (som de outro aparelho)
+  async function fillDevices() {
+    try {
+      const sel = $('micDev');
+      const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput');
+      const tr = currentStream && currentStream.getAudioTracks()[0];
+      const cur = tr ? (tr.getSettings().deviceId || '') : sel.value;
+      sel.innerHTML = '<option value="">Padrão do sistema</option>' + devs
+        .filter(d => d.deviceId && d.deviceId !== 'default' && d.deviceId !== 'communications')
+        .map((d, n) => `<option value="${d.deviceId}">${(d.label || 'Entrada ' + (n + 1)).replace(/</g, '&lt;')}</option>`).join('');
+      if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+    } catch (_) {}
+  }
+  async function startMic(deviceId) {
+    try {
+      ensureCtx(); await ctx.resume();
+      player.pause(); player.hidden = true;
+      disconnectSource();
+      try { analyser.disconnect(ctx.destination); } catch (_) {}
+      const audio = { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2 };
+      if (deviceId) audio.deviceId = { exact: deviceId };
+      currentStream = await navigator.mediaDevices.getUserMedia({ audio });
+      source = ctx.createMediaStreamSource(currentStream);
+      source.connect(hp);
+      mode = 'mic';
+      setActive('micBtn');
+      statusEl.textContent = 'Ouvindo o som do ambiente… aproxime o PC da fonte ou aumente o ganho.';
+      fillDevices();
+    } catch (err) {
+      statusEl.textContent = 'Não consegui acessar a entrada de áudio: ' + err.message;
+    }
+  }
+  $('micBtn').addEventListener('click', () => startMic($('micDev').value || undefined));
+  $('micDev').addEventListener('change', () => startMic($('micDev').value || undefined));
+  try { navigator.mediaDevices.addEventListener('devicechange', fillDevices); } catch (_) {}
+
+  // Áudio do computador (compartilhar aba/tela com áudio)
+  $('screenBtn').addEventListener('click', async () => {
+    try {
+      ensureCtx(); await ctx.resume();
+      player.pause(); player.hidden = true;
+      disconnectSource();
+      try { analyser.disconnect(ctx.destination); } catch (_) {}
+      const s = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: 1 },
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+        systemAudio: 'include', selfBrowserSurface: 'exclude' });
+      if (!s.getAudioTracks().length) {
+        s.getTracks().forEach(t => t.stop());
+        statusEl.textContent = 'Nenhum áudio compartilhado. Marque "Compartilhar áudio da aba/sistema".';
+        return;
+      }
+      currentStream = s;
+      source = ctx.createMediaStreamSource(new MediaStream(s.getAudioTracks()));
+      source.connect(hp);
+      mode = 'pc';
+      setActive('screenBtn');
+      statusEl.textContent = 'Captando o som do PC. Toque qualquer coisa.';
+      s.getAudioTracks()[0].addEventListener('ended', () => {
+        if (currentStream === s) {
+          setActive(null);
+          statusEl.textContent = 'A captura foi encerrada. Clique em “Captar som do PC” para voltar.';
+        }
+      });
+    } catch (err) {
+      statusEl.textContent = 'Captura cancelada ou indisponível: ' + err.message;
+    }
+  });
+
+  // ---------- detecção de KICK (onset no grave) + BPM ----------
+  // Mede a energia nas faixas graves (espectro, não a onda) e dispara um pulso quando ela
+  // SOBE de repente em relação à média recente: o ataque do bumbo.
+  // O BPM é estimado pelos intervalos entre kicks (dobrados/divididos para cair na faixa
+  // BPM mínimo–máximo). Com o andamento travado, o detector fica mais sensível perto das
+  // batidas previstas e mais exigente fora delas.
+  const hist = [], HN = 90;
+  let prevE = 0, lastKick = -1e9, kEnv = 0, waveEnv = 0, wref = 0.05, presence = 0;
+  let beatPeriod = 0, locked = false, lastBpmShow = 0;
+  const ivals = [];
+  const rings = [];
+  let lastT = performance.now(), frameN = 0, ePeak = 0, calUntil = 0, calMax = 0;
+  const bpmAutoEl = $('bpmAuto');
+
+  function bassEnergy() {
+    if (!analyser) return 0;
+    analyser.getFloatFrequencyData(fdata);
+    const binHz = ctx.sampleRate / analyser.fftSize;
+    const lo = Math.max(1, Math.floor(30 / binHz));
+    const hi = Math.max(lo + 1, Math.ceil(params.cut / binHz));
+    let s = 0;
+    for (let i = lo; i <= hi; i++) {
+      const db = fdata[i];
+      s += isFinite(db) ? Math.pow(10, db / 20) : 0;
+    }
+    return s / (hi - lo + 1);
+  }
+
+  function learnInterval(iv, bpmMin, bpmMax) {
+    const lo = 60000 / (bpmMax * 1.07), hi = 60000 / (bpmMin * 0.93);
+    for (const m of [1, 0.5, 2]) {
+      const x = iv * m;
+      if (x >= lo && x <= hi) {
+        ivals.push(x);
+        if (ivals.length > 12) ivals.shift();
+        if (ivals.length >= 4) {
+          const s = [...ivals].sort((a, b) => a - b);
+          beatPeriod = s[s.length >> 1];
+          locked = true;
+        }
+        break;
+      }
+    }
+  }
+
+  function hexA(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${Math.max(0, Math.min(1, a)).toFixed(3)})`;
+  }
+
+  function resizeFx() { fxc.width = innerWidth; fxc.height = innerHeight; }
+  addEventListener('resize', resizeFx); resizeFx();
+
+  function drawFx(now, W, H) {
+    fxx.clearRect(0, 0, W, H);
+    // anéis a cada kick
+    if (params.fxRings > 0) {
+      const r0 = Math.min(W, H) * params.size / 100 * 0.5;
+      const rMax = Math.max(W, H) * 0.75, dur = 900;
+      for (let i = rings.length - 1; i >= 0; i--) {
+        const p = (now - rings[i].t) / dur;
+        if (p >= 1) { rings.splice(i, 1); continue; }
+        const r = r0 + (rMax - r0) * (1 - Math.pow(1 - p, 2));
+        fxx.beginPath();
+        fxx.arc(W / 2, H / 2, r, 0, Math.PI * 2);
+        fxx.lineWidth = 2 + 7 * (1 - p) * rings[i].s;
+        fxx.strokeStyle = hexA(params.color, Math.pow(1 - p, 1.5) * rings[i].s * params.fxRings);
+        fxx.stroke();
+      }
+    } else rings.length = 0;
+    // barras de espectro
+    if (params.fxBars > 0 && analyser) {
+      const binHz = ctx.sampleRate / analyser.fftSize;
+      const maxBin = Math.max(8, Math.floor(12000 / binHz));
+      const n = 56, bw = W / n;
+      fxx.fillStyle = hexA(params.color, params.fxBars);
+      for (let i = 0; i < n; i++) {
+        const a = Math.floor(1 + (maxBin - 1) * Math.pow(i / n, 2));
+        const b = Math.max(a + 1, Math.floor(1 + (maxBin - 1) * Math.pow((i + 1) / n, 2)));
+        let m = -200;
+        for (let j = a; j < b; j++) if (fdata[j] > m) m = fdata[j];
+        const lvl = Math.pow(Math.max(0, Math.min(1, (m + 95) / 65)), 1.3);
+        const bh = lvl * H * 0.35;
+        fxx.fillRect(i * bw + 1, H - bh, bw - 2, bh);
+      }
+    }
+  }
+
+  function frame() {
+    const now = performance.now();
+    const dt = Math.min(0.1, (now - lastT) / 1000);
+    lastT = now; frameN++;
+    const W = innerWidth, H = innerHeight;
+    const auto = bpmAutoEl.checked;
+    const bpmMin = auto ? 80 : Math.min(params.bpmMin, params.bpmMax);
+    const bpmMax = auto ? 200 : Math.max(params.bpmMin, params.bpmMax);
+
+    // ----- estatística do grave e detecção de kick -----
+    const e = bassEnergy();
+    ePeak = Math.max(e, ePeak * Math.exp(-dt / 8));
+    let avg = 0, vr = 0;
+    for (let i = 0; i < hist.length; i++) avg += hist[i];
+    avg /= (hist.length || 1);
+    for (let i = 0; i < hist.length; i++) vr += (hist[i] - avg) * (hist[i] - avg);
+    const std = Math.sqrt(vr / (hist.length || 1));
+
+    // sensibilidade maior => limiar mais baixo => pega kicks mais fracos
+    const k = Math.max(0.3, 2.6 - 0.7 * params.sens);
+    let kEff = k;
+    if (locked) {   // andamento travado: mais sensível perto da batida prevista
+      const d = (now - lastKick) % beatPeriod;
+      kEff = Math.min(d, beatPeriod - d) < 0.14 * beatPeriod ? k * 0.65 : k * 1.1;
+    }
+    const thr = avg + kEff * std;
+    const minGap = 60000 / bpmMax * 0.45;   // ~170 ms a 160 BPM
+
+    if (hist.length > 20 &&
+        e > thr &&
+        e > prevE &&                // ainda subindo = começo do ataque
+        e > avg * (presence < 0.5 ? 2 : 1.25) &&   // salto claro (maior exigência se o kick sumiu)
+        e > Math.max(1e-3, 0.08 * ePeak) &&   // ignora silêncio (relativo ao volume)
+        now - lastKick > minGap) {
+      const iv = now - lastKick;
+      lastKick = now;
+      if (iv < 4000) learnInterval(iv, bpmMin, bpmMax);
+      const strength = Math.min(1, Math.max(0.5, 0.5 + (e / avg - 1) * 0.35));
+      kEnv = Math.max(kEnv, strength);
+      rings.push({ t: now, s: strength });
+    }
+    hist.push(e);
+    if (hist.length > HN) hist.shift();
+    prevE = e;
+
+    if (locked && now - lastKick > 3000) { locked = false; ivals.length = 0; beatPeriod = 0; }
+
+    // decaimento exponencial do pulso do kick (independe da taxa de quadros)
+    kEnv *= Math.exp(-dt / Math.max(0.01, params.rel));
+
+    // ----- envelope da onda (pico do sinal), usado quando não há kick -----
+    let pk = 0;
+    if (analyser) {
+      analyser.getFloatTimeDomainData(tdata);
+      for (let i = 0; i < tdata.length; i++) { const a = Math.abs(tdata[i]); if (a > pk) pk = a; }
+    }
+    if (calUntil) {   // calibração do ruído de ambiente
+      if (now < calUntil) calMax = Math.max(calMax, pk);
+      else {
+        calUntil = 0;
+        const el = $('gate');
+        el.value = Math.min(0.2, Math.ceil(calMax * 1.3 / 0.005) * 0.005);
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        statusEl.textContent = 'Ruído calibrado: corte em ' + parseFloat(el.value).toFixed(3) + '. Pode tocar o som.';
+      }
+    }
+    const gate = params.gate || 0;
+    wref = Math.max(pk, wref * Math.exp(-dt / 4), gate * 3 + 0.02);   // ganho automático (~4 s)
+    const wv = pk <= gate ? 0 : Math.pow(Math.min(1, (pk - gate) / (wref - gate)), 2);
+    if (inGainNode) inGainNode.gain.value = mode === 'mic' ? params.inGain : 1;
+    if (frameN % 3 === 0) {
+      const lv = Math.max(0, Math.min(1, (20 * Math.log10(Math.max(pk, 1e-5)) + 60) / 60));
+      $('inbar').style.width = (lv * 100).toFixed(0) + '%';
+      $('inbar').style.background = pk > 0.97 ? '#ff4d4d' : '#3ddc84';
+      if (frameN % 15 === 0) $('inlvl').textContent = 'Nível de entrada: ' +
+        (pk > 0.97 ? 'ALTO DEMAIS (diminua o ganho)' : pk < 0.004 ? 'muito baixo (aumente o ganho ou aproxime da fonte)' : 'bom');
+    }
+    const wk = wv > waveEnv ? 1 - Math.exp(-dt / 0.012) : 1 - Math.exp(-dt / Math.max(0.02, params.rel * 0.8));
+    waveEnv += (wv - waveEnv) * wk;
+
+    // ----- presença de kick: 1 enquanto os kicks estão chegando, 0 quando somem -----
+    const period = locked ? beatPeriod : 60000 / ((bpmMin + bpmMax) / 2);
+    const target = (now - lastKick) < period * 1.6 ? 1 : 0;
+    presence += (target - presence) * (1 - Math.exp(-dt / (target > presence ? 0.04 : 0.3)));
+
+    // com kick: exatamente o pulso do kick; sem kick: segue o pico da onda
+    const kickPart = presence * kEnv;
+    const v = kickPart + (1 - presence) * waveEnv * params.wave;
+
+    // ----- aplicar na logo -----
+    logo.style.transform = `scale(${(1 + v * params.amount).toFixed(4)})`;
+    const g = v * params.glow;
+    let filt = '';
+    if (params.chroma > 0) {
+      const ch = (v * params.chroma).toFixed(1);
+      filt += `drop-shadow(${ch}px 0 0 rgba(255,0,70,${(0.85 * v).toFixed(3)})) ` +
+              `drop-shadow(-${ch}px 0 0 rgba(0,230,255,${(0.85 * v).toFixed(3)})) `;
+    }
+    filt += `drop-shadow(0 0 ${Math.round(10 + g * 60)}px ${hexA(params.color, g)})`;
+    logo.style.filter = filt;
+
+    // ----- fundo -----
+    bgwrap.style.transform = `scale(${(1 + v * params.bgPulse).toFixed(4)})`;
+    const hue = ((now / 1000) * params.bgHue) % 360;
+    bgwrap.style.filter = `hue-rotate(${hue.toFixed(1)}deg) brightness(${(1 + v * params.bgFlash).toFixed(3)})`;
+
+    // ----- efeitos de tela -----
+    flash.style.opacity = (v * params.fxFlash).toFixed(3);
+    if (params.fxShake > 0) {
+      const s = kickPart * params.fxShake;
+      world.style.transform = `translate(${((Math.random() * 2 - 1) * s).toFixed(1)}px,${((Math.random() * 2 - 1) * s).toFixed(1)}px)`;
+    } else if (world.style.transform) world.style.transform = '';
+    if (params.fxGrain > 0 && frameN % 2 === 0) {
+      grain.style.transform = `translate(${(Math.random() * 120 - 60) | 0}px,${(Math.random() * 120 - 60) | 0}px)`;
+    }
+    drawFx(now, W, H);
+
+    bar.style.width = (Math.min(1, v) * 100).toFixed(0) + '%';
+    if (now - lastBpmShow > 300) {
+      lastBpmShow = now;
+      $('bpm').textContent = locked ? 'BPM ≈ ' + Math.round(60000 / beatPeriod) + ' (kicks travados)'
+        : (presence > 0.5 ? 'BPM: analisando…' : 'BPM: — (sem kick → seguindo a onda)');
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // Atalhos
+  addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (e.key.toLowerCase() === 'h') panel.classList.toggle('hidden');
+    if (e.key.toLowerCase() === 'f') {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else document.documentElement.requestFullscreen();
+    }
+  });
+})();
+</script>
+</body>
+</html>
