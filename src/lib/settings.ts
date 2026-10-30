@@ -38,8 +38,8 @@ export const VISUAL = {
   kaleido: 0, kaleidoN: 6, kaleidoSpin: 0.2, kaleidoZoom: 1, kaleidoMirror: true,
   tunnel: 0, tunnelSpeed: 0.5, tunnelDensity: 0.5,
   mandala: 0, mandalaPetals: 8,
-  psyQuality: 1, // 0 baixa · 1 média · 2 alta: amostras/iterações por pixel dos módulos
   // saída / operação (fora das cenas)
+  psyQuality: 1, // 0 baixa · 1 média · 2 alta: amostras/iterações por pixel dos módulos do Psy Engine
   renderScale: 1, blackout: false, logoOnly: false,
   react: true, // false = "só roteiro": o visual muda só nos pontos marcados, sem reagir ao som
   safeFlash: true, // limita strobe/flash a 3 por segundo (fotossensibilidade); fora das cenas, ligado por padrão
@@ -65,7 +65,7 @@ export function saveVisual(v: Visual) {
 
 // ---------- cenas ----------
 // Uma cena é o "visual" sem os ajustes de operação (sincronia, desempenho, blackout, recorte da logo).
-const NOT_IN_SCENE = ['renderScale', 'offset', 'predict', 'blackout', 'logoOnly', 'rmWhite', 'white', 'react', 'safeFlash'] as const;
+const NOT_IN_SCENE = ['renderScale', 'psyQuality', 'offset', 'predict', 'blackout', 'logoOnly', 'rmWhite', 'white', 'react', 'safeFlash'] as const;
 export type Look = Omit<Visual, (typeof NOT_IN_SCENE)[number]>;
 export type Scene = { name: string; look: Look } | null;
 
