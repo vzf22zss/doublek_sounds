@@ -13,6 +13,7 @@
   import { Renderer } from '../render/renderer';
   import { VISUAL, loadVisual, saveVisual } from '../lib/settings';
   import { SAFE_LOOK, strobeRate } from '../lib/safety';
+  import { createDispatcher, fromTarget, startMacro, type Handlers, type MacroId, type MacroRun, type ShowCommand, type Source } from '../lib/commands';
   import { addVideo, assetSync, imageColors, listVideos, removeVideo, setAsset, videoColors } from '../lib/assets';
   import { load as storeLoad, save as storeSave, shaped } from '../lib/store';
   import { getVersion } from '@tauri-apps/api/app';
@@ -152,10 +153,82 @@
   const listen = () => invoke('start_input', { device: s.device || null, channel: +s.channel });
   const beat = (cmd: unknown) => invoke('beat', { cmd });
 
+  // ---------- comandos (DK-042 / ADR 0003) ----------
+  // Teclado, MIDI, botões e roteiro passam todos por `dispatch(cmd, fonte)`: validação, fontes de rede recusadas,
+  // BLACKOUT/PÂNICO na frente, override manual (automação espera 8 s depois de o DJ mexer) e histórico no Diagnóstico.
+  const handlers: Handlers = {
+    TAP: () => beat('tap'),
+    TEMPO_HALF: () => beat('half'),
+    TEMPO_DOUBLE: () => beat('double'),
+    NUDGE: (c) => beat({ nudge: c.ms / 1000 }),
+    BLACKOUT: (c) => (vs.blackout = c.on ?? !vs.blackout),
+    LOGO_ONLY: (c) => (vs.logoOnly = c.on ?? !vs.logoOnly),
+    // PÂNICO: para o roteiro e as macros e volta a um visual calmo na hora; separado do BLACKOUT, que só apaga
+    PANIC: () => {
+      stopMacro();
+      roteiroStop();
+      Object.assign(vs, SAFE_LOOK, { blackout: false, logoOnly: false, react: true, safeFlash: true });
+      status = 'PÂNICO: roteiro parado, strobe/flash/tremor/aberração/rastro zerados.';
+      log('warn', status);
+    },
+    SCENE_RECALL: (c) => { stopMacro(); perf.recall(c.index, c.fade, c.now); },
+    SCENE_SAVE: (c) => perf.saveScene(c.index),
+    BANK_STEP: (c) => perf.stepBankBy(c.delta), // DK-041: os pads c:0..7 agem no banco ativo
+    BANK_SET: (c) => perf.setBank(c.index),
+    SET_PARAMETER: (c) => ((vs as any)[c.key] = c.value),
+    ROTEIRO_GO: () => (rt.running && rt.source === 'app' ? roteiroPause() : roteiroPlay()),
+    ROTEIRO_STOP: () => roteiroStop(),
+    ROTEIRO_NUDGE: (c) => roteiroNudge(c.beats),
+    ROTEIRO_AB: () => toggleSound(),
+    MACRO: (c) => runMacro(c.id),
+    // AUTOMATION_MODE: sem handler até existir automação (DK-030/040); o dispatcher responde "sem efeito"
+  };
+  const commands = createDispatcher(handlers);
+  /** Entrada única de comandos. Recusa de quem está operando vai para a linha de status; do roteiro, para o diário. */
+  function dispatch(c: ShowCommand, source: Source) {
+    const r = commands.dispatch(c, source);
+    if (!r.ok) {
+      if (source === 'roteiro' || source === 'automation') log('warn', `comando ${c.type} (${source}) recusado: ${r.reason}`);
+      else status = 'Comando recusado: ' + r.reason;
+    }
+    return r;
+  }
+  if ((import.meta as { env?: { DEV?: boolean } }).env?.DEV) (window as any).__dispatch = dispatch; // testes no mock (só no `vite` de desenvolvimento)
+
+  // ---------- macros: curvas puras em lib/commands; aqui só aplica a cada quadro, no tempo do BPM ----------
+  let macroId = $state<MacroId | null>(null);
+  let macroRun: MacroRun | null = null, macroT0 = 0, macroBpm = 120, macroRaf = 0;
+  function stopMacro() {
+    cancelAnimationFrame(macroRaf);
+    macroRun = null;
+    macroId = null;
+  }
+  function runMacro(id: MacroId) {
+    stopMacro();
+    if (id === 'RESET') { // = PÂNICO sem parar o roteiro
+      Object.assign(vs, SAFE_LOOK, { blackout: false, logoOnly: false, safeFlash: true });
+      status = 'RESET: strobe/flash/tremor/aberração/rastro zerados; o roteiro continua.';
+      return;
+    }
+    macroRun = startMacro(id, $state.snapshot(vs) as unknown as Record<string, number>, vs.safeFlash);
+    macroId = id;
+    macroT0 = performance.now();
+    macroBpm = frame?.bpm || 120; // sem BPM ao vivo: 120
+    const step = () => {
+      if (!macroRun) return;
+      const r = macroRun.update(((performance.now() - macroT0) / 1000) * (macroBpm / 60));
+      Object.assign(vs, r.set);
+      if (r.done) stopMacro();
+      else macroRaf = requestAnimationFrame(step);
+    };
+    step();
+  }
+
   // ---------- roteiro ----------
   attachRoteiro({
     vs: () => vs,
-    recall: (i, fade, now) => perf?.recall(i, fade, now),
+    // cenas do roteiro passam pelo dispatcher (fonte 'roteiro'); efeitos, vídeo e knobs ainda escrevem em `vs` direto
+    recall: (i, fade, now) => void dispatch({ type: 'SCENE_RECALL', index: i, fade: Math.min(32, Math.max(0, fade)), now }, 'roteiro'),
     status: (m) => (status = m),
     listen: () => listen(),
     range: () => RANGES[s.range] ?? RANGES.Auto,
@@ -163,31 +236,6 @@
   $effect(() => saveRoteiros($state.snapshot(rt.list)));
 
   // ---------- MIDI ----------
-  const ACTIONS: Record<string, () => void> = {
-    tap: () => beat('tap'),
-    half: () => beat('half'),
-    double: () => beat('double'),
-    'nudge-': () => beat({ nudge: -0.005 }),
-    'nudge+': () => beat({ nudge: 0.005 }),
-    blackout: () => (vs.blackout = !vs.blackout),
-    // PÂNICO: para o roteiro e volta a um visual calmo na hora; separado do BLACKOUT, que só apaga
-    panic: () => {
-      roteiroStop();
-      Object.assign(vs, SAFE_LOOK, { blackout: false, logoOnly: false, react: true, safeFlash: true });
-      status = 'PÂNICO: roteiro parado, strobe/flash/tremor/aberração/rastro zerados.';
-      log('warn', status);
-    },
-    logoOnly: () => (vs.logoOnly = !vs.logoOnly),
-    go: () => (rt.running && rt.source === 'app' ? roteiroPause() : roteiroPlay()),
-    stop: () => roteiroStop(),
-    ab: () => toggleSound(),
-    'beat-': () => roteiroNudge(-1),
-    'beat+': () => roteiroNudge(1),
-    'bar-': () => roteiroNudge(-4),
-    'bar+': () => roteiroNudge(4),
-    'bank-': () => perf.stepBankBy(-1), // DK-041: os pads c:0..7 agem no banco ativo
-    'bank+': () => perf.stepBankBy(1),
-  };
   const lastVal = new Map<string, number>();
 
   function onMidi(m: MidiMsg) {
@@ -203,18 +251,16 @@
     }
     const t = midi.map[key];
     if (!t) return;
-    const [kind, name] = t.id.split(':');
-    if (kind === 'v') {
-      if (m.kind !== 'cc' || t.min === undefined || t.max === undefined) return;
-      const x = t.min + (m.val / 127) * (t.max - t.min), st = t.step ?? 0.01;
-      (vs as any)[name] = +(Math.round(x / st) * st).toFixed(6);
+    // mapas salvos antes do dispatcher (a:<ação>, v:<ajuste>, c:<pad>) seguem valendo: fromTarget converte
+    if (t.id.startsWith('v:')) {
+      const c = m.kind === 'cc' ? fromTarget(t, m.val) : null;
+      if (c) dispatch(c, 'midi');
       return;
     }
     // botões: nota = ao apertar; CC = quando passa de 63 (controladores mandam 127 ao apertar e 0 ao soltar)
     const press = m.kind === 'note' ? m.val > 0 : m.val > 63 && prev <= 63;
-    if (!press) return;
-    if (kind === 'c') perf.recall(+name);
-    else ACTIONS[name]?.();
+    const c = press ? fromTarget(t) : null;
+    if (c) dispatch(c, 'midi');
   }
 
   invoke<string[]>('midi_devices').then((d) => (midi.devices = d));
@@ -262,6 +308,7 @@
       output: { ...$state.snapshot(tel), open: fps > 0 },
       control: { maxFrameGapMs: Math.round(uiGap), jsHeapMB: mem ? Math.round(mem.usedJSHeapSize / 1048576) : null },
       visual: $state.snapshot(vs), roteiro: rt.cur ? { name: rt.list.find((r) => r.id === rt.cur)?.name, running: rt.running, mode: rt.mode, source: rt.source } : null,
+      commands: commands.history(),
       log: logEntries(),
     };
     const a = document.createElement('a');
@@ -350,23 +397,30 @@
     const tag = (e.target as HTMLElement).tagName;
     if (tag === 'SELECT' || (tag === 'INPUT' && (e.target as HTMLInputElement).type !== 'range' && (e.target as HTMLInputElement).type !== 'checkbox')) return;
     if (e.code === 'Escape' && midi.learning) { toggleLearn(); return; }
-    if (e.code === 'Space') { e.preventDefault(); beat('tap'); }
-    else if (e.code === 'ArrowLeft') { e.preventDefault(); beat({ nudge: -0.005 }); }
-    else if (e.code === 'ArrowRight') { e.preventDefault(); beat({ nudge: 0.005 }); }
-    else if (e.code === 'KeyB') vs.blackout = !vs.blackout;
-    else if (e.code === 'KeyL') vs.logoOnly = !vs.logoOnly;
-    else if (e.code === 'KeyP') ACTIONS.panic();
-    else if (e.code === 'KeyF') fps ? invoke('close_output') : project();
-    else if (/^Digit[1-8]$/.test(e.code)) perf.recall(+e.code.slice(5) - 1);
-    else if (e.code === 'KeyG') e.shiftKey ? ACTIONS.stop() : ACTIONS.go();
-    else if (e.code === 'KeyR') ACTIONS.ab();
-    else if (e.code === 'Comma') ACTIONS['beat-']();
-    else if (e.code === 'Period') ACTIONS['beat+']();
-    else if (e.code === 'Semicolon') ACTIONS['bar-']();
-    else if (e.code === 'Quote') ACTIONS['bar+']();
+    if (e.code === 'KeyF') { fps ? invoke('close_output') : project(); return; } // janela, não comando de show
+    if (e.code === 'Space' || e.code === 'ArrowLeft' || e.code === 'ArrowRight') e.preventDefault();
+    const c = keyCommand(e);
+    if (c) dispatch(c, 'keyboard');
+  }
+
+  function keyCommand(e: KeyboardEvent): ShowCommand | null {
+    if (e.code === 'Space') return { type: 'TAP' };
+    if (e.code === 'ArrowLeft') return { type: 'NUDGE', ms: -5 };
+    if (e.code === 'ArrowRight') return { type: 'NUDGE', ms: 5 };
+    if (e.code === 'KeyB') return { type: 'BLACKOUT' };
+    if (e.code === 'KeyL') return { type: 'LOGO_ONLY' };
+    if (e.code === 'KeyP') return { type: 'PANIC' };
+    if (/^Digit[1-8]$/.test(e.code)) return { type: 'SCENE_RECALL', index: +e.code.slice(5) - 1 };
+    if (e.code === 'KeyG') return { type: e.shiftKey ? 'ROTEIRO_STOP' : 'ROTEIRO_GO' };
+    if (e.code === 'KeyR') return { type: 'ROTEIRO_AB' };
+    if (e.code === 'Comma') return { type: 'ROTEIRO_NUDGE', beats: -1 };
+    if (e.code === 'Period') return { type: 'ROTEIRO_NUDGE', beats: 1 };
+    if (e.code === 'Semicolon') return { type: 'ROTEIRO_NUDGE', beats: -4 };
+    if (e.code === 'Quote') return { type: 'ROTEIRO_NUDGE', beats: 4 };
     // bancos: vale o caractere ([ e ] em qualquer layout, ex. ABNT2) e, se ele não for colchete, a posição física US
-    else if (e.key === '[' || (e.code === 'BracketLeft' && e.key !== ']')) ACTIONS['bank-']();
-    else if (e.key === ']' || (e.code === 'BracketRight' && e.key !== '[')) ACTIONS['bank+']();
+    if (e.key === '[' || (e.code === 'BracketLeft' && e.key !== ']')) return { type: 'BANK_STEP', delta: -1 };
+    if (e.key === ']' || (e.code === 'BracketRight' && e.key !== '[')) return { type: 'BANK_STEP', delta: 1 };
+    return null;
   }
 
   function beatInfo() {
@@ -424,11 +478,11 @@
     </div>
 
     <div class="group">
-      <button onclick={ACTIONS.tap} title="Espaço" use:learnable={{ id: 'a:tap', label: 'TAP' }}>TAP</button>
-      <button onclick={ACTIONS.half} title="Metade do BPM" use:learnable={{ id: 'a:half', label: '½ BPM' }}>½</button>
-      <button onclick={ACTIONS.double} title="Dobro do BPM" use:learnable={{ id: 'a:double', label: '×2 BPM' }}>×2</button>
-      <button onclick={ACTIONS['nudge-']} title="Adiantar 5 ms (←)" use:learnable={{ id: 'a:nudge-', label: 'Adiantar fase' }}>◀</button>
-      <button onclick={ACTIONS['nudge+']} title="Atrasar 5 ms (→)" use:learnable={{ id: 'a:nudge+', label: 'Atrasar fase' }}>▶</button>
+      <button onclick={() => dispatch({ type: 'TAP' }, 'ui')} title="Espaço" use:learnable={{ id: 'a:tap', label: 'TAP' }}>TAP</button>
+      <button onclick={() => dispatch({ type: 'TEMPO_HALF' }, 'ui')} title="Metade do BPM" use:learnable={{ id: 'a:half', label: '½ BPM' }}>½</button>
+      <button onclick={() => dispatch({ type: 'TEMPO_DOUBLE' }, 'ui')} title="Dobro do BPM" use:learnable={{ id: 'a:double', label: '×2 BPM' }}>×2</button>
+      <button onclick={() => dispatch({ type: 'NUDGE', ms: -5 }, 'ui')} title="Adiantar 5 ms (←)" use:learnable={{ id: 'a:nudge-', label: 'Adiantar fase' }}>◀</button>
+      <button onclick={() => dispatch({ type: 'NUDGE', ms: 5 }, 'ui')} title="Atrasar 5 ms (→)" use:learnable={{ id: 'a:nudge+', label: 'Atrasar fase' }}>▶</button>
     </div>
 
     <div class="group">
@@ -444,8 +498,8 @@
       <button class="midiBtn" class:on={midi.learning} onclick={toggleLearn} title="MIDI learn: mapear controles do controlador">
         <i class:lit={midiLit}></i>MIDI
       </button>
-      <button class="panic" onclick={ACTIONS.panic} title="P: para o roteiro e zera strobe, flash, tremor, aberração e rastro (não apaga o telão)" use:learnable={{ id: 'a:panic', label: 'PÂNICO' }}>PÂNICO</button>
-      <button class="black" class:on={vs.blackout} onclick={ACTIONS.blackout} title="B" use:learnable={{ id: 'a:blackout', label: 'BLACKOUT' }}>BLACKOUT</button>
+      <button class="panic" onclick={() => dispatch({ type: 'PANIC' }, 'ui')} title="P: para o roteiro e zera strobe, flash, tremor, aberração e rastro (não apaga o telão)" use:learnable={{ id: 'a:panic', label: 'PÂNICO' }}>PÂNICO</button>
+      <button class="black" class:on={vs.blackout} onclick={() => dispatch({ type: 'BLACKOUT' }, 'ui')} title="B" use:learnable={{ id: 'a:blackout', label: 'BLACKOUT' }}>BLACKOUT</button>
     </div>
   </header>
 
@@ -637,7 +691,7 @@
     </div>
   </aside>
 
-  <Performance bind:this={perf} bind:vs {beatInfo} onstatus={(m) => (status = m)} />
+  <Performance bind:this={perf} bind:vs {beatInfo} onstatus={(m) => (status = m)} cmd={(c) => dispatch(c, 'ui')} macro={macroId} />
 
   <footer class="status">
     <span>{status}</span>
