@@ -539,6 +539,8 @@ A **música** do roteiro é **opt-in** no pacote (direitos autorais e tamanho; D
 
 **Aceite:** blackout responde mesmo em transição, efeito intenso ou perda de áudio; modo reduzido não produz rajadas descontroladas.
 
+**Feito (2026-10-30):** política adotada = **WCAG 2.3.1 (≤ 3 flashes/s)** como referência, sem alegar certificação. `VISUAL.safeFlash` (padrão `true`, não entra nas cenas): strobe acende 1 em cada `ceil(bpm/60·div/3)` pulsos (`strobeEvery`) e fica ≤ 0,7; flash de tela ≤ 0,5. `safety.check.ts` varre 80–220 BPM × 3 subdivisões e garante a taxa ≤ 3 Hz. BLACKOUT: além do `uBlack` no shader, `body.black` no telão zera a opacidade do canvas por CSS em 80 ms — responde com WebGL perdido ou render travado, e a transição de cena nunca toca em `blackout` (teste em `settings.check.ts`). PÂNICO (`a:panic`, tecla P, MIDI-learnable): `roteiroStop()` + `SAFE_LOOK`; separado do BLACKOUT. UI: seção "Segurança visual" na aba Saída, taxa real de flashes sob o strobe, etiqueta BLACKOUT no preview. **Pendente:** validação com público e medição real no projetor (DK-141/DEC-02).
+
 ### DK-007 — Documentação, demonstração e testes com DJs — P1
 
 - README com proposta de valor, instalação, versão, requisitos mínimos e compatibilidade.
@@ -647,7 +649,7 @@ Audio Engine (Rust) ──► Music Features ──► Show Engine / Dispatcher
 - [x] **DK-003** Criar telemetria local, health indicators e teste longo inicial. — 2026-10-30, branch `feat/dk-003-telemetria`: `src/lib/telemetry.ts` (frametime p50/p95/p99, drops, diário de 200 eventos), telão emite `telemetry` 1×/s e sobrevive a perda/volta do contexto WebGL e a shader que não compila; controle mostra 4 bolinhas de saúde (áudio · BPM · MIDI · telão) e exporta **Diagnóstico** JSON sem áudio; motor avisa saída de áudio perdida. Mock: contexto perdido → bolinha vermelha + log → restaurado e renderer recriado. **Teste de 2 h e matriz de máquinas: NÃO VERIFICADO** (precisam do mantenedor; BASELINE §12).
 - [ ] **DK-004** Configurar CI, versionamento, licença pendente e plano de Release.
 - [x] **DK-005** Revisar CSP, permissões e regras de arquivo. — 2026-10-30, branch `feat/dk-005-seguranca`: CSP de produção (`default-src 'self'`, `img-src blob: data:`, `media-src blob:`, `connect-src ipc: http://ipc.localhost`, sem inline) + `devCsp`; estilos do telão saíram do HTML para `output.css`; `src/lib/limits.ts` (extensão/tipo/tamanho: imagem 25 MB, vídeo 600 MB, música 300 MB, JSON 2 MB) em todas as entradas de arquivo; Rust `track::check_upload`/`check_id` e teto de 20 min por faixa (antes e durante a decodificação); OSV/RustSec sobre o `Cargo.lock`: 3 avisos, nenhum aplicável ao Windows. Mock com a CSP injetada: nada recusado. **Confirmado no app real** (2026-10-30, WebView2 inspecionado pela porta de depuração): build de produção (`tauri build --no-bundle`) e modo dev (Vite) — IPC, lista de entradas/monitores, telão 1920×1080, telemetria; **nada recusado**. Único ruído era o `favicon.ico` automático (500 no protocolo de assets), silenciado com `<link rel="icon" href="data:,">`.
-- [ ] **DK-006** Fortalecer blackout e reduzir riscos de strobe.
+- [x] **DK-006** Fortalecer blackout e reduzir riscos de strobe. — 2026-10-30, branch `feat/dk-006-seguranca-visual`: `safeFlash` (ligado por padrão, fora das cenas) limita strobe a ≤ 3 flashes/s pulando pulsos (`src/lib/safety.ts`, provado para 80–220 BPM × 1/1, 1/2, 1/4) e o flash de tela a 50%; BLACKOUT também por CSS no telão (independente do WebGL); botão/tecla **PÂNICO (P)** para o roteiro e zera strobe/flash/tremor/aberração/rastro; aviso de fotossensibilidade na aba Saída e taxa real de flashes na aba Efeitos; etiqueta BLACKOUT no preview. Mock: P zera, B apaga o canvas por CSS e volta. **Com público/hardware: NÃO VERIFICADO.**
 - [ ] **DK-008** Criar suite inicial de áudio e métricas de latência.
 - [ ] **DK-141** Validar o roteiro com música real, saída de som e GO (hoje NÃO VERIFICADO).
 
@@ -740,10 +742,10 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 |---|---|
 | Última revisão do planejamento | 2026-10-30 (alinhado à v0.3.1) |
 | Commit/branch baseline validado | `main` @ `09a7677` (v0.3.1) — ver `docs/quality/BASELINE.md` |
-| Tarefa ativa | DK-141 (validação real, exige o mantenedor) · DK-006 (segurança visual/strobe) e DK-008 (benchmark de detecção) READY para o agente |
-| Marco ativo | M0 (faltam DK-004 restante, DK-006, DK-008, DK-141) |
-| Tarefas do roadmap marcadas | 4 (DK-001, DK-002, DK-003, DK-005) |
-| Tarefas concluídas | 4 |
+| Tarefa ativa | DK-141 (validação real, exige o mantenedor) · DK-008 (benchmark de detecção) READY para o agente · DK-004 restante (licença, governança, 1ª Release) com o mantenedor |
+| Marco ativo | M0 (faltam DK-004 restante, DK-008, DK-141) |
+| Tarefas do roadmap marcadas | 5 (DK-001, DK-002, DK-003, DK-005, DK-006) |
+| Tarefas concluídas | 5 |
 | Bloqueios conhecidos | Licença (DEC-01); hardware de referência (DEC-02); secret de assinatura e 1ª release (DEC-10); SDK para Spout/Link/gravação |
 | Release alvo | **0.4.0** ao fechar o M0 (decisão do mantenedor, 2026-10-30) |
 
@@ -781,6 +783,7 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 | 2026-10-30 | DK-002 | DONE | `feat/dk-002-schemas` | `store.ts` + `store.check.ts` (migração v0→v1, inválidos → padrão + `.bak`, versão futura, roundtrip de cenas/roteiros, ids mantidos) · `npm run check` ok · typecheck 0 erros · build ok · Rust inalterado (9/9 hoje) · `ci.yml` criado | **DK-003** (telemetria/saúde/fail-safe) para o agente; **DK-141** com o mantenedor; CI **verde** no 1º push para `main` (run 41108914633) |
 | 2026-10-30 | DK-003 | DONE (software) | `feat/dk-003-telemetria` | `telemetry.check.ts` ok · typecheck 0 · build ok · `cargo test` 9/9 · mock Edge headless: header cabe em 1280, telemetria chega, `WEBGL_lose_context` → bolinha vermelha + "contexto perdido" no diário → `restoreContext` → renderer recriado; Diagnóstico JSON com 12 seções | **DK-005** (CSP, limites de arquivo em `add_track`, capabilities); teste de 2 h e matriz de máquinas com o mantenedor (NÃO VERIFICADO) |
 | 2026-10-30 | DK-005 | DONE (software) | `feat/dk-005-seguranca` | `limits.check.ts` 18 asserts · `cargo test` 10/10 (novo `limites_de_upload_e_id`) · typecheck 0 · build ok · OSV 529 crates: 2 avisos não aplicáveis · mock com CSP injetada nas duas janelas: nada recusado, vídeo blob: e logo data: ok, `.exe` recusado com mensagem | App real rodado com autorização (prod + dev, via `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port` + Puppeteer): IPC, telão e telemetria ok, nada recusado; de quebra, a migração v0→v1 do DK-002 rodou sobre os dados reais da v0.3.1 instalada. Próximo: **DK-006** ou **DK-008** |
+| 2026-10-30 | DK-006 | DONE (software) | `feat/dk-006-seguranca-visual` | `safety.check.ts` (≤ 3 Hz em 80–220 BPM × 1/1,1/2,1/4) · typecheck 0 · build ok · mock: P zera strobe/flash/tremor e reporta; B → `body.black`, canvas opacity 0, etiqueta no preview; header cabe em 1280 | **DK-008** (benchmark de detecção com fixtures); DEC-07 resolvida (3 Hz, revisável) |
 
 ### 8.4. Bloqueios e decisões pendentes
 
@@ -792,7 +795,7 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 | DEC-04 | Codec/container padrão de gravação | Agente + mantenedor | PENDENTE | Spike com compatibilidade WebView2/Windows |
 | DEC-05 | Viabilidade técnica/licença do Spout | Agente + mantenedor | PENDENTE | POC, benchmark e revisão de distribuição |
 | DEC-06 | SDK/licença Ableton Link | Agente + mantenedor | PENDENTE | POC mínima com compatibilidade demonstrada |
-| DEC-07 | Limites de flashes e padrões de segurança | Mantenedor + agente | PENDENTE | Especificação de política operacional clara |
+| DEC-07 | Limites de flashes e padrões de segurança | Mantenedor + agente | **RESOLVIDA 2026-10-30** (DK-006) | Política: ≤ 3 flashes/s (WCAG 2.3.1) ligado por padrão, desligável pelo operador com aviso; flash de tela ≤ 50%; PÂNICO separado do BLACKOUT. Mantenedor pode endurecer (ex.: travar o limite) |
 | DEC-08 | Modelo de distribuição (open source, freeware, comercial) | Mantenedor | PENDENTE | Decisão explícita antes de publicar |
 | DEC-09 | Música do roteiro dentro do Show Pack (direitos autorais, tamanho, opt-in) | Mantenedor + agente | PENDENTE | Política escrita antes de DK-142 |
 | DEC-10 | Cadastrar `TAURI_SIGNING_PRIVATE_KEY` no GitHub e autorizar a 1ª Release (push em `prod`) | Mantenedor | PARCIAL (secret cadastrado 2026-10-30) | Secret cadastrado; a chave privada em `%USERPROFILE%\.tauri\doublek.key` tem cópia segura |

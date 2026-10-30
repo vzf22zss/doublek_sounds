@@ -118,7 +118,7 @@ Funciona no improviso: pode ser o microfone do notebook ou um microfone USB pert
 | 2 | **Medidor** | Nível do sinal. Verde é bom; **CLIP** vermelho quer dizer que está alto demais. |
 | 3 | **BPM** + bolinhas | O andamento detectado e o estado (*procurando / ajustando / travado / segurando*). As 4 bolinhas andam no compasso; a pílula **DROP** acende quando há grave (seção 12). |
 | 4 | **TAP ½ ×2 ◀ ▶** | Ajuste manual do andamento (seção 7). |
-| 5 | **MIDI** e **BLACKOUT** | Liga o modo de mapear o controlador (seção 17) e apaga o telão na hora. Ao lado ficam as **4 bolinhas de saúde** (áudio · BPM · MIDI · telão) e o fps do telão; clicar nelas salva um **diagnóstico**. |
+| 5 | **MIDI**, **PÂNICO** e **BLACKOUT** | Liga o modo de mapear o controlador (seção 17); PÂNICO para o roteiro e zera os efeitos agressivos; BLACKOUT apaga o telão na hora. Ao lado ficam as **4 bolinhas de saúde** (áudio · BPM · MIDI · telão) e o fps do telão; clicar nelas salva um **diagnóstico**. |
 | 6 | **Preview** | O mesmo visual que está no telão, em tamanho pequeno. |
 | 7 | **Analisador** | Mostra o que o app está ouvindo e cada kick que ele aceitou (seção 6). |
 | 8 | **Abas de ajuste** | Áudio, Logo, Fundo, Efeitos, Saída e **Roteiro** (seção 16). |
@@ -315,7 +315,10 @@ Exemplos de cenas que já vêm prontas:
 | ![Dark túnel](img/telao-tunel.gif) | ![Radial](img/telao-radial.gif) | ![Strobe](img/telao-strobe.gif) |
 
 > ⚠️ **Strobe:** cuidado com a intensidade. Luz piscando rápido pode causar mal-estar e, em
-> pessoas sensíveis, crises de epilepsia fotossensível.
+> pessoas sensíveis, crises de epilepsia fotossensível. Por padrão o app **limita a 3 flashes
+> por segundo** (aba Saída → Segurança visual): a 148 BPM, o strobe 1/4 daria quase 10 por
+> segundo e passa a acender 1 em cada 4 pulsos. A aba Efeitos mostra a taxa real. Desligue o
+> limite só se souber o que está fazendo, e avise o público na entrada.
 
 ---
 
@@ -384,6 +387,17 @@ limpa, e no drop os efeitos entram.
 
 > Enquanto o telão está aberto, o Windows não apaga a tela nem entra em descanso.
 > Mesmo assim, deixe o notebook **na tomada** e no modo de energia **Melhor desempenho**.
+
+### Segurança visual e os dois botões de emergência
+
+- **Limitar flashes a 3 por segundo** (aba Saída) vem **ligado**. Com ele, o strobe pula pulsos
+  para nunca passar de 3 por segundo e o flash de tela fica em no máximo 50%. É a referência
+  da WCAG 2.3.1 para fotossensibilidade. Não é laudo médico: avise na entrada quando usar strobe.
+- **BLACKOUT (B):** apaga o telão na hora, por cima de qualquer efeito, transição ou roteiro.
+  Funciona até se a placa de vídeo travar, porque não depende do desenho.
+- **PÂNICO (P):** não apaga; **para o roteiro** e zera na hora strobe, flash, tremor, aberração,
+  rastro, granulado e linhas de TV. Fica só a logo pulsando calma. Use quando algo sair do
+  controle mas você não quer o telão preto.
 
 ---
 
@@ -592,7 +606,8 @@ DoubleK. Para o visual, use um **controlador separado** (um pequeno e barato já
 | **Espaço** | TAP (bater o tempo) |
 | **← / →** | Adiantar / atrasar a fase 5 ms |
 | **1 … 8** | Chamar cena |
-| **B** | Blackout |
+| **B** | Blackout (apaga o telão) |
+| **P** | Pânico (para o roteiro e zera os efeitos agressivos) |
 | **L** | Só logo |
 | **F** | Abrir/fechar o telão |
 | **G** | Roteiro: tocar / pausar (o app toca) ou **GO** (o DJ toca) |

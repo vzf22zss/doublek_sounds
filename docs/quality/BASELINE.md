@@ -101,7 +101,7 @@ Exportações existentes: preset JSON (visual + 8 cenas, sem mídia) e roteiro J
 | Camada | O que cobre | O que não cobre |
 |---|---|---|
 | Rust (`cargo test`) | detecção de kick/BPM em faixa sintética (5 BPMs), drop/breakdown, parse MIDI, grade da faixa inteira, decodificação WAV + reamostragem | áudio real, cpal, reprodução, reconexão |
-| TS (`npm run check`) | blend/crossfade, sanitize de presets, `drop`, `pickColors`, regras do roteiro (due/stateAt/ramp/snap/sanitize); **store** (migração v0→v1, inválidos, versão futura, roundtrip, ids de roteiro); **telemetry** (percentis, resumo por segundo, diário) | UI, renderer, IPC |
+| TS (`npm run check`) | blend/crossfade, sanitize de presets, `drop`, `pickColors`, regras do roteiro (due/stateAt/ramp/snap/sanitize); **store** (migração v0→v1, inválidos, versão futura, roundtrip, ids de roteiro); **telemetry** (percentis, resumo por segundo, diário); **limits** (extensão/tipo/tamanho); **safety** (≤ 3 flashes/s em 80–220 BPM × 1/1, 1/2, 1/4; `SAFE_LOOK` ⊂ cena) | UI, renderer, IPC |
 | Tipos | `svelte-check` sobre tudo | — |
 | Manual/mock | capturas da documentação via mock do Tauri em Edge headless (fora do repo) | app real |
 

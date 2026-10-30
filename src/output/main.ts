@@ -45,7 +45,9 @@ canvas.addEventListener('webglcontextrestored', () => {
   report('warn', 'Telão: contexto WebGL restaurado');
 });
 
-listen<Visual>('visual', (e) => { v = e.payload; r?.setVisual(v); sync?.(v); });
+const blackout = () => document.body.classList.toggle('black', !!v.blackout);
+blackout();
+listen<Visual>('visual', (e) => { v = e.payload; blackout(); r?.setVisual(v); sync?.(v); });
 listen('assets', () => sync?.(v, true));
 listen<string[]>('preload', (e) => e.payload.forEach(getVideo)); // vídeos do roteiro: troca instantânea
 

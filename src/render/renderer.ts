@@ -3,6 +3,7 @@
 import type { Frame } from '../lib/types';
 import type { DropTarget, ModTarget, Source, Visual } from '../lib/settings';
 import { LOGO_PAD, type Prepared } from '../lib/assets';
+import { SAFE_FLASH_MAX, SAFE_STROBE_MAX, strobeAllowed, strobeEvery } from '../lib/safety';
 
 const VS = `#version 300 es
 in vec2 p; out vec2 uv;
@@ -133,7 +134,7 @@ export class Renderer {
   private frame: Frame | null = null;
   private rxAt = 0; private lastT = 0; private lastKickRx = -1e9; private strength = 0.8;
   private kickEnv = 0; private waveEnv = 0; private presence = 0; private black = 0; private dropEnv = 1;
-  private prevPh = 0; private lastTrig = -1e9;
+  private prevPh = 0; private lastTrig = -1e9; private absBeat = 0;
   private rings: { t: number; s: number }[] = [];
   private spec = new Float32Array(64);
 
@@ -217,7 +218,8 @@ export class Renderer {
     if (f?.bpm) {
       const x = f.beatPhase + ((now - this.rxAt - v.offset) / 1000) * (f.bpm / 60);
       ph = x - Math.floor(x);
-      bar = ((((f.beat + Math.floor(x)) % 4) + 4) % 4 + ph) / 4;
+      this.absBeat = f.beat + Math.floor(x);
+      bar = ((((this.absBeat % 4) + 4) % 4) + ph) / 4;
       if (live && this.predicting() && ph < this.prevPh - 0.5 && now - this.lastTrig > period * 0.5) this.trigger(now, this.strength);
     }
     this.prevPh = ph;
@@ -277,7 +279,8 @@ export class Renderer {
     gl.uniform1f(u('uHue'), ((now / 1000) * v.bgHue * Math.PI) / 180);
     gl.uniform1f(u('uBgZoom'), 1 + m('bgPulse') * v.bgPulse * d('bgPulse'));
     gl.uniform1f(u('uBgBright'), 1 + m('bgFlash') * v.bgFlash * d('bgFlash'));
-    gl.uniform1f(u('uFlash'), m('fxFlash') * v.fxFlash * fx * d('fxFlash'));
+    const flashAmt = v.safeFlash ? Math.min(v.fxFlash, SAFE_FLASH_MAX) : v.fxFlash;
+    gl.uniform1f(u('uFlash'), m('fxFlash') * flashAmt * fx * d('fxFlash'));
     const A = W / H, B = bgAspect ? 1 / bgAspect : A; // aspecto largura/altura
     const wide = B > A;
     gl.uniform2f(u('uBgScale'), ...((v.bgFit === 'cover') === wide ? [A / B, 1] : [1, B / A]) as [number, number]);
@@ -331,8 +334,11 @@ export class Renderer {
     let strobe = 0;
     if (v.strobe > 0 && fx) {
       const sub = (ph * v.strobeDiv) % 1;
-      strobe = this.predicting() ? (sub < 0.15 ? 1 - sub / 0.15 : 0) : this.kickEnv;
-      strobe *= v.strobe * d('strobe');
+      // safeFlash: acende 1 em cada `every` pulsos para não passar de 3 flashes/s (ex.: 1/4 a 148 BPM = 9,9 Hz → 2,5 Hz)
+      const every = v.safeFlash ? strobeEvery(f?.bpm ?? 0, v.strobeDiv) : 1;
+      const allowed = strobeAllowed(Math.floor((this.absBeat + ph) * v.strobeDiv), every);
+      strobe = this.predicting() ? (allowed && sub < 0.15 ? 1 - sub / 0.15 : 0) : this.kickEnv;
+      strobe *= (v.safeFlash ? Math.min(v.strobe, SAFE_STROBE_MAX) : v.strobe) * d('strobe');
     }
     gl.uniform1f(u('uStrobe'), strobe);
     gl.uniform1f(u('uBlack'), this.black);

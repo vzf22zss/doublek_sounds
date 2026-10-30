@@ -11,6 +11,7 @@
   import { midi, keyOf, bindArmed, clearArmed, keyLabel, learnable, type MidiMsg } from './midi.svelte';
   import { Renderer } from '../render/renderer';
   import { VISUAL, loadVisual, saveVisual } from '../lib/settings';
+  import { SAFE_LOOK, strobeRate } from '../lib/safety';
   import { addVideo, assetSync, imageColors, listVideos, removeVideo, setAsset, videoColors } from '../lib/assets';
   import { load as storeLoad, save as storeSave, shaped } from '../lib/store';
   import { getVersion } from '@tauri-apps/api/app';
@@ -164,6 +165,13 @@
     'nudge-': () => beat({ nudge: -0.005 }),
     'nudge+': () => beat({ nudge: 0.005 }),
     blackout: () => (vs.blackout = !vs.blackout),
+    // PÂNICO: para o roteiro e volta a um visual calmo na hora; separado do BLACKOUT, que só apaga
+    panic: () => {
+      roteiroStop();
+      Object.assign(vs, SAFE_LOOK, { blackout: false, logoOnly: false, react: true, safeFlash: true });
+      status = 'PÂNICO: roteiro parado, strobe/flash/tremor/aberração/rastro zerados.';
+      log('warn', status);
+    },
     logoOnly: () => (vs.logoOnly = !vs.logoOnly),
     go: () => (rt.running && rt.source === 'app' ? roteiroPause() : roteiroPlay()),
     stop: () => roteiroStop(),
@@ -340,6 +348,7 @@
     else if (e.code === 'ArrowRight') { e.preventDefault(); beat({ nudge: 0.005 }); }
     else if (e.code === 'KeyB') vs.blackout = !vs.blackout;
     else if (e.code === 'KeyL') vs.logoOnly = !vs.logoOnly;
+    else if (e.code === 'KeyP') ACTIONS.panic();
     else if (e.code === 'KeyF') fps ? invoke('close_output') : project();
     else if (/^Digit[1-8]$/.test(e.code)) perf.recall(+e.code.slice(5) - 1);
     else if (e.code === 'KeyG') e.shiftKey ? ACTIONS.stop() : ACTIONS.go();
@@ -425,6 +434,7 @@
       <button class="midiBtn" class:on={midi.learning} onclick={toggleLearn} title="MIDI learn: mapear controles do controlador">
         <i class:lit={midiLit}></i>MIDI
       </button>
+      <button class="panic" onclick={ACTIONS.panic} title="P: para o roteiro e zera strobe, flash, tremor, aberração e rastro (não apaga o telão)" use:learnable={{ id: 'a:panic', label: 'PÂNICO' }}>PÂNICO</button>
       <button class="black" class:on={vs.blackout} onclick={ACTIONS.blackout} title="B" use:learnable={{ id: 'a:blackout', label: 'BLACKOUT' }}>BLACKOUT</button>
     </div>
   </header>
@@ -443,6 +453,7 @@
     <div class="panel previewBox">
       <canvas bind:this={previewCanvas}></canvas>
       <span class="tag">PREVIEW</span>
+      {#if vs.blackout}<span class="tag blackTag">BLACKOUT</span>{/if}
     </div>
     <div class="panel analyzer">
       {#if tab === 'Roteiro'}
@@ -566,6 +577,11 @@
         <Slider label="Zoom do rastro" bind:value={vs.trailZoom} learn="trailZoom" bind:mod={vs.mod.trailZoom} min={-1} max={1} step={0.01} def={VISUAL.trailZoom} fmt={f2} />
         <Slider label="Giro do rastro" bind:value={vs.trailRot} learn="trailRot" min={-1} max={1} step={0.01} def={0} fmt={f2} />
         <h2>Strobe</h2>
+        {#if vs.safeFlash}
+          <p class="keys">Limite de flashes ligado (aba Saída): 1/{vs.strobeDiv} a {frame?.bpm ? frame.bpm.toFixed(0) : '—'} BPM dá {frame?.bpm ? strobeRate(frame.bpm, vs.strobeDiv, true).toFixed(1) : '—'} flashes/s (teto 3).</p>
+        {:else}
+          <p class="keys warnTxt">⚠ Limite de flashes desligado: 1/{vs.strobeDiv} a {frame?.bpm ? frame.bpm.toFixed(0) : '—'} BPM = {frame?.bpm ? strobeRate(frame.bpm, vs.strobeDiv, false).toFixed(1) : '—'} flashes/s.</p>
+        {/if}
         <Slider label="Intensidade" bind:value={vs.strobe} learn="strobe" bind:drop={vs.drop.strobe} min={0} max={1} step={0.01} def={0} fmt={f2} />
         <div class="seg four">
           {#each [[1, '1/1'], [2, '1/2'], [4, '1/4']] as [d, l]}
@@ -597,6 +613,12 @@
         </label>
         <Slider label="Offset visual" bind:value={vs.offset} learn="offset" min={-150} max={50} step={1} def={VISUAL.offset} fmt={(v) => v + ' ms'} />
         <p class="keys">Negativo = adianta o pulso para compensar o atraso do projetor. Ajuste até o pulso cair junto com o kick que você ouve.</p>
+        <h2>Segurança visual</h2>
+        <label class="check">
+          <input type="checkbox" bind:checked={vs.safeFlash} />
+          <span>Limitar flashes a 3 por segundo <small>strobe pula pulsos e o flash de tela fica em no máximo 50%. Referência: WCAG 2.3.1. Recomendado ligado.</small></span>
+        </label>
+        <p class="keys">Luz piscando rápido pode causar mal-estar e, em pessoas sensíveis, crises de epilepsia fotossensível. Avise na entrada quando usar strobe. <b>P</b> = PÂNICO (zera os efeitos agressivos e para o roteiro); <b>B</b> = BLACKOUT.</p>
         <h2>Desempenho</h2>
         <Slider label="Resolução de render" bind:value={vs.renderScale} learn="renderScale" min={0.4} max={1} step={0.05} def={1} fmt={pct} />
         <p class="keys">Abaixe se o telão cair de 60 fps.</p>
@@ -626,10 +648,16 @@
     gap: 12px;
     padding: 12px;
   }
-  .bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding: 10px 14px; flex-wrap: wrap; }
-  .brand { font-weight: 800; letter-spacing: 0.18em; font-size: 14px; }
+  .bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding: 10px 14px; flex-wrap: wrap; }
+  .panic { font-weight: 700; letter-spacing: .04em; font-size: 11px; padding: 7px 8px; color: #ffb84d; border-color: rgba(255,184,77,.45); }
+  .panic:hover { background: rgba(255,184,77,.15); }
+  .blackTag { left: auto; right: 12px; color: #fff; background: var(--clip); padding: 2px 8px; border-radius: 6px; font-weight: 800; }
+  .warnTxt { color: #ffb84d; }
+  .brand { font-weight: 800; letter-spacing: 0.12em; font-size: 14px; }
   .group { display: flex; gap: 6px; align-items: center; }
-  .group select:first-child { max-width: 130px; }
+  .group > button { padding: 7px 10px; }
+  .group select:first-child { max-width: 112px; }
+  .black { padding: 7px 9px; }
   .primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink, #fff); font-weight: 600; }
   .black { font-weight: 700; letter-spacing: .06em; }
   .black.on { background: var(--clip); border-color: var(--clip); }
@@ -651,7 +679,7 @@
   }
   .learnBar small { color: var(--muted); }
 
-  .meter { position: relative; width: 110px; height: 26px; border-radius: 8px; background: rgba(255,255,255,.06); overflow: hidden; }
+  .meter { position: relative; width: 92px; height: 26px; border-radius: 8px; background: rgba(255,255,255,.06); overflow: hidden; }
   .meter .fill { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, var(--ok), #c6f24e); transition: width 60ms linear; }
   .meter.clip .fill { background: var(--clip); }
   .meter span { position: relative; display: block; text-align: center; line-height: 26px; font-size: 12px; font-weight: 600; text-shadow: 0 1px 2px #000; }
@@ -659,7 +687,7 @@
   .dropPill { font-size: 9px; font-weight: 800; letter-spacing: .1em; padding: 0 5px; line-height: 12px; margin-left: 4px; border-radius: 6px; color: var(--muted); border: 1px solid var(--line); transition: all .15s; }
   .dropPill.on { color: #111; background: var(--kick); border-color: var(--kick); box-shadow: 0 0 12px var(--kick); }
   .tempo { display: flex; align-items: center; gap: 10px; margin-left: auto; }
-  .bpm { font-size: 30px; font-weight: 700; line-height: 1; color: var(--muted); transition: color .2s; min-width: 92px; text-align: right; }
+  .bpm { font-size: 30px; font-weight: 700; line-height: 1; color: var(--muted); transition: color .2s; min-width: 84px; text-align: right; }
   .bpm.locked { color: var(--text); text-shadow: 0 0 18px rgba(124,92,255,.6); }
   .tstate { display: flex; flex-direction: column; gap: 5px; font-size: 11px; color: var(--muted); }
   .dots { display: flex; gap: 6px; }
