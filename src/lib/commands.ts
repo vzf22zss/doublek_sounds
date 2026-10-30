@@ -56,9 +56,9 @@ export const SCENE_LIKE: ReadonlySet<CommandType> = new Set(['SCENE_RECALL', 'SC
 /** Comandos que passam na frente de tudo: sem fila, sem cooldown de override. */
 export const PRIORITY: ReadonlySet<CommandType> = new Set(['BLACKOUT', 'PANIC']);
 const MANUAL: ReadonlySet<Source> = new Set(['keyboard', 'midi', 'ui']);
-/** Fontes de rede: recusadas enquanto não existir servidor (DK-080/090). */
+/** Fontes de rede: recusadas enquanto o servidor delas não estiver ligado (`setNetwork`, DK-092). */
 const NETWORK_OFF: Partial<Record<Source, string>> = {
-  osc: 'OSC desligado: este app ainda não tem servidor OSC',
+  osc: 'OSC desligado: ligue o servidor OSC na aba Saída',
   remote: 'controle remoto desligado: este app ainda não tem servidor de rede',
 };
 
@@ -119,6 +119,7 @@ export function createDispatcher(handlers: Handlers, opts: DispatchOpts = {}) {
   const now = opts.now ?? (() => Date.now()), cooldown = opts.cooldownMs ?? 8000, max = opts.historyMax ?? 50;
   const history: HistoryEntry[] = [];
   let manualUntil = -Infinity, running = false;
+  const network = new Set<Source>(); // fontes de rede com servidor ligado
   let queue: [ShowCommand, Source][] = [];
 
   const record = (source: Source, cmd: ShowCommand, r: Result) => {
@@ -142,7 +143,7 @@ export function createDispatcher(handlers: Handlers, opts: DispatchOpts = {}) {
     const bad = validate(cmd);
     if (bad) return record(source, cmd, { ok: false, reason: bad });
     const off = NETWORK_OFF[source];
-    if (off) return record(source, cmd, { ok: false, reason: off });
+    if (off && !network.has(source)) return record(source, cmd, { ok: false, reason: off });
     const prio = PRIORITY.has(cmd.type);
     if (source === 'automation' && SCENE_LIKE.has(cmd.type) && opts.roteiroRunning?.())
       return record(source, cmd, { ok: false, reason: `${cmd.type}: roteiro em andamento (a automação só mexe em ajustes)` });
@@ -168,6 +169,8 @@ export function createDispatcher(handlers: Handlers, opts: DispatchOpts = {}) {
     manualLeft: () => Math.max(0, manualUntil - now()),
     /** Mexida que não passa por comando (knob/slider da tela): renova o override manual igual a um comando. */
     markManual: () => void (manualUntil = now() + cooldown),
+    /** Libera (servidor ligado) ou volta a recusar uma fonte de rede. */
+    setNetwork: (source: 'osc' | 'remote', on: boolean) => void (on ? network.add(source) : network.delete(source)),
   };
 }
 
