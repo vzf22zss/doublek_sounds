@@ -1,38 +1,13 @@
-// npm run check — exportação do Show Pack (DK-012): ZIP mínimo re-lido pelo diretório central, buildShowPack
+// npm run check — exportação do Show Pack (DK-012): ZIP mínimo re-lido por zip.readZip, buildShowPack
 // com estado + assets, sha256 conferido à parte, erro antes de montar quando o manifesto não valida.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { LIMITS } from '../limits.ts';
 import { buildShowPack, showPackFileName, sha256, type ShowPackInput } from './export.ts';
-import { crc32, writeZip } from './zip.ts';
+import { crc32, readZip as readEntries, writeZip } from './zip.ts';
 
-// --- leitor mínimo: EOCD → diretório central → cabeçalho local → dados ---
-function readZip(z: Uint8Array) {
-  const dv = new DataView(z.buffer, z.byteOffset, z.byteLength), dec = new TextDecoder();
-  let eocd = z.length - 22;
-  while (eocd >= 0 && dv.getUint32(eocd, true) !== 0x06054b50) eocd--;
-  assert.ok(eocd >= 0, 'EOCD não encontrado');
-  const count = dv.getUint16(eocd + 10, true), cdOff = dv.getUint32(eocd + 16, true);
-  const out = new Map<string, Uint8Array>();
-  let p = cdOff;
-  for (let i = 0; i < count; i++) {
-    assert.equal(dv.getUint32(p, true), 0x02014b50, 'assinatura do diretório central');
-    const crc = dv.getUint32(p + 16, true), size = dv.getUint32(p + 20, true), nlen = dv.getUint16(p + 28, true);
-    const elen = dv.getUint16(p + 30, true), clen = dv.getUint16(p + 32, true), lo = dv.getUint32(p + 42, true);
-    const name = dec.decode(z.subarray(p + 46, p + 46 + nlen));
-    assert.equal(dv.getUint32(lo, true), 0x04034b50, 'assinatura do cabeçalho local');
-    assert.equal(dv.getUint16(lo + 8, true), 0, 'método STORE');
-    assert.equal(dv.getUint32(lo + 18, true), size);
-    const lnlen = dv.getUint16(lo + 26, true), lelen = dv.getUint16(lo + 28, true);
-    assert.equal(dec.decode(z.subarray(lo + 30, lo + 30 + lnlen)), name);
-    const start = lo + 30 + lnlen + lelen, data = z.subarray(start, start + size);
-    assert.equal(crc32(data), crc, `crc de ${name}`);
-    out.set(name, data);
-    p += 46 + nlen + elen + clen;
-  }
-  assert.equal(p, cdOff + dv.getUint32(eocd + 12, true), 'tamanho do diretório central');
-  return out;
-}
+// leitor da biblioteca (DK-013), que confere assinaturas, STORE, tamanhos e CRC; aqui só vira Map
+const readZip = (z: Uint8Array) => new Map(readEntries(z).map((e) => [e.path, e.data]));
 const enc = (s: string) => new TextEncoder().encode(s);
 const json = (b: Uint8Array) => JSON.parse(new TextDecoder().decode(b));
 const rejects = async (p: Promise<unknown>, re: RegExp) => { let e = ''; try { await p; } catch (x) { e = (x as Error).message; } assert.match(e, re); };
