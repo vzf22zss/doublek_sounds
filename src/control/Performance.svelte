@@ -32,13 +32,14 @@
     const dur = trans * beatMs, id = ++token;
     setTimeout(() => {
       if (id !== token) return;
-      const from = $state.snapshot(vs) as Visual;
-      if (!dur) { Object.assign(vs, blend(from, sc.look, 1)); return; }
+      // snapshot: sc.look é um proxy do $state e o blend clona o `mod` (structuredClone não aceita proxy)
+      const from = $state.snapshot(vs) as Visual, to = $state.snapshot(sc.look) as Look;
+      if (!dur) { Object.assign(vs, blend(from, to, 1)); return; }
       const t0 = performance.now();
       const step = (now: number) => {
         if (id !== token) return;
         const t = Math.min(1, (now - t0) / dur), e = t * t * (3 - 2 * t);
-        Object.assign(vs, blend(from, sc.look, e));
+        Object.assign(vs, blend(from, to, e));
         fade = t < 1 ? t : 0;
         if (t < 1) requestAnimationFrame(step);
       };

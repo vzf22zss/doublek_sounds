@@ -442,11 +442,11 @@
     gap: 12px;
     padding: 12px;
   }
-  .bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; padding: 10px 14px; flex-wrap: wrap; }
+  .bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 10px 14px; flex-wrap: wrap; }
   .brand { font-weight: 800; letter-spacing: 0.18em; font-size: 14px; }
   .brand span { font-weight: 400; letter-spacing: 0.05em; color: var(--muted); margin-left: 6px; }
   .group { display: flex; gap: 6px; align-items: center; }
-  .group select:first-child { max-width: 240px; }
+  .group select:first-child { max-width: 130px; }
   .primary { background: var(--accent); border-color: var(--accent); font-weight: 600; }
   .black { font-weight: 700; letter-spacing: .06em; }
   .black.on { background: var(--clip); border-color: var(--clip); }
@@ -463,7 +463,7 @@
   .learnBar small { color: var(--muted); }
   .fps.live { color: var(--ok); }
 
-  .meter { position: relative; width: 140px; height: 26px; border-radius: 8px; background: rgba(255,255,255,.06); overflow: hidden; }
+  .meter { position: relative; width: 110px; height: 26px; border-radius: 8px; background: rgba(255,255,255,.06); overflow: hidden; }
   .meter .fill { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, var(--ok), #c6f24e); transition: width 60ms linear; }
   .meter.clip .fill { background: var(--clip); }
   .meter span { position: relative; display: block; text-align: center; line-height: 26px; font-size: 12px; font-weight: 600; text-shadow: 0 1px 2px #000; }

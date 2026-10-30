@@ -91,3 +91,5 @@ input[type=range]:hover::-webkit-slider-thumb { box-shadow: 0 0 0 6px rgba(124, 
   font-size: 9px; font-weight: 700; line-height: 1; color: #fff;
   background: var(--accent); padding: 2px 4px; border-radius: 6px; pointer-events: none;
 }
+/* pads cortam o que sai da borda (overflow: hidden): o selo fica por dentro */
+.pad.learn[data-midi]::after { top: 4px; right: 4px; }
