@@ -3,6 +3,7 @@
   import { emitTo, listen as onEvent } from '@tauri-apps/api/event';
   import Analyzer from './Analyzer.svelte';
   import Slider from './Slider.svelte';
+  import PsyEffects from './PsyEffects.svelte';
   import Performance from './Performance.svelte';
   import Timeline from './Timeline.svelte';
   import RoteiroPanel from './RoteiroPanel.svelte';
@@ -568,6 +569,7 @@
         <Slider label="Brilho do fundo" bind:value={vs.bgFlash} learn="bgFlash" bind:mod={vs.mod.bgFlash} bind:drop={vs.drop.bgFlash} min={0} max={1} step={0.01} def={VISUAL.bgFlash} fmt={f2} />
 
       {:else if tab === 'Efeitos'}
+        <PsyEffects bind:vs />
         <Slider label="Flash" bind:value={vs.fxFlash} learn="fxFlash" bind:mod={vs.mod.fxFlash} bind:drop={vs.drop.fxFlash} min={0} max={1} step={0.01} def={VISUAL.fxFlash} fmt={f2} />
         <Slider label="Anéis a cada kick" bind:value={vs.fxRings} learn="fxRings" bind:drop={vs.drop.fxRings} min={0} max={1} step={0.01} def={VISUAL.fxRings} fmt={f2} />
         <Slider label="Espectro em barras" bind:value={vs.fxBars} learn="fxBars" bind:drop={vs.drop.fxBars} min={0} max={1} step={0.01} def={0} fmt={f2} />

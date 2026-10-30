@@ -7,9 +7,9 @@ export const SOURCES = {
   beat: 'Beat', bar: 'Compasso', lfo: 'LFO',
 } as const;
 export type Source = keyof typeof SOURCES;
-export type ModTarget = 'amount' | 'glow' | 'chroma' | 'bgPulse' | 'bgFlash' | 'fxFlash' | 'fxShake' | 'trailZoom';
+export type ModTarget = 'amount' | 'glow' | 'chroma' | 'bgPulse' | 'bgFlash' | 'fxFlash' | 'fxShake' | 'trailZoom' | 'kaleido' | 'tunnel' | 'mandala';
 // Efeitos que podem ficar "só no drop": somem no breakdown sem grave e entram quando o grave volta.
-export type DropTarget = 'fxFlash' | 'fxRings' | 'fxBars' | 'fxRadial' | 'trail' | 'strobe' | 'chroma' | 'fxShake' | 'bgPulse' | 'bgFlash' | 'bgMedia';
+export type DropTarget = 'fxFlash' | 'fxRings' | 'fxBars' | 'fxRadial' | 'trail' | 'strobe' | 'chroma' | 'fxShake' | 'bgPulse' | 'bgFlash' | 'bgMedia' | 'kaleido' | 'tunnel' | 'mandala';
 
 export const VISUAL = {
   // logo
@@ -19,10 +19,12 @@ export const VISUAL = {
   mod: {
     amount: 'auto', glow: 'auto', chroma: 'auto', bgPulse: 'auto',
     bgFlash: 'auto', fxFlash: 'auto', fxShake: 'kick', trailZoom: 'auto',
+    kaleido: 'lfo', tunnel: 'bass', mandala: 'kick',
   } as Record<ModTarget, Source>,
   drop: {
     fxFlash: false, fxRings: false, fxBars: false, fxRadial: false, trail: false, strobe: false,
     chroma: false, fxShake: false, bgPulse: false, bgFlash: false, bgMedia: false,
+    kaleido: false, tunnel: false, mandala: false,
   } as Record<DropTarget, boolean>,
   dropFade: 1, // beats para os efeitos "só no drop" entrarem/saírem
   // fundo
@@ -32,6 +34,11 @@ export const VISUAL = {
   // efeitos
   fxFlash: 0.35, fxRings: 0.4, fxBars: 0, fxRadial: 0, fxVig: 0.4, fxScan: 0, fxGrain: 0, fxShake: 0,
   trail: 0, trailZoom: 0.5, trailRot: 0, strobe: 0, strobeDiv: 1,
+  // Psy Engine (DK-022): intensidade 0 = módulo desligado, sem custo
+  kaleido: 0, kaleidoN: 6, kaleidoSpin: 0.2, kaleidoZoom: 1, kaleidoMirror: true,
+  tunnel: 0, tunnelSpeed: 0.5, tunnelDensity: 0.5,
+  mandala: 0, mandalaPetals: 8,
+  psyQuality: 1, // 0 baixa · 1 média · 2 alta: amostras/iterações por pixel dos módulos
   // saída / operação (fora das cenas)
   renderScale: 1, blackout: false, logoOnly: false,
   react: true, // false = "só roteiro": o visual muda só nos pontos marcados, sem reagir ao som
