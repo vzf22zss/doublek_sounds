@@ -66,6 +66,19 @@ const reason = (r: { ok: boolean; reason?: string }) => (r.ok ? '' : (r as any).
   assert.match(reason(fresh().dispatch({ type: 'TAP' }, 'osc')), /OSC desligado/, 'outro dispatcher começa desligado');
 }
 
+// --- celular (remote, DK-081): mesma regra, flag independente do OSC ---
+{
+  const d = fresh();
+  d.setNetwork('remote', true);
+  assert.ok(d.dispatch({ type: 'BLACKOUT' }, 'remote').ok);
+  assert.ok(d.dispatch({ type: 'MACRO', id: 'DROP' }, 'remote').ok);
+  assert.match(reason(d.dispatch({ type: 'TAP' }, 'osc')), /OSC desligado/, 'ligar o remoto não libera o OSC');
+  assert.match(reason(d.dispatch({ type: 'BANK_SET', index: 9 }, 'remote')), /0 a 3/);
+  d.setNetwork('remote', false);
+  assert.match(reason(d.dispatch({ type: 'BLACKOUT' }, 'remote')), /controle remoto desligado/);
+  assert.deepEqual(log, ['BLACKOUT@remote', 'MACRO@remote']);
+}
+
 // --- override manual: automação descartada por 8 s; roteiro passa; BLACKOUT/PÂNICO da automação passam ---
 {
   t = 1000;

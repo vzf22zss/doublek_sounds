@@ -59,7 +59,7 @@ const MANUAL: ReadonlySet<Source> = new Set(['keyboard', 'midi', 'ui']);
 /** Fontes de rede: recusadas enquanto o servidor delas não estiver ligado (`setNetwork`, DK-092). */
 const NETWORK_OFF: Partial<Record<Source, string>> = {
   osc: 'OSC desligado: ligue o servidor OSC na aba Saída',
-  remote: 'controle remoto desligado: este app ainda não tem servidor de rede',
+  remote: 'controle remoto desligado: ligue "Celular (rede)" na aba Saída',
 };
 
 const int = (x: unknown, lo: number, hi: number) => typeof x === 'number' && Number.isInteger(x) && x >= lo && x <= hi;

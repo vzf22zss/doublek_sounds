@@ -287,6 +287,98 @@ fn osc_status() -> OscStatus {
     }
 }
 
+// ---------- celular / remoto (DK-081): HTTP local com pareamento; a UI liga/desliga ----------
+
+static REMOTE: Mutex<Option<doublek_lib::remote::Server>> = Mutex::new(None);
+
+#[derive(Serialize)]
+struct RemoteStatus {
+    running: bool,
+    bind: String,
+    clients: usize,
+    received: u64,
+    rejected: u64,
+}
+
+#[derive(Serialize)]
+struct PairCode {
+    code: String,
+    url: String, // onde o celular abre (IP da rede local quando aberto para a rede)
+    secs: u64,
+}
+
+/// Liga o serviço remoto (um por vez). `bind` vazio = 127.0.0.1; 0.0.0.0 abre para a rede local.
+/// Eventos na janela de controle: `remote` `{ addr, args, client }`, `remote-paired` (nome), `remote-revoked`.
+#[tauri::command]
+fn remote_start(app: AppHandle, bind: String, port: u16) -> Result<String, String> {
+    use doublek_lib::remote::Event;
+    let mut cur = REMOTE.lock().unwrap();
+    if let Some(s) = &*cur {
+        return Err(format!("O remoto já está ligado em {}: desligue antes de trocar a porta", s.addr));
+    }
+    if port == 0 {
+        return Err("Porta de 1 a 65535".into());
+    }
+    let ip: std::net::IpAddr = if bind.trim().is_empty() { [127, 0, 0, 1].into() } else { bind.trim().parse().map_err(|_| format!("Endereço inválido: {bind}"))? };
+    let srv = doublek_lib::remote::serve((ip, port).into(), move |e| {
+        let _ = match e {
+            Event::Cmd(v) => app.emit_to("control", "remote", v),
+            Event::Paired(c) => app.emit_to("control", "remote-paired", c),
+            Event::Revoked => app.emit_to("control", "remote-revoked", ()),
+        };
+    })?;
+    let addr = srv.addr.to_string();
+    *cur = Some(srv);
+    Ok(addr)
+}
+
+/// Desliga e desconecta todo mundo (os tokens só existem na memória do servidor).
+#[tauri::command]
+fn remote_stop() {
+    let srv = REMOTE.lock().unwrap().take();
+    if let Some(s) = srv {
+        s.stop();
+    }
+}
+
+#[tauri::command]
+fn remote_status() -> RemoteStatus {
+    match &*REMOTE.lock().unwrap() {
+        Some(s) => RemoteStatus {
+            running: true,
+            bind: s.addr.to_string(),
+            clients: s.shared.clients(),
+            received: s.shared.received.load(Relaxed),
+            rejected: s.shared.rejected.load(Relaxed),
+        },
+        None => RemoteStatus { running: false, bind: String::new(), clients: 0, received: 0, rejected: 0 },
+    }
+}
+
+/// Código novo de 6 dígitos (2 min, uso único) e o endereço para abrir no celular.
+#[tauri::command]
+fn remote_pair_code() -> Result<PairCode, String> {
+    let cur = REMOTE.lock().unwrap();
+    let s = cur.as_ref().ok_or("Ligue o remoto primeiro")?;
+    let ip = if s.addr.ip().is_unspecified() { doublek_lib::remote::lan_ip().map_or("<IP deste computador>".into(), |ip| ip.to_string()) } else { s.addr.ip().to_string() };
+    Ok(PairCode { code: s.shared.pair_code(), url: format!("http://{ip}:{}", s.addr.port()), secs: doublek_lib::remote::CODE_SECS })
+}
+
+#[tauri::command]
+fn remote_revoke_all() {
+    if let Some(s) = &*REMOTE.lock().unwrap() {
+        s.shared.revoke_all();
+    }
+}
+
+/// O que o celular vê em `GET /state` (a janela de controle manda 1×/s com o remoto ligado).
+#[tauri::command]
+fn remote_set_state(state: serde_json::Value) {
+    if let Some(s) = &*REMOTE.lock().unwrap() {
+        s.shared.set_state(state);
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -325,7 +417,13 @@ fn main() {
             midi_devices,
             osc_start,
             osc_stop,
-            osc_status
+            osc_status,
+            remote_start,
+            remote_stop,
+            remote_status,
+            remote_pair_code,
+            remote_revoke_all,
+            remote_set_state
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar o app");

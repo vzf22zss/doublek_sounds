@@ -34,7 +34,7 @@
     'Hi-tech': [175, 220],
     Auto: [80, 220],
   };
-  const DEFAULTS = { device: '', channel: 0, gain: 1, gate: 0.003, sens: 1.4, range: 'Psy', lock: false, needClick: true, monitor: 1, dropThr: 0.35, oscOn: false, oscPort: 9000, oscLan: false };
+  const DEFAULTS = { device: '', channel: 0, gain: 1, gate: 0.003, sens: 1.4, range: 'Psy', lock: false, needClick: true, monitor: 1, dropThr: 0.35, oscOn: false, oscPort: 9000, oscLan: false, remoteOn: false, remotePort: 8008, remoteLan: false };
   const TABS = ['Áudio', 'Logo', 'Fundo', 'Efeitos', 'Saída', 'Roteiro'] as const;
 
   const load = () => storeLoad('doublek.settings', (r) => shaped(r, DEFAULTS), () => ({ ...DEFAULTS }));
@@ -286,11 +286,11 @@
     evs.forEach((ev) => window.addEventListener(ev, manual, { capture: true, passive: true }));
     return () => evs.forEach((ev) => window.removeEventListener(ev, manual, { capture: true }));
   });
-  /** Entrada única de comandos. Recusa de quem está operando vai para a linha de status; do roteiro/OSC, para o diário. */
+  /** Entrada única de comandos. Recusa de quem está operando vai para a linha de status; do roteiro e da rede, para o diário. */
   function dispatch(c: ShowCommand, source: Source) {
     const r = commands.dispatch(c, source);
     if (!r.ok) {
-      if (source === 'roteiro' || source === 'automation' || source === 'osc') log('warn', `comando ${c.type} (${source}) recusado: ${r.reason}`);
+      if (source === 'roteiro' || source === 'automation' || source === 'osc' || source === 'remote') log('warn', `comando ${c.type} (${source}) recusado: ${r.reason}`);
       else status = 'Comando recusado: ' + r.reason;
     }
     return r;
@@ -402,16 +402,89 @@
     const id = setInterval(oscRefresh, 1000);
     return () => clearInterval(id);
   });
-  let oscLastErr = '', oscLastErrAt = 0;
-  onEvent<{ addr: string; args: OscArg[] }>('osc', (e) => {
-    const r = oscToCommand(e.payload.addr, e.payload.args);
-    if ('cmd' in r) { dispatch(r.cmd, 'osc'); return; }
+  let netLastErr = '', netLastErrAt = 0;
+  /** Erro vindo da rede (OSC/celular) no diário. */
+  function netErr(msg: string) {
     // ponytail: o mesmo erro repetido entra no diário no máximo 1× a cada 2 s (senão um cliente errado enche os 200)
     const now = performance.now();
-    if (r.error !== oscLastErr || now - oscLastErrAt > 2000) log('warn', 'OSC: ' + r.error);
-    oscLastErr = r.error;
-    oscLastErrAt = now;
+    if (msg !== netLastErr || now - netLastErrAt > 2000) log('warn', msg);
+    netLastErr = msg;
+    netLastErrAt = now;
+  }
+  onEvent<{ addr: string; args: OscArg[] }>('osc', (e) => {
+    const r = oscToCommand(e.payload.addr, e.payload.args);
+    if ('cmd' in r) dispatch(r.cmd, 'osc');
+    else netErr('OSC: ' + r.error);
   });
+
+  // ---------- celular / remoto (DK-081): HTTP local no Rust, pareado por código; comandos no formato do OSC ----------
+  type RemoteStatus = { running: boolean; bind: string; clients: number; received: number; rejected: number };
+  let remote = $state<RemoteStatus>({ running: false, bind: '', clients: 0, received: 0, rejected: 0 });
+  let remoteErr = $state('');
+  let pairCode = $state<{ code: string; url: string; until: number } | null>(null);
+  let remoteWarn = $state(false); // "alguém está controlando pelo celular", 3 s depois de cada comando
+  let remoteWarnT = 0;
+  const remoteRunning = $derived(remote.running);
+  async function remoteRefresh() {
+    remote = await invoke<RemoteStatus>('remote_status');
+    commands.setNetwork('remote', remote.running);
+  }
+  async function remoteToggle(on: boolean) {
+    remoteErr = '';
+    pairCode = null;
+    try {
+      if (on && !(Number.isInteger(s.remotePort) && s.remotePort >= 1 && s.remotePort <= 65535)) throw 'Porta de 1 a 65535';
+      if (on) await invoke('remote_start', { bind: s.remoteLan ? '0.0.0.0' : '127.0.0.1', port: s.remotePort });
+      else await invoke('remote_stop');
+      s.remoteOn = on;
+    } catch (e) { remoteErr = String(e); s.remoteOn = false; }
+    await remoteRefresh();
+    log(remoteErr ? 'warn' : 'info', remoteErr ? 'Celular: ' + remoteErr : remote.running ? `Celular: remoto ligado em ${remote.bind}` : 'Celular: remoto desligado');
+  }
+  async function showPairCode() {
+    try {
+      const p = await invoke<{ code: string; url: string; secs: number }>('remote_pair_code');
+      pairCode = { code: p.code, url: p.url, until: Date.now() + p.secs * 1000 };
+    } catch (e) { remoteErr = String(e); }
+  }
+  async function revokeAll() {
+    await invoke('remote_revoke_all');
+    status = 'Celular: todos desconectados.';
+    log('info', status);
+  }
+  /** O que o celular vê em GET /state (cena e banco a partir de 1, como nos endereços). */
+  function remoteState() {
+    const c = perf?.current();
+    return { state: status, bpm: frame?.bpm ? +frame.bpm.toFixed(1) : null, scene: c && c.scene >= 0 ? c.scene + 1 : null, bank: c ? c.bank + 1 : null, blackout: vs.blackout };
+  }
+  // ao abrir: adota o servidor que já está rodando; religa sozinho só no localhost (rede local exige o clique)
+  remoteRefresh().then(() => { if (!remote.running && s.remoteOn) { if (s.remoteLan) s.remoteOn = false; else remoteToggle(true); } });
+  $effect(() => {
+    if (!remoteRunning) return;
+    const tick = () => {
+      remoteRefresh();
+      invoke('remote_set_state', { state: remoteState() });
+      if (pairCode && Date.now() > pairCode.until) pairCode = null;
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  });
+  onEvent<{ addr: string; args: OscArg[]; client: string }>('remote', (e) => {
+    remoteWarn = true;
+    clearTimeout(remoteWarnT);
+    remoteWarnT = setTimeout(() => (remoteWarn = false), 3000) as unknown as number;
+    const r = oscToCommand(e.payload.addr, e.payload.args);
+    if ('cmd' in r) dispatch(r.cmd, 'remote');
+    else netErr(`Celular (${e.payload.client}): ${r.error}`);
+  });
+  onEvent<string>('remote-paired', (e) => {
+    pairCode = null; // o código é de uso único
+    status = `Celular pareado: ${e.payload}.`;
+    log('info', status);
+    remoteRefresh();
+  });
+  onEvent('remote-revoked', () => remoteRefresh());
 
   function toggleLearn() {
     midi.learning = !midi.learning;
@@ -448,6 +521,7 @@
       audio: { ...$state.snapshot(s), lost: audioLost, lastFrameAgeMs: frame ? Math.round(performance.now() - frameAt) : null, bpm: frame?.bpm, locked: frame?.locked },
       midi: { devices: $state.snapshot(midi.devices), mapped: Object.keys(midi.map).length },
       osc: $state.snapshot(osc),
+      remote: $state.snapshot(remote),
       output: { ...$state.snapshot(tel), open: fps > 0 },
       control: { maxFrameGapMs: Math.round(uiGap), jsHeapMB: mem ? Math.round(mem.usedJSHeapSize / 1048576) : null },
       visual: $state.snapshot(vs), roteiro: rt.cur ? { name: rt.list.find((r) => r.id === rt.cur)?.name, running: rt.running, mode: rt.mode, source: rt.source } : null,
@@ -827,6 +901,29 @@
           <p class="keys">Recebidas {osc.received} · descartadas {osc.dropped} · recusadas {osc.rejected}</p>
         {/if}
         <p class="keys">TouchOSC e afins: endereços <b>/doublek/v1/…</b> (cena, banco, blackout, tap, parameter…), lista em docs/OSC.md.</p>
+        <h2>Celular (rede)</h2>
+        <div class="files">
+          <label class="field">Porta <input type="number" min="1" max="65535" bind:value={s.remotePort} disabled={remote.running} /></label>
+          <label class="check inline"><input type="checkbox" bind:checked={s.remoteLan} disabled={remote.running} /> Abrir para a rede local</label>
+        </div>
+        {#if s.remoteLan}
+          <p class="keys warnTxt">⚠ Rede local sem criptografia: quem estiver na mesma rede pode ver o tráfego. Só controla o show quem digitar o código; use rede confiável (o Windows pode pedir para liberar no firewall).</p>
+        {/if}
+        <button class="wide" class:primary={!remote.running} onclick={() => remoteToggle(!remote.running)}>
+          {remote.running ? `Desligar celular (${remote.bind})` : 'Ligar celular'}
+        </button>
+        {#if remoteErr}<p class="keys warnTxt">{remoteErr}</p>{/if}
+        {#if remote.running}
+          <div class="files">
+            <button onclick={showPairCode}>Mostrar código</button>
+            <button onclick={revokeAll} disabled={!remote.clients}>Desconectar todos</button>
+          </div>
+          {#if pairCode}
+            <div class="pair">{pairCode.code}</div>
+            <p class="keys">No celular, abra <b>{pairCode.url}</b> e digite o código. Vale por 2 min e para um celular só.</p>
+          {/if}
+          <p class="keys">{remote.clients} {remote.clients === 1 ? 'cliente pareado' : 'clientes pareados'} · comandos {remote.received} · recusados {remote.rejected}</p>
+        {/if}
       {/if}
     </div>
   </aside>
@@ -835,6 +932,7 @@
 
   <footer class="status">
     <span>{status}</span>
+    {#if remoteWarn}<span class="remoteWarn">⚠ alguém está controlando pelo celular</span>{/if}
     {#if upd}
       <button class="upd" onclick={installUpdate} disabled={fps > 0 || updPct >= 0}
         title={fps ? 'Feche o telão para atualizar (o app reinicia)' : upd.body || 'Baixa, instala e reinicia o app'}>
@@ -938,6 +1036,8 @@
   .vid .x { padding: 5px 9px; }
   .keys { color: var(--muted); font-size: 11px; margin-top: 12px; }
   .status { grid-column: 1 / -1; color: var(--muted); font-size: 12px; padding: 0 4px; display: flex; align-items: center; gap: 12px; }
+  .remoteWarn { color: #ffb84d; font-weight: 700; white-space: nowrap; }
+  .pair { font-size: 34px; font-weight: 800; letter-spacing: .25em; text-align: center; margin-top: 10px; font-variant-numeric: tabular-nums; }
   .upd { margin-left: auto; padding: 2px 10px; font-size: 11px; font-weight: 600; background: var(--accent); border-color: var(--accent); color: var(--accent-ink, #fff); }
   .upd:disabled { opacity: .55; cursor: default; }
 </style>
