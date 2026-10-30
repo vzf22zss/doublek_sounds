@@ -634,6 +634,13 @@ trocado na aba Roteiro, a qualquer momento.
 **Exportar / Importar** salvam o roteiro em `.json`, sem a música. Para levar a outro
 computador, importe o roteiro e use **Trocar música** para apontar o arquivo de novo.
 
+**Ponto de cena de outro banco:** ao editar um ponto de cena, escolha "Banco aberto na hora"
+(o pad do banco que estiver aberto quando o ponto passar, como sempre foi) ou um banco fixo.
+Com banco fixo, o app abre esse banco na hora do ponto e chama a cena; na timeline o ponto
+aparece como "B2·nome". **Reset** desfaz na hora os efeitos do roteiro que estiverem rodando
+(strobe, blackout, só logo) e para as rampas de knob, mas o roteiro continua; **PÂNICO** faz o
+mesmo e para o roteiro. Tudo o que o roteiro faz fica registrado no Diagnóstico.
+
 ---
 
 ## 17. Controlador MIDI
