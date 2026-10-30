@@ -45,7 +45,7 @@ import { OrganicEffect } from './effects/organic';
 import { ParticlesEffect } from './effects/particles';
 import { GlitchEffect } from './effects/glitch';
 import { Compose } from './effects/compose';
-import { needsCompose, sanitizeLayers, type Layer } from './layers';
+import { drawsLayer, needsCompose, sanitizeLayers, type Layer } from './layers';
 
 export type Cost = { id: string; cpuMs: number; gpuMs: number | null };
 export type { BudgetInfo };
@@ -252,8 +252,8 @@ export class Renderer {
     };
     for (const { e, layer } of this.chainFor(v.layers)) {
       if (this.off.has(e.id)) continue; // módulo quebrado (desligado no init, no resize ou num quadro anterior)
-      // interruptor, orçamento ou camada desligada/transparente: não desenha
-      if ((e.psy && (v.psySafe || this.budget.off.includes(e.id))) || (layer && (!layer.enabled || layer.opacity <= 0))) {
+      // interruptor, orçamento, camada desligada/transparente ou outra camada em solo: não desenha
+      if ((e.psy && (v.psySafe || this.budget.off.includes(e.id))) || (layer && !drawsLayer(layer, v.layerSolo))) {
         this.cost.delete(e.id);
         continue;
       }

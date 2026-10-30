@@ -1,7 +1,8 @@
 // npm run check — catálogo de presets de fábrica (DK-131).
 import assert from 'node:assert/strict';
 import { FACTORY_PRESETS, presetLook, presetsByStyle, searchPresets, STYLES } from './presets.ts';
-import { lookOf, sanitizeLook, VISUAL } from './settings.ts';
+import { blend, lookOf, sanitizeLook, validScenes, VISUAL } from './settings.ts';
+import { defaultLayers, moveLayer, setLayer } from '../render/layers.ts';
 import { SAFE_FLASH_MAX, SAFE_STROBE_MAX } from './safety.ts';
 
 assert.ok(FACTORY_PRESETS.length >= 10, 'pelo menos 10 presets');
@@ -35,5 +36,24 @@ copy.mod.chroma = 'lfo';
 assert.equal(presetLook('dark-tunnel').color, '#ff2a55', 'presetLook devolve cópia');
 assert.equal(presetLook('dark-tunnel').mod.chroma, 'hats', 'cópia profunda (mod)');
 assert.throws(() => presetLook('x'));
+
+// DK-053: camadas entram nas cenas e nos presets
+{
+  const custom = moveLayer(setLayer(defaultLayers(), 'mandala', { blend: 'add', opacity: 0.5 }), 'kaleido', -1);
+  const withLayers = { ...presetLook('psy-clean'), layers: custom };
+  assert.deepEqual(sanitizeLook(withLayers), withLayers, 'cena/preset com camadas sobrevive ao sanitizeLook');
+  const empty = Array(7).fill(null);
+  const [old] = validScenes([{ name: 'antiga', look: { color: '#ffffff' } }, ...empty]);
+  assert.deepEqual(old!.look.layers, defaultLayers(), 'cena antiga sem layers ganha o padrão');
+  const [bad] = validScenes([{ name: 'x', look: { layers: [{ id: 'evil' }, { id: 'glitch', opacity: 9 }] } }, ...empty]);
+  assert.equal(bad!.look.layers.length, 7, 'lixo nas camadas vira lista completa');
+  assert.equal(bad!.look.layers[0].id, 'glitch');
+  assert.equal(bad!.look.layers[0].opacity, 1);
+  // crossfade de cenas: a lista troca inteira em t = 0,5, sem erro
+  const from = { ...VISUAL, layers: defaultLayers() };
+  assert.deepEqual(blend(from, withLayers, 0.49).layers, from.layers);
+  assert.deepEqual(blend(from, withLayers, 0.5).layers, custom);
+  assert.ok(FACTORY_PRESETS.every((p) => p.look.layers.length === 7), 'todo preset leva as camadas padrão');
+}
 
 console.log('presets: ok');

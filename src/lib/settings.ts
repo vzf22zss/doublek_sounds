@@ -1,6 +1,6 @@
 // Ajustes visuais: a janela de controle é a dona; a saída lê na abertura e recebe o evento 'visual'.
 import { isObj, load, save, shaped } from './store.ts';
-import { defaultLayers } from '../render/layers.ts';
+import { defaultLayers, sanitizeLayers } from '../render/layers.ts';
 
 // De onde cada efeito tira o movimento. "Auto" = kick quando há kick, a onda quando não há.
 export const SOURCES = {
@@ -43,14 +43,15 @@ export const VISUAL = {
   particles: 0, particlesDensity: 0.5, particlesDir: 90, particlesTurb: 0.3, // direção em graus (90 = sobe)
   organic: 0, organicScale: 1,
   glitch: 0, // rajadas curtas no disparo; teto em music.ts (BURST_HZ, BURST_MS)
+  // DK-051/053: ordem, liga/desliga, opacidade e mistura de cada camada; entra nas cenas (sanitizeLayers valida).
+  // No crossfade de cenas a lista troca inteira em t = 0,5, como os outros objetos (ver `blend`).
+  layers: defaultLayers(),
   // saída / operação (fora das cenas)
+  layerSolo: '',    // DK-053: id da camada em solo ('' = nenhuma); só ela desenha, sem mexer no `enabled` das outras
   psyQuality: 1, // 0 baixa · 1 média · 2 alta: amostras/iterações por pixel dos módulos do Psy Engine
   psyAuto: true,    // DK-024: baixa a qualidade / desliga o módulo mais caro se o telão engasgar
   psyBudgetMs: 22,  // teto do p95 do frametime para o ajuste automático
   psySafe: false,   // interruptor: true = os módulos do Psy Engine param de desenhar, sem mexer nas cenas
-  // DK-051: ordem, liga/desliga, opacidade e mistura de cada camada. Fora das cenas por enquanto (sanitizeLook
-  // descarta arrays); o renderer valida com sanitizeLayers ao consumir.
-  layers: defaultLayers(),
   renderScale: 1, blackout: false, logoOnly: false,
   react: true, // false = "só roteiro": o visual muda só nos pontos marcados, sem reagir ao som
   safeFlash: true, // limita strobe/flash a 3 por segundo (fotossensibilidade); fora das cenas, ligado por padrão
@@ -63,6 +64,7 @@ export function validVisual(raw: unknown): Visual {
   for (const k of Object.keys(v.mod) as ModTarget[]) if (!(v.mod[k] in SOURCES)) v.mod[k] = VISUAL.mod[k];
   if (v.bgFit !== 'cover' && v.bgFit !== 'contain') v.bgFit = VISUAL.bgFit;
   if (![1, 2, 4].includes(v.strobeDiv)) v.strobeDiv = VISUAL.strobeDiv;
+  v.layers = sanitizeLayers(v.layers); // dado salvo passa pelo mesmo crivo que o renderer e a UI
   return { ...v, blackout: false, logoOnly: false, react: true };
 }
 
@@ -76,7 +78,7 @@ export function saveVisual(v: Visual) {
 
 // ---------- cenas ----------
 // Uma cena é o "visual" sem os ajustes de operação (sincronia, desempenho, blackout, recorte da logo).
-const NOT_IN_SCENE = ['renderScale', 'psyQuality', 'psyAuto', 'psyBudgetMs', 'psySafe', 'layers', 'offset', 'predict', 'blackout', 'logoOnly', 'rmWhite', 'white', 'react', 'safeFlash'] as const;
+const NOT_IN_SCENE = ['renderScale', 'psyQuality', 'psyAuto', 'psyBudgetMs', 'psySafe', 'layerSolo', 'offset', 'predict', 'blackout', 'logoOnly', 'rmWhite', 'white', 'react', 'safeFlash'] as const;
 export type Look = Omit<Visual, (typeof NOT_IN_SCENE)[number]>;
 export type Scene = { name: string; look: Look } | null;
 
@@ -146,6 +148,8 @@ export function sanitizeLook(x: unknown): Partial<Look> {
     } else if (k === 'drop' && v && typeof v === 'object') {
       o.drop = { ...VISUAL.drop };
       for (const [t, on] of Object.entries(v)) if (t in VISUAL.drop && typeof on === 'boolean') o.drop[t] = on;
+    } else if (k === 'layers') {
+      o.layers = sanitizeLayers(v); // DK-053: camadas entram nas cenas, presets e Show Pack
     } else if (k in base && typeof base[k] !== 'object' && typeof v === typeof base[k] && (typeof v !== 'number' || Number.isFinite(v))) o[k] = v;
   }
   return o;

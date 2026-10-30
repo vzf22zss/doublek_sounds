@@ -4,6 +4,7 @@
 import { VISUAL } from './settings.ts';
 import { MAX_BANKS } from './banks.ts';
 import { SAFE_FLASH_MAX, SAFE_STROBE_MAX } from './safety.ts';
+import { LAYER_IDS, LAYER_PARAM } from '../render/layers.ts';
 
 export const MACROS = ['BUILD_UP', 'DROP', 'CHAOS', 'RESET'] as const;
 export type MacroId = (typeof MACROS)[number];
@@ -49,8 +50,10 @@ const NETWORK_OFF: Partial<Record<Source, string>> = {
 const int = (x: unknown, lo: number, hi: number) => typeof x === 'number' && Number.isInteger(x) && x >= lo && x <= hi;
 const fin = (x: unknown) => typeof x === 'number' && Number.isFinite(x);
 const optBool = (x: unknown) => x === undefined || typeof x === 'boolean';
-/** Chaves do Visual que SET_PARAMETER aceita: as numéricas. */
-export const isParameter = (k: unknown): k is string => typeof k === 'string' && Object.hasOwn(VISUAL, k) && typeof (VISUAL as any)[k] === 'number';
+/** Chaves do Visual que SET_PARAMETER aceita: as numéricas. Mais as de camada (DK-053): `layers.<id>.opacity`
+ *  e `layers.<id>.on` — o handler aplica com `applyLayerParam` (render/layers.ts). */
+export const isParameter = (k: unknown): k is string =>
+  typeof k === 'string' && ((Object.hasOwn(VISUAL, k) && typeof (VISUAL as any)[k] === 'number') || LAYER_PARAM.test(k));
 
 /** Motivo da recusa, ou null se o comando é válido. */
 export function validate(c: unknown): string | null {
@@ -156,6 +159,9 @@ export const LEGACY_ACTIONS: Record<string, ShowCommand> = {
   'a:bank-': { type: 'BANK_STEP', delta: -1 },
   'a:bank+': { type: 'BANK_STEP', delta: 1 },
   ...Object.fromEntries(MACROS.map((id) => [`a:macro:${id}`, { type: 'MACRO', id } as ShowCommand])),
+  // DK-053: botão/pad liga-desliga uma camada (−1 = alterna). A opacidade vai pelo caminho de knob:
+  // alvo `v:layers.<id>.opacity` com min 0 / max 1 → fromTarget gera SET_PARAMETER sozinho.
+  ...Object.fromEntries(LAYER_IDS.map((id) => [`l:${id}:on`, { type: 'SET_PARAMETER', key: `layers.${id}.on`, value: -1 } as ShowCommand])),
 };
 
 export type MidiTarget = { id: string; label?: string; min?: number; max?: number; step?: number };

@@ -67,3 +67,33 @@ export function setLayer(layers: unknown, id: string, patch: Partial<Pick<Layer,
 
 /** A camada precisa de passe de composição? `normal` com opacidade 1 = não (custo de hoje). */
 export const needsCompose = (l: Layer) => l.blend !== 'normal' || l.opacity < 1;
+
+// ---------- DK-053: arrastar, solo e MIDI ----------
+
+/** Leva a camada para a posição `to` (arrastar). Devolve lista nova. */
+export function placeLayer(layers: unknown, id: string, to: number): Layer[] {
+  const l = sanitizeLayers(layers), i = l.findIndex((x) => x.id === id);
+  if (i < 0) return l;
+  const [x] = l.splice(i, 1);
+  l.splice(Math.max(0, Math.min(l.length, Math.round(to))), 0, x);
+  return l.map((y, order) => ({ ...y, order }));
+}
+
+/** A camada desenha? Com uma camada em solo (`layerSolo` = id conhecido), só ela — mesmo desligada; o `enabled`
+ *  das outras fica como estava. Opacidade 0 nunca desenha. */
+export const drawsLayer = (l: Layer, solo: unknown) =>
+  ((LAYER_IDS as readonly unknown[]).includes(solo) ? l.id === solo : l.enabled) && l.opacity > 0;
+
+/** Chaves de camada que SET_PARAMETER aceita (MIDI learn): `layers.<id>.opacity` (0–1) e `layers.<id>.on`
+ *  (1 liga · 0 desliga · −1 alterna). */
+export const LAYER_PARAM = new RegExp(`^layers\\.(${LAYER_IDS.join('|')})\\.(opacity|on)$`);
+
+/** Aplica um SET_PARAMETER de camada. null = não é chave de camada (o App segue com o caminho normal). */
+export function applyLayerParam(layers: unknown, key: string, value: number): Layer[] | null {
+  const m = LAYER_PARAM.exec(key);
+  if (!m || !Number.isFinite(value)) return null;
+  const [, id, field] = m;
+  if (field === 'opacity') return setLayer(layers, id, { opacity: value });
+  const cur = sanitizeLayers(layers).find((x) => x.id === id)!;
+  return setLayer(layers, id, { enabled: value < 0 ? !cur.enabled : value >= 0.5 });
+}

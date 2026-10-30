@@ -1,6 +1,6 @@
 // npm run check — contrato das camadas (DK-051).
 import assert from 'node:assert/strict';
-import { defaultLayers, LAYER_IDS, moveLayer, needsCompose, sanitizeLayers, setLayer } from './layers.ts';
+import { applyLayerParam, defaultLayers, drawsLayer, LAYER_IDS, LAYER_PARAM, moveLayer, needsCompose, placeLayer, sanitizeLayers, setLayer } from './layers.ts';
 
 const ids = (l: { id: string }[]) => l.map((x) => x.id).join(',');
 const D = defaultLayers();
@@ -58,5 +58,41 @@ assert.equal(D[0].id, 'organic', 'não muda a lista recebida');
   assert.equal(setLayer(D, 'glitch', { enabled: false }).find((x) => x.id === 'glitch')!.enabled, false);
 }
 assert.equal(LAYER_IDS.length, 7);
+
+// DK-053: arrastar para uma posição
+assert.equal(ids(placeLayer(D, 'glitch', 0)), 'glitch,organic,tunnel,particles,mandala,kaleido,feedback');
+assert.equal(ids(placeLayer(D, 'organic', 99)), 'tunnel,particles,mandala,kaleido,feedback,glitch,organic');
+assert.equal(ids(placeLayer(D, 'mandala', 1)), 'organic,mandala,tunnel,particles,kaleido,feedback,glitch');
+assert.deepEqual(placeLayer(D, 'nope', 0), D);
+assert.deepEqual(placeLayer(D, 'tunnel', 1), D);
+assert.deepEqual(placeLayer(D, 'glitch', 0).map((x) => x.order), [0, 1, 2, 3, 4, 5, 6]);
+
+// solo: só a camada em solo desenha, mesmo desligada; sem solo (ou solo desconhecido) vale o enabled
+{
+  const l = setLayer(D, 'tunnel', { enabled: false });
+  const draws = (solo: unknown) => l.filter((x) => drawsLayer(x, solo)).map((x) => x.id).join(',');
+  assert.equal(draws(''), 'organic,particles,mandala,kaleido,feedback,glitch');
+  assert.equal(draws('tunnel'), 'tunnel');
+  assert.equal(draws('mandala'), 'mandala');
+  assert.equal(draws('evil'), draws(''));
+  assert.equal(drawsLayer({ ...D[0], opacity: 0 }, 'organic'), false, 'opacidade 0 nunca desenha');
+  assert.equal(l.find((x) => x.id === 'tunnel')!.enabled, false, 'solo não mexe no enabled');
+}
+
+// SET_PARAMETER de camada (MIDI learn)
+{
+  assert.ok(LAYER_PARAM.test('layers.kaleido.opacity') && LAYER_PARAM.test('layers.feedback.on'));
+  assert.ok(!LAYER_PARAM.test('layers.evil.on') && !LAYER_PARAM.test('layers.kaleido.blend') && !LAYER_PARAM.test('size'));
+  assert.equal(applyLayerParam(D, 'size', 1), null);
+  assert.equal(applyLayerParam(D, 'layers.kaleido.opacity', NaN), null);
+  const op = (l: ReturnType<typeof sanitizeLayers>, id: string) => l.find((x) => x.id === id)!;
+  assert.equal(op(applyLayerParam(D, 'layers.kaleido.opacity', 0.42)!, 'kaleido').opacity, 0.42);
+  assert.equal(op(applyLayerParam(D, 'layers.kaleido.opacity', 3)!, 'kaleido').opacity, 1);
+  const off = applyLayerParam(D, 'layers.glitch.on', 0)!;
+  assert.equal(op(off, 'glitch').enabled, false);
+  assert.equal(op(applyLayerParam(off, 'layers.glitch.on', 1)!, 'glitch').enabled, true);
+  assert.equal(op(applyLayerParam(off, 'layers.glitch.on', -1)!, 'glitch').enabled, true, '−1 alterna');
+  assert.equal(op(applyLayerParam(D, 'layers.glitch.on', -1)!, 'glitch').enabled, false);
+}
 
 console.log('layers: ok');
