@@ -196,33 +196,8 @@ fn grid(kicks: &[f64], p0: f64) -> Option<(f64, f64)> {
 mod tests {
     use super::*;
 
-    /// Kicks (sweep + click) a `bpm` a partir de `start`, com baixo rolante — estéreo.
     fn synth(bpm: f64, secs: f64, start: f64, sr: u32) -> Vec<f32> {
-        let sr_f = sr as f32;
-        let mut m = vec![0f32; (secs * sr as f64) as usize];
-        let beat = 60.0 / bpm;
-        let mut t0 = start;
-        let mut rng = 7u32;
-        while t0 + 0.4 < secs {
-            let s0 = (t0 * sr as f64) as usize;
-            let mut ph = 0f32;
-            for i in 0..(0.3 * sr_f) as usize {
-                let tt = i as f32 / sr_f;
-                ph += 2.0 * std::f32::consts::PI * (50.0 + 120.0 * (-tt / 0.03).exp()) / sr_f;
-                rng = rng.wrapping_mul(1664525).wrapping_add(1013904223);
-                let nz = (rng >> 8) as f32 / (1 << 24) as f32 * 2.0 - 1.0;
-                m[s0 + i] += 0.8 * ph.sin() * (-tt / 0.2).exp() + 0.35 * nz * (-tt / 0.004).exp();
-            }
-            for j in 1..4 {
-                let b0 = ((t0 + j as f64 * beat / 4.0) * sr as f64) as usize;
-                for i in 0..(beat / 4.0 * 0.8 * sr as f64) as usize {
-                    let tt = i as f32 / sr_f;
-                    m[b0 + i] += 0.5 * (tt / 0.003).min(1.0) * (-tt / 0.05).exp() * (2.0 * std::f32::consts::PI * 55.0 * tt).sin();
-                }
-            }
-            t0 += beat;
-        }
-        m.iter().flat_map(|&s| [s, s]).collect()
+        crate::synth::Synth { bpm, secs, start, sr: sr as f32, ..Default::default() }.stereo().0
     }
 
     #[test]

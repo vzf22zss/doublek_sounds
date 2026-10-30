@@ -5,6 +5,7 @@
   import { checkFile } from '../lib/limits';
   import { learnable } from './midi.svelte';
   import { blend, loadScenes, lookOf, saveScenes, sanitizeLook, VISUAL, type Look, type Scene, type Visual } from '../lib/settings';
+  import { FACTORY_PRESETS, presetLook, presetsByStyle, STYLES } from '../lib/presets';
 
   let { vs = $bindable(), beatInfo, onstatus }: {
     vs: Visual;
@@ -89,6 +90,27 @@
     }
   }
 
+  // Catálogo de fábrica (DK-131): nunca edita o preset; grava uma cópia num pad ou aplica no visual.
+  let catalog = $state(false);
+  let pick = $state(FACTORY_PRESETS[0].id);
+  const byStyle = presetsByStyle();
+  const picked = $derived(FACTORY_PRESETS.find((p) => p.id === pick)!);
+
+  function applyPreset() {
+    Object.assign(vs, presetLook(pick));
+    onstatus('Preset aplicado: ' + picked.name);
+  }
+
+  /** Grava no pad ativo, senão no primeiro vazio; pad ocupado só com confirmação. */
+  function savePreset() {
+    let i = active >= 0 ? active : scenes.findIndex((s) => !s);
+    if (i < 0) i = 0;
+    if (scenes[i] && !confirm(`Gravar "${picked.name}" por cima da cena ${i + 1} (${scenes[i]!.name})?`)) return;
+    scenes[i] = { name: picked.name.slice(0, 24), look: presetLook(pick) };
+    active = i;
+    onstatus(`Preset "${picked.name}" gravado na cena ${i + 1}.`);
+  }
+
   const f2 = (v: number) => v.toFixed(2);
 </script>
 
@@ -141,7 +163,24 @@
       <button class:on={vs.logoOnly} onclick={() => (vs.logoOnly = !vs.logoOnly)} title="L" use:learnable={{ id: 'a:logoOnly', label: 'Só logo' }}>Só logo</button>
       <button onclick={exportFile} title="Salva visual e cenas num arquivo">Exportar</button>
       <label class="btn" title="Carrega visual e cenas de um arquivo">Importar<input type="file" accept=".json,application/json" onchange={(e) => { importFile(e.currentTarget.files?.[0]); e.currentTarget.value = ''; }} /></label>
+      <button class:on={catalog} onclick={() => (catalog = !catalog)} title="Presets de fábrica por estilo">Catálogo</button>
     </div>
+    {#if catalog}
+      <div class="row">
+        <select bind:value={pick} title={picked.description}>
+          {#each Object.entries(byStyle) as [style, list]}
+            {#if list.length}
+              <optgroup label={STYLES[style as keyof typeof STYLES]}>
+                {#each list as pr}<option value={pr.id}>{pr.name}</option>{/each}
+              </optgroup>
+            {/if}
+          {/each}
+        </select>
+        <span class="desc">{picked.description}</span>
+        <button onclick={applyPreset} title="Troca o visual atual, sem gravar em cena">Aplicar agora</button>
+        <button onclick={savePreset} title="Grava uma cópia na cena ativa ou na primeira vazia">Gravar no pad</button>
+      </div>
+    {/if}
   </div>
 </section>
 
@@ -163,4 +202,6 @@
   .seg button, .row > button, .btn { padding: 4px 9px; font-size: 12px; }
   .btn { background: rgba(255,255,255,.06); border: 1px solid var(--line); border-radius: 10px; cursor: pointer; color: var(--text); }
   .btn input { display: none; }
+  .row select { padding: 4px 8px; font-size: 12px; }
+  .desc { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 </style>

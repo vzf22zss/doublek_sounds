@@ -1,6 +1,6 @@
 // npm run check — armazenamento versionado: migração v0 → v1, dado inválido, versão futura, roundtrip (DK-002).
 import assert from 'node:assert/strict';
-import { load, save, useStorage, SCHEMA, shaped, type Key } from './store.ts';
+import { load, save, useStorage, SCHEMA, shaped, migrate, type Key } from './store.ts';
 import { loadVisual, loadScenes, saveScenes, validVisual, VISUAL } from './settings.ts';
 import { loadRoteiros, saveRoteiros, validRoteiros } from './roteiro.ts';
 
@@ -85,5 +85,11 @@ for (const k of Object.keys(SCHEMA) as Key[]) {
 // --- save grava envelope ---
 save('doublek.midi', { 'cc:0:16': { id: 'v:glow', label: 'Glow' } });
 assert.deepEqual(env('doublek.midi'), { v: 1, data: { 'cc:0:16': { id: 'v:glow', label: 'Glow' } } });
+
+// --- migrate: o mesmo caminho, para envelopes que vêm de um Show Pack (sem tocar no storage) ---
+assert.equal(migrate('doublek.trans', '4'), 4);                         // v0 cru
+assert.deepEqual(migrate('doublek.visual', { v: 1, data: { size: 5 } }), { size: 5 });
+assert.deepEqual(migrate('doublek.scenes', [null]), [null]);           // v0 → v1 sem mudar o dado
+assert.throws(() => migrate('doublek.visual', { v: 99, data: {} }), /mais nova/);
 
 console.log('store: ok');
