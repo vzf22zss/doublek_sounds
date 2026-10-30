@@ -5,7 +5,7 @@
   import { barLabel, FX_NAMES, KIND_NAMES, KNOBS, newCue, type CueKind } from '../lib/roteiro';
   import { listVideos } from '../lib/assets';
 
-  let { sceneNames }: { sceneNames: () => string[] } = $props();
+  let { sceneNames, bankNames }: { sceneNames: (bank?: number) => string[]; bankNames: () => string[] } = $props();
 
   let outputs = $state<string[]>([]);
   invoke<string[]>('list_outputs').then((o) => (outputs = o)).catch(() => {});
@@ -95,8 +95,12 @@
         </div>
         <p class="at">Compasso <b>{barLabel(r, cue.beat)}</b> (beat {cue.beat})</p>
         {#if cue.kind === 'scene'}
+          <select class="wide" bind:value={cue.bank} title="De que banco é a cena. 'Banco aberto' = o que estiver aberto na hora do ponto">
+            <option value={undefined}>Banco aberto na hora</option>
+            {#each bankNames() as n, i}<option value={i}>Banco {i + 1}: {n}</option>{/each}
+          </select>
           <select class="wide" bind:value={cue.scene}>
-            {#each sceneNames() as n, i}<option value={i}>{i + 1}. {n}</option>{/each}
+            {#each sceneNames(cue.bank) as n, i}<option value={i}>{i + 1}. {n}</option>{/each}
           </select>
           <label class="num">Crossfade <input type="number" min="0" max="32" step="1" bind:value={cue.fade} /> beats</label>
         {:else if cue.kind === 'fx'}

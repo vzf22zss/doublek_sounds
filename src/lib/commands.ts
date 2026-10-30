@@ -4,6 +4,7 @@
 import { VISUAL } from './settings.ts';
 import { MAX_BANKS } from './banks.ts';
 import { SAFE_FLASH_MAX, SAFE_STROBE_MAX } from './safety.ts';
+import { FX_KINDS, type FxKind } from './roteiro-fx.ts';
 
 export const MACROS = ['BUILD_UP', 'DROP', 'CHAOS', 'RESET'] as const;
 export type MacroId = (typeof MACROS)[number];
@@ -18,7 +19,7 @@ export type ShowCommand =
   | { type: 'BLACKOUT'; on?: boolean }         // sem `on` = alterna
   | { type: 'LOGO_ONLY'; on?: boolean }
   | { type: 'PANIC' }
-  | { type: 'SCENE_RECALL'; index: number; fade?: number; now?: boolean } // pad 0–7 do banco ativo; `now` = sem esperar o beat
+  | { type: 'SCENE_RECALL'; index: number; fade?: number; now?: boolean; bank?: number } // pad 0–7 (do banco `bank`, ou do aberto); `now` = sem esperar o beat
   | { type: 'SCENE_SAVE'; index: number }
   | { type: 'SCENE_PREVIEW'; bank?: number; index: number } // DK-043: prepara no PREVIEW (bank ausente = ativo)
   | { type: 'SCENE_TAKE'; fade?: number }                   // manda o preview para o PROGRAM (fade ausente = transição padrão)
@@ -32,14 +33,24 @@ export type ShowCommand =
   | { type: 'ROTEIRO_NUDGE'; beats: number }
   | { type: 'ROTEIRO_AB' }
   | { type: 'MACRO'; id: MacroId }
-  | { type: 'AUTOMATION_MODE'; mode: AutomationMode }; // só o tipo: sem efeito até DK-030/040
+  | { type: 'AUTOMATION_MODE'; mode: AutomationMode } // só o tipo: sem efeito até DK-030/040
+  // DK-143: o que o roteiro faz além de cena. O roteiro desfaz o efeito e avança a rampa; o dispatcher valida e registra.
+  | { type: 'FX_BURST'; fx: FxKind; beats: number; div?: number } // strobe/flash/blackout/só logo por N beats
+  | { type: 'VIDEO_SET'; id: string }                             // '' = sem vídeo
+  | { type: 'PARAM_RAMP'; key: string; to: number; beats: number }; // 0 beats = salto
 export type CommandType = ShowCommand['type'];
 export type Source = 'keyboard' | 'midi' | 'ui' | 'roteiro' | 'automation' | 'osc' | 'remote';
 
 export type Handlers = { [K in CommandType]?: (cmd: Extract<ShowCommand, { type: K }>, source: Source) => void };
 export type Result = { ok: true } | { ok: false; reason: string };
 export type HistoryEntry = { t: number; source: Source; cmd: ShowCommand; ok: boolean; reason?: string };
-export type DispatchOpts = { now?: () => number; cooldownMs?: number; historyMax?: number };
+export type DispatchOpts = {
+  now?: () => number; cooldownMs?: number; historyMax?: number;
+  /** Roteiro tocando: automação não troca cena/banco/vídeo (roteiro > automação, DK-143). */
+  roteiroRunning?: () => boolean;
+};
+/** O que a automação não pode fazer com o roteiro rodando: muda o que está no telão por cima dos pontos. */
+export const SCENE_LIKE: ReadonlySet<CommandType> = new Set(['SCENE_RECALL', 'SCENE_TAKE', 'BANK_STEP', 'BANK_SET', 'VIDEO_SET']);
 
 /** Comandos que passam na frente de tudo: sem fila, sem cooldown de override. */
 export const PRIORITY: ReadonlySet<CommandType> = new Set(['BLACKOUT', 'PANIC']);
@@ -73,6 +84,7 @@ export function validate(c: unknown): string | null {
     case 'SCENE_RECALL':
       if (!int(x.index, 0, 7)) return 'SCENE_RECALL: índice de 0 a 7';
       if (x.fade !== undefined && !(fin(x.fade) && x.fade >= 0 && x.fade <= 32)) return 'SCENE_RECALL: fade de 0 a 32 beats';
+      if (x.bank !== undefined && !int(x.bank, 0, MAX_BANKS - 1)) return `SCENE_RECALL: banco de 0 a ${MAX_BANKS - 1}`;
       return optBool(x.now) ? null : 'SCENE_RECALL: "now" precisa ser true/false';
     case 'SCENE_SAVE': return int(x.index, 0, 7) ? null : 'SCENE_SAVE: índice de 0 a 7';
     case 'BANK_STEP': return int(x.delta, -MAX_BANKS, MAX_BANKS) && x.delta !== 0 ? null : `BANK_STEP: delta de -${MAX_BANKS} a ${MAX_BANKS}, diferente de 0`;
@@ -83,6 +95,15 @@ export function validate(c: unknown): string | null {
     case 'ROTEIRO_NUDGE': return int(x.beats, -16, 16) && x.beats !== 0 ? null : 'ROTEIRO_NUDGE: beats inteiro de -16 a 16, diferente de 0';
     case 'MACRO': return (MACROS as readonly string[]).includes(x.id) ? null : `MACRO: desconhecida (${String(x.id)})`;
     case 'AUTOMATION_MODE': return (AUTOMATION_MODES as readonly string[]).includes(x.mode) ? null : 'AUTOMATION_MODE: modo desconhecido';
+    case 'FX_BURST':
+      if (!FX_KINDS.includes(x.fx)) return `FX_BURST: efeito desconhecido (${String(x.fx)})`;
+      if (!(fin(x.beats) && x.beats > 0 && x.beats <= 64)) return 'FX_BURST: beats entre 0 e 64';
+      return x.div === undefined || [1, 2, 4].includes(x.div) ? null : 'FX_BURST: div 1, 2 ou 4';
+    case 'VIDEO_SET': return typeof x.id === 'string' && /^[A-Za-z0-9._-]{0,64}$/.test(x.id) ? null : 'VIDEO_SET: id de vídeo inválido';
+    case 'PARAM_RAMP':
+      if (!isParameter(x.key)) return `PARAM_RAMP: ajuste desconhecido ou não numérico (${String(x.key)})`;
+      if (!fin(x.to)) return 'PARAM_RAMP: alvo precisa ser número';
+      return fin(x.beats) && x.beats >= 0 && x.beats <= 64 ? null : 'PARAM_RAMP: beats de 0 a 64';
     default: return `comando desconhecido (${String(x.type)})`;
   }
 }
@@ -120,6 +141,8 @@ export function createDispatcher(handlers: Handlers, opts: DispatchOpts = {}) {
     const off = NETWORK_OFF[source];
     if (off) return record(source, cmd, { ok: false, reason: off });
     const prio = PRIORITY.has(cmd.type);
+    if (source === 'automation' && SCENE_LIKE.has(cmd.type) && opts.roteiroRunning?.())
+      return record(source, cmd, { ok: false, reason: `${cmd.type}: roteiro em andamento (a automação só mexe em ajustes)` });
     if (source === 'automation' && !prio && now() < manualUntil)
       return record(source, cmd, { ok: false, reason: `override manual: automação pausada por mais ${Math.ceil((manualUntil - now()) / 1000)} s` });
     if (MANUAL.has(source)) manualUntil = now() + cooldown;
@@ -140,6 +163,8 @@ export function createDispatcher(handlers: Handlers, opts: DispatchOpts = {}) {
     history: () => history.slice(),
     /** ms restantes de override manual (0 = automação liberada). */
     manualLeft: () => Math.max(0, manualUntil - now()),
+    /** Mexida que não passa por comando (knob/slider da tela): renova o override manual igual a um comando. */
+    markManual: () => void (manualUntil = now() + cooldown),
   };
 }
 

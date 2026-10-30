@@ -7,7 +7,8 @@
   import { listVideos } from '../lib/assets';
   import { learnable } from './midi.svelte';
 
-  let { sceneNames }: { sceneNames: () => string[] } = $props();
+  let { sceneNames }: { sceneNames: (bank?: number) => string[] } = $props();
+  const namesFor = (c: Cue) => sceneNames(c.bank).map((name) => ({ name })); // cena do banco do ponto (DK-143)
 
   let canvas: HTMLCanvasElement;
   let ppb = 8; // pixels por beat
@@ -81,7 +82,7 @@
       ctx.fillText('GO', x + 4, top + 11);
     }
     // pontos
-    const scenes = sceneNames().map((name) => ({ name })), vids = listVideos();
+    const vids = listVideos();
     for (const c of ro.cues) {
       const x = xOf(c.beat), col = KIND_COLOR[c.kind], sel = c.id === rt.selected;
       const len = c.kind === 'fx' ? (c.fx === 'flash' ? 1 : c.beats ?? 1) : c.kind === 'knob' ? c.ramp ?? 0 : c.kind === 'scene' ? c.fade ?? 0 : 0;
@@ -90,7 +91,7 @@
       if (len) ctx.fillRect(x, top, len * ppb, H - top);
       ctx.fillStyle = col;
       ctx.fillRect(x, 0, sel ? 2 : 1, H);
-      const label = cueLabel(c, scenes, vids), w = ctx.measureText(label).width + 8;
+      const label = cueLabel(c, namesFor(c), vids), w = ctx.measureText(label).width + 8;
       ctx.fillRect(x, 0, w, LABEL_H - 2);
       if (sel) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.strokeRect(x + 0.5, 0.5, w - 1, LABEL_H - 3); }
       ctx.fillStyle = '#0b0b10';
@@ -109,8 +110,8 @@
     if (!ro || y > LABEL_H) return undefined;
     const ctx = canvas.getContext('2d')!;
     ctx.font = '10px "Segoe UI", system-ui';
-    const scenes = sceneNames().map((name) => ({ name })), vids = listVideos();
-    return [...ro.cues].reverse().find((c) => x >= xOf(c.beat) && x <= xOf(c.beat) + ctx.measureText(cueLabel(c, scenes, vids)).width + 8);
+    const vids = listVideos();
+    return [...ro.cues].reverse().find((c) => x >= xOf(c.beat) && x <= xOf(c.beat) + ctx.measureText(cueLabel(c, namesFor(c), vids)).width + 8);
   }
 
   function down(e: PointerEvent) {

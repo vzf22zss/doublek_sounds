@@ -70,7 +70,10 @@
     }, wait);
   }
 
-  export const sceneNames = () => scenes.map((s, i) => s?.name ?? `Cena ${i + 1}`);
+  /** Nomes das 8 cenas do banco `bank` (padrão: o aberto). Banco que não existe = lista vazia. */
+  export const sceneNames = (bank = bk.active) => bk.banks[bank]?.scenes.map((s, i) => s?.name ?? `Cena ${i + 1}`) ?? [];
+  export const bankNames = () => bk.banks.map((b) => b.name);
+  export const activeBank = () => bk.active;
 
   function setBanks(b: Banks, msg: string) {
     bk = b;
