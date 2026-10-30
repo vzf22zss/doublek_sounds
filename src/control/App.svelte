@@ -7,7 +7,7 @@
   import { midi, keyOf, bindArmed, clearArmed, keyLabel, learnable, type MidiMsg } from './midi.svelte';
   import { Renderer } from '../render/renderer';
   import { VISUAL, loadVisual, saveVisual } from '../lib/settings';
-  import { assetSync, imageColors, setAsset } from '../lib/assets';
+  import { addVideo, assetSync, imageColors, listVideos, removeVideo, setAsset, videoColors } from '../lib/assets';
   import type { Frame, Msg } from '../lib/types';
   import { check, type Update } from '@tauri-apps/plugin-updater';
   import { relaunch } from '@tauri-apps/plugin-process';
@@ -200,6 +200,14 @@
   }
 
   async function pick(kind: 'logo' | 'bg', file: File | undefined | null) {
+    if (kind === 'bg' && file?.type.startsWith('video/')) {
+      status = 'Guardando o vídeo…';
+      vs.bgVideo = await addVideo(file);
+      videoList = listVideos();
+      status = `Vídeo "${file.name}" no fundo.`;
+      setTimeout(() => autoColors('bg'), 800); // espera o primeiro quadro
+      return;
+    }
     if (!file || !file.type.startsWith('image/')) return;
     await setAsset(kind, file);
     sync?.($state.snapshot(vs), true);
@@ -209,10 +217,17 @@
 
   /** Brilho/ondas/flash/espectro + cores do fundo tirados da foto ou da logo (na logo, liga o degradê). */
   async function autoColors(kind: 'logo' | 'bg') {
-    const c = await imageColors(kind);
-    if (!c) { status = kind === 'bg' ? 'Escolha uma foto de fundo primeiro.' : 'Não achei cores na logo.'; return; }
+    const c = kind === 'bg' && vs.bgVideo ? await videoColors(vs.bgVideo) : await imageColors(kind);
+    if (!c) { status = kind === 'bg' ? 'Escolha uma foto ou vídeo de fundo primeiro.' : 'Não achei cores na logo.'; return; }
     Object.assign(vs, c, kind === 'logo' ? { bgGrad: true } : {});
-    status = `Cores ${kind === 'bg' ? 'da foto' : 'da logo'}: brilho ${c.color}, fundo ${c.bgc1} → ${c.bgc2}.`;
+    status = `Cores ${kind === 'bg' ? 'do fundo' : 'da logo'}: brilho ${c.color}, fundo ${c.bgc1} → ${c.bgc2}.`;
+  }
+
+  let videoList = $state(listVideos());
+  async function dropVideo(id: string) {
+    if (vs.bgVideo === id) vs.bgVideo = '';
+    await removeVideo(id);
+    videoList = listVideos();
   }
 
   async function clearBg() {
@@ -404,8 +419,27 @@
         <div class="files">
           <label class="btn">Foto de fundo<input type="file" accept="image/*" onchange={(e) => pick('bg', e.currentTarget.files?.[0])} /></label>
           <button onclick={clearBg}>Remover foto</button>
-          <button onclick={() => autoColors('bg')} title="Brilho e cores do fundo tirados da foto (já acontece ao escolher a foto)">Cores da foto</button>
+          <button onclick={() => autoColors('bg')} title="Brilho e cores do fundo tirados da foto ou do vídeo (já acontece ao escolher)">Cores do fundo</button>
         </div>
+        <h2>Vídeo em loop</h2>
+        <div class="files">
+          <label class="btn">Adicionar vídeo<input type="file" accept="video/*" onchange={(e) => pick('bg', e.currentTarget.files?.[0])} /></label>
+          <button class:on={!vs.bgVideo} onclick={() => (vs.bgVideo = '')}>Sem vídeo</button>
+        </div>
+        {#if videoList.length}
+          <div class="vids">
+            {#each videoList as x (x.id)}
+              <div class="vid" class:on={vs.bgVideo === x.id}>
+                <button onclick={() => (vs.bgVideo = x.id)} title={x.name}>{x.name}</button>
+                <button class="x" onclick={() => dropVideo(x.id)} title="Remover da biblioteca">×</button>
+              </div>
+            {/each}
+          </div>
+        {/if}
+        {#if vs.bgVideo}
+          <Slider label="Velocidade do vídeo" bind:value={vs.videoSpeed} learn="videoSpeed" min={0.25} max={2} step={0.05} def={1} fmt={(v) => v.toFixed(2) + '×'} />
+        {/if}
+        <h2>Cores e ajuste</h2>
         <div class="files">
           <label class="color">Cor 1 <input type="color" bind:value={vs.bgc1} /></label>
           <label class="color">Cor 2 <input type="color" bind:value={vs.bgc2} /></label>
@@ -418,9 +452,9 @@
           <button class:on={vs.bgFit === 'cover'} onclick={() => (vs.bgFit = 'cover')}>Preencher</button>
           <button class:on={vs.bgFit === 'contain'} onclick={() => (vs.bgFit = 'contain')}>Caber inteira</button>
         </div>
-        <Slider label="Opacidade da foto" bind:value={vs.bgOpacity} learn="bgOpacity" bind:drop={vs.drop.bgMedia} min={0} max={1} step={0.01} def={1} fmt={pct} />
-        <Slider label="Desfoque da foto" bind:value={vs.bgBlur} learn="bgBlur" min={0} max={40} step={1} def={0} fmt={(v) => v + ' px'} />
-        <Slider label="Brilho da foto" bind:value={vs.bgDim} learn="bgDim" min={0} max={150} step={1} def={100} fmt={(v) => v + '%'} />
+        <Slider label="Opacidade da foto/vídeo" bind:value={vs.bgOpacity} learn="bgOpacity" bind:drop={vs.drop.bgMedia} min={0} max={1} step={0.01} def={1} fmt={pct} />
+        <Slider label="Desfoque da foto/vídeo" bind:value={vs.bgBlur} learn="bgBlur" min={0} max={40} step={1} def={0} fmt={(v) => v + ' px'} />
+        <Slider label="Brilho da foto/vídeo" bind:value={vs.bgDim} learn="bgDim" min={0} max={150} step={1} def={100} fmt={(v) => v + '%'} />
         <Slider label="Girar matiz" bind:value={vs.bgHue} learn="bgHue" min={-180} max={180} step={1} def={0} fmt={(v) => v + '°/s'} />
         <Slider label="Zoom do fundo" bind:value={vs.bgPulse} learn="bgPulse" bind:mod={vs.mod.bgPulse} bind:drop={vs.drop.bgPulse} min={0} max={0.4} step={0.01} def={VISUAL.bgPulse} fmt={f2} />
         <Slider label="Brilho do fundo" bind:value={vs.bgFlash} learn="bgFlash" bind:mod={vs.mod.bgFlash} bind:drop={vs.drop.bgFlash} min={0} max={1} step={0.01} def={VISUAL.bgFlash} fmt={f2} />
@@ -557,6 +591,11 @@
   .btn input { display: none; }
   .color { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
   .color input { width: 34px; height: 26px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; cursor: pointer; }
+  .vids { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+  .vid { display: flex; gap: 4px; }
+  .vid button:first-child { flex: 1; text-align: left; padding: 5px 10px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .vid.on button:first-child { background: var(--accent); border-color: var(--accent); color: var(--accent-ink, #fff); }
+  .vid .x { padding: 5px 9px; }
   .keys { color: var(--muted); font-size: 11px; margin-top: 12px; }
   .status { grid-column: 1 / -1; color: var(--muted); font-size: 12px; padding: 0 4px; display: flex; align-items: center; gap: 12px; }
   .upd { margin-left: auto; padding: 2px 10px; font-size: 11px; font-weight: 600; background: var(--accent); border-color: var(--accent); color: var(--accent-ink, #fff); }

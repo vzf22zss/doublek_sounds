@@ -20,7 +20,9 @@ function db(): Promise<IDBDatabase> {
   });
 }
 
-export async function getAsset(k: 'logo' | 'bg'): Promise<Blob | undefined> {
+type Key = 'logo' | 'bg' | `video:${string}`;
+
+export async function getAsset(k: Key): Promise<Blob | undefined> {
   const d = await db();
   return new Promise((res, rej) => {
     const r = d.transaction('kv').objectStore('kv').get(k);
@@ -29,7 +31,7 @@ export async function getAsset(k: 'logo' | 'bg'): Promise<Blob | undefined> {
   });
 }
 
-export async function setAsset(k: 'logo' | 'bg', v: Blob | null) {
+export async function setAsset(k: Key, v: Blob | null) {
   const d = await db();
   return new Promise<void>((res, rej) => {
     const st = d.transaction('kv', 'readwrite').objectStore('kv');
@@ -150,14 +152,63 @@ export async function imageColors(kind: 'logo' | 'bg') {
   return pickColors(x.getImageData(0, 0, 48, 48).data);
 }
 
-/** Reprocessa logo/fundo só quando o arquivo ou um ajuste que os afeta mudou. */
-export function assetSync(r: { setLogo(p: Prepared): void; setBg(p: Prepared | null): void }) {
-  let logoKey = '', bgKey = '';
+// ---------- vídeos de fundo ----------
+// O arquivo fica no IndexedDB ("video:<id>"); a lista (id + nome) no localStorage, que as duas janelas leem.
+export type VideoInfo = { id: string; name: string };
+const VKEY = 'doublek.videos';
+
+export function listVideos(): VideoInfo[] {
+  try { return JSON.parse(localStorage.getItem(VKEY) ?? '[]'); } catch { return []; }
+}
+
+export async function addVideo(f: File) {
+  const id = Math.random().toString(36).slice(2, 10);
+  await setAsset(`video:${id}`, f);
+  localStorage.setItem(VKEY, JSON.stringify([...listVideos(), { id, name: f.name.replace(/\.[^.]+$/, '') }]));
+  return id;
+}
+
+export async function removeVideo(id: string) {
+  await setAsset(`video:${id}`, null);
+  localStorage.setItem(VKEY, JSON.stringify(listVideos().filter((x) => x.id !== id)));
+}
+
+// um <video> por id, reaproveitado: trocar de vídeo (cena/roteiro) é instantâneo; só o atual fica tocando
+const videos = new Map<string, Promise<HTMLVideoElement | null>>();
+export function getVideo(id: string) {
+  if (!videos.has(id)) videos.set(id, getAsset(`video:${id}`).then((b) => {
+    if (!b) return null;
+    const el = Object.assign(document.createElement('video'), { muted: true, loop: true, playsInline: true, src: URL.createObjectURL(b) });
+    return new Promise<HTMLVideoElement | null>((res) => { el.onloadeddata = () => res(el); el.onerror = () => res(null); });
+  }));
+  return videos.get(id)!;
+}
+
+export async function videoColors(id: string) {
+  const el = await getVideo(id);
+  if (!el) return null;
+  const [, x] = canvas(48, 48);
+  x.drawImage(el, 0, 0, 48, 48);
+  return pickColors(x.getImageData(0, 0, 48, 48).data);
+}
+
+/** Reprocessa logo/fundo só quando o arquivo ou um ajuste que os afeta mudou; troca o vídeo do fundo. */
+export function assetSync(r: { setLogo(p: Prepared): void; setBg(p: Prepared | null): void; setBgVideo(el: HTMLVideoElement | null): void }) {
+  let logoKey = '', bgKey = '', vid = '', cur: HTMLVideoElement | null = null;
   return async (v: Visual, force = false) => {
     const lk = `${v.rmWhite}|${v.white}`, bk = `${v.bgBlur}`;
     const doLogo = force || lk !== logoKey, doBg = force || bk !== bgKey;
     logoKey = lk; bgKey = bk;
     if (doLogo) r.setLogo(await prepareLogo(v));
     if (doBg) r.setBg(await prepareBg(v));
+    if (force || v.bgVideo !== vid) {
+      vid = v.bgVideo;
+      const el = vid ? await getVideo(vid) : null;
+      if (cur && cur !== el) cur.pause();
+      cur = el;
+      el?.play().catch(() => {});
+      r.setBgVideo(el);
+    }
+    if (cur) cur.playbackRate = v.videoSpeed;
   };
 }

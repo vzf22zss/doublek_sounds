@@ -13,7 +13,7 @@ precision highp float;
 in vec2 uv; out vec4 o;
 uniform vec2 uRes;
 uniform vec3 uC1, uC2, uColor, uGlowColor;
-uniform float uGrad, uAngle, uHasBg, uBgOpacity, uBgDim, uHue, uBgZoom, uBgBright, uFlash;
+uniform float uGrad, uAngle, uHasBg, uBgBias, uBgOpacity, uBgDim, uHue, uBgZoom, uBgBright, uFlash;
 uniform vec2 uBgScale, uLogoSize;
 uniform sampler2D uBg, uLogo, uGlow;
 uniform float uGlowAmt, uChroma, uBars, uRadial, uLogoR;
@@ -43,7 +43,7 @@ void main() {
     vec2 iuv = (buv - 0.5) * uBgScale + 0.5;
     iuv.y = 1.0 - iuv.y;
     float inside = step(0.0, iuv.x) * step(iuv.x, 1.0) * step(0.0, iuv.y) * step(iuv.y, 1.0);
-    vec4 im = texture(uBg, iuv);
+    vec4 im = texture(uBg, iuv, uBgBias); // vídeo: desfoque barato pelo mipmap
     col = mix(col, im.rgb * uBgDim, im.a * uBgOpacity * inside);
   }
   col = hue(col, uHue) * uBgBright;
@@ -123,10 +123,11 @@ const hex = (h: string) => {
 export class Renderer {
   private gl: WebGL2RenderingContext;
   private scene: Prog; private feedback: Prog; private post: Prog;
-  private tex: Record<'logo' | 'glow' | 'bg', WebGLTexture>;
+  private tex: Record<'logo' | 'glow' | 'bg' | 'vid', WebGLTexture>;
   private fbs: { fb: WebGLFramebuffer; tex: WebGLTexture }[] = [];
   private fbW = 0; private fbH = 0; private ping = 0;
   private logoAspect = 1; private bgAspect = 0;
+  private video: HTMLVideoElement | null = null; private vidFresh = false;
 
   private v: Visual;
   private frame: Frame | null = null;
@@ -150,7 +151,7 @@ export class Renderer {
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
     gl.enableVertexAttribArray(0);
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-    this.tex = { logo: this.texture(), glow: this.texture(), bg: this.texture() };
+    this.tex = { logo: this.texture(), glow: this.texture(), bg: this.texture(), vid: this.texture() };
   }
 
   setVisual(v: Visual) { this.v = v; }
@@ -170,6 +171,18 @@ export class Renderer {
     this.upload(this.tex.logo, p.image);
     if (p.glow) this.upload(this.tex.glow, p.glow);
     this.logoAspect = p.aspect;
+  }
+
+  /** Vídeo em loop no fundo (tem prioridade sobre a foto). Só sobe para a GPU quando chega quadro novo. */
+  setBgVideo(el: HTMLVideoElement | null) {
+    this.video = el;
+    this.vidFresh = !!el;
+    const watch = () => {
+      if (this.video !== el || !el) return;
+      this.vidFresh = true;
+      el.requestVideoFrameCallback(watch);
+    };
+    el?.requestVideoFrameCallback(watch);
   }
 
   setBg(p: Prepared | null) {
@@ -253,14 +266,18 @@ export class Renderer {
     gl.uniform3f(u('uGlowColor'), ...hex(v.color));
     gl.uniform1f(u('uGrad'), v.bgGrad ? 1 : 0);
     gl.uniform1f(u('uAngle'), v.bgAngle);
-    gl.uniform1f(u('uHasBg'), this.bgAspect ? 1 : 0);
+    const vid = this.video && this.video.videoWidth ? this.video : null;
+    if (vid && this.vidFresh) { this.upload(this.tex.vid, vid); this.vidFresh = false; }
+    const bgAspect = vid ? vid.videoHeight / vid.videoWidth : this.bgAspect;
+    gl.uniform1f(u('uHasBg'), bgAspect ? 1 : 0);
+    gl.uniform1f(u('uBgBias'), vid ? Math.log2(1 + v.bgBlur * 0.6) : 0); // a foto já vem borrada
     gl.uniform1f(u('uBgOpacity'), v.bgOpacity * d('bgMedia'));
     gl.uniform1f(u('uBgDim'), v.bgDim / 100);
     gl.uniform1f(u('uHue'), ((now / 1000) * v.bgHue * Math.PI) / 180);
     gl.uniform1f(u('uBgZoom'), 1 + m('bgPulse') * v.bgPulse * d('bgPulse'));
     gl.uniform1f(u('uBgBright'), 1 + m('bgFlash') * v.bgFlash * d('bgFlash'));
     gl.uniform1f(u('uFlash'), m('fxFlash') * v.fxFlash * fx * d('fxFlash'));
-    const A = W / H, B = this.bgAspect ? 1 / this.bgAspect : A; // aspecto largura/altura
+    const A = W / H, B = bgAspect ? 1 / bgAspect : A; // aspecto largura/altura
     const wide = B > A;
     gl.uniform2f(u('uBgScale'), ...((v.bgFit === 'cover') === wide ? [A / B, 1] : [1, B / A]) as [number, number]);
     const logoW = (v.size / 100) * mn * (1 + m('amount') * v.amount);
@@ -279,7 +296,7 @@ export class Renderer {
     });
     gl.uniform4fv(u('uRings'), rings);
     gl.uniform1i(u('uNRings'), v.fxRings > 0 && fx ? this.rings.length : 0);
-    this.bind(0, this.tex.bg, u('uBg'));
+    this.bind(0, vid ? this.tex.vid : this.tex.bg, u('uBg'));
     this.bind(1, this.tex.logo, u('uLogo'));
     this.bind(2, this.tex.glow, u('uGlow'));
     gl.drawArrays(gl.TRIANGLES, 0, 3);
