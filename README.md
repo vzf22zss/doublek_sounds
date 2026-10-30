@@ -33,6 +33,14 @@ Feito para psytrance, dark/forest e hi-tech (135–220 BPM).
 - **Operação de show:** até 4 **bancos** de 8 cenas, **Preview/TAKE** (prepare a cena sem o
   público ver e mande no beat), 4 **macros** (Build-up, Drop, Caos, Reset), **PÂNICO**
   separado do **BLACKOUT**, limite de **3 flashes/s** ligado por padrão.
+- **Intelligent Show:** o app estima o momento da música (breakdown, build-up, groove, drop)
+  e mostra num chip com a confiança; em **Assistido** mexe em rampas e dispara a macro Drop,
+  em **Automático** pode trocar cena no compasso. Comando manual pausa a automação por 8 s;
+  roteiro tocando tem precedência. Abre sempre em **Manual**.
+- **Camadas:** os módulos do Psy Engine, o rastro e o glitch têm ordem, opacidade e modo de
+  mistura (normal, somar, tela, multiplicar); só os modos diferentes de normal custam um passe.
+- **OSC (rede):** servidor local com mapeamento `/doublek/v1/...` para todos os comandos
+  (`docs/OSC.md`); o botão para ligar pela tela chega na 0.3.6.
 - **Show Pack (`.doublekshow`):** salva e abre o show inteiro (cenas, bancos, roteiros, logo,
   foto, vídeos, MIDI) com backup automático antes de substituir.
 - **Saúde e diagnóstico:** 4 bolinhas (áudio · BPM · MIDI · telão) e um JSON de diagnóstico

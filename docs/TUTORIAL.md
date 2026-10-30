@@ -347,6 +347,21 @@ Exemplos de cenas que já vêm prontas:
 
 ---
 
+### Camadas
+
+Cada módulo do Psy Engine, o rastro e o glitch são **camadas**: na aba Efeitos, a seção
+**Camadas** lista as sete na ordem em que são desenhadas (a de baixo da lista fica por cima).
+Em cada linha dá para ligar e desligar, escolher o **modo de mistura** e a **opacidade**, e
+mover com ▲▼. Os modos: **Normal** (a camada cobre o que está embaixo, custo zero), **Somar**
+(clareia: bom para partículas e mandala sobre o túnel), **Tela** (clareia mais suave) e
+**Multiplicar** (escurece: o túnel a 60 % em Multiplicar vira uma textura escura sobre a logo).
+Qualquer modo diferente de Normal, ou opacidade abaixo de 100 %, gasta um passe a mais de GPU
+por camada; a aba Efeitos mostra o custo. Fundo, foto, vídeo, logo e pós (vinheta, strobe,
+blackout) não são camadas: ficam sempre no lugar de sempre. Por enquanto as camadas valem
+para o visual inteiro e não entram nas cenas; isso muda na próxima versão.
+
+---
+
 ## 11. O que no som move cada efeito
 
 Ao lado de vários ajustes há um seletor pequeno, em roxo. Ele escolhe **qual parte da música
@@ -506,6 +521,32 @@ teto); **Caos** sorteia aberração, tremor e giro do rastro a cada beat por 4 b
 **Reset** zera strobe, flash, tremor, aberração e rastro sem parar o roteiro (o **PÂNICO** para
 o roteiro também). Cada macro pode ser aprendida no MIDI learn como qualquer botão. Chamar uma
 cena, o PÂNICO ou outra macro interrompe a que estiver rodando.
+
+### Intelligent Show: o app lê o momento da música
+
+Na linha das macros, depois de "Só logo", um chip mostra o **estado estimado da música** e a
+confiança: **BREAK** (sem grave), **BUILD** (energia subindo, grave ainda fora), **GROOVE**
+(grave presente e estável), **DROP** (o grave acabou de voltar depois de um breakdown) ou **—**
+quando o app não tem certeza (começo, silêncio, sem BPM). É uma estimativa pelo sinal: o drop
+aparece no chip **depois** que ele acontece, nunca antes, e um breakdown mais curto que dois
+compassos não conta como breakdown.
+
+Ao lado, o seletor **Manual / Assistido / Automático** decide o que o app faz com isso:
+
+- **Manual** (padrão ao abrir): só mostra o chip. Nada muda sozinho.
+- **Assistido:** no breakdown as rampas baixam rastro, anéis e zoom aos poucos; no build-up
+  sobem por 16 beats; no drop dispara a macro **Drop** (respeitando o limite de flashes).
+  Nunca troca cena, banco nem vídeo.
+- **Automático:** tudo do Assistido e, se houver cenas marcadas para drop/groove no mapa de
+  automação (por enquanto só por arquivo; a tela vem depois), troca de cena no compasso.
+
+Regras que valem sempre: **qualquer comando seu** (pad, knob, tecla, MIDI) pausa a automação por
+8 segundos (o Diagnóstico mostra quanto falta); com um **roteiro tocando**, o roteiro manda e a
+automação não troca cena, banco nem vídeo; no modo **só roteiro** a automação fica desligada;
+**Reset** e **PÂNICO** desfazem o que a automação estava fazendo. As ações entram no próximo
+beat (drop) ou compasso (entradas de estado) quando o BPM está travado; sem trava, na hora.
+Para começar, deixe em **Assistido** durante um set inteiro e veja se as rampas acompanham o
+seu gosto antes de passar para Automático.
 
 ### Salvar e abrir um show (`.doublekshow`)
 
