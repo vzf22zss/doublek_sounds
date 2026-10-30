@@ -8,6 +8,7 @@ use crate::beat::Beat;
 use realfft::{num_complex::Complex, RealFftPlanner, RealToComplex};
 use serde::{Deserialize, Serialize};
 use std::f32::consts::PI;
+use std::collections::VecDeque;
 use std::sync::Arc;
 
 pub const HOP: usize = 256;
@@ -60,6 +61,120 @@ pub struct Frame {
     pub spectrum: Vec<f32>,
     pub low: f32, // 1 = grave tocando (drop), 0 = breakdown sem grave
     pub pos: f64, // posição na faixa tocada pelo app (s); -1 = entrada ao vivo
+    // indicadores de energia musical (DK-031), aditivos
+    pub energy: f32,    // (rms + médio + agudo)/3 em nível absoluto, suavizado em ~1 compasso
+    pub contrast: f32,  // energia média dos últimos 4 compassos ÷ 4 anteriores (1 = estável; sem trava, blocos de 2 s)
+    pub stability: f32, // 0..1: quanto o relógio do beat é confiável (jitter dos kicks × tempo desde a trava)
+    pub kick_rate: f32, // kicks por compasso nos últimos 8 beats (0 no breakdown, ~4 no groove)
+}
+
+/// Indicadores de energia musical por compasso (DK-031), para o show-engine escolher cenas.
+/// Compasso = 4 beats da grade travada; sem trava, blocos de 2 s.
+struct Trend {
+    energy: f32,
+    blk: (bool, i64), // bloco atual: (é compasso?, índice)
+    blk_sum: f32,
+    blk_n: u32,
+    blk_t0: f64,           // início do bloco atual
+    blocks: VecDeque<f32>, // médias dos últimos 8 blocos
+    quiet: f64,            // início do silêncio atual (-1 = não está em silêncio)
+    per_ref: f64,          // período com que os blocos foram medidos (troca de música zera)
+    locked_since: f64,
+    was_locked: bool,
+    kicks: VecDeque<f64>,
+    contrast: f32,
+    stability: f32,
+    kick_rate: f32,
+}
+
+impl Default for Trend {
+    fn default() -> Self {
+        Self {
+            energy: 0.0,
+            blk: (false, i64::MIN),
+            blk_sum: 0.0,
+            blk_n: 0,
+            blk_t0: 0.0,
+            blocks: VecDeque::new(),
+            quiet: -1.0,
+            per_ref: 0.0,
+            locked_since: 0.0,
+            was_locked: false,
+            kicks: VecDeque::new(),
+            contrast: 1.0,
+            stability: 0.0,
+            kick_rate: 0.0,
+        }
+    }
+}
+
+impl Trend {
+    fn step(&mut self, t: f64, dt: f32, e: f32, silent: bool, beat: &Beat) {
+        let p = beat.period;
+        let bar = if p > 0.0 { 4.0 * p } else { 2.0 };
+        self.energy += (e - self.energy) * (1.0 - (-(dt as f64) / bar).exp()) as f32;
+
+        // o histórico não vale depois de troca de música (período travado mudou > 3 %) ou de 1 s de silêncio
+        let tempo_changed = beat.locked && self.per_ref > 0.0 && (p - self.per_ref).abs() > 0.03 * self.per_ref;
+        if beat.locked && (tempo_changed || self.per_ref == 0.0) {
+            self.per_ref = p;
+        }
+        if silent && self.quiet < 0.0 {
+            self.quiet = t;
+        } else if !silent {
+            self.quiet = -1.0;
+        }
+        if tempo_changed || (self.quiet >= 0.0 && t - self.quiet > 1.0) {
+            self.blocks.clear();
+            self.blk_n = 0;
+            self.blk_sum = 0.0;
+        }
+
+        let id = if beat.locked && p > 0.0 { (true, beat.at(t).2.div_euclid(4)) } else { (false, (t / 2.0).floor() as i64) };
+        if id != self.blk {
+            // bloco parcial (começou no meio: trava, troca de bloco de 2 s para compasso, reset) não
+            // entra — a média de meio compasso depende de quantos kicks caíram nele
+            if self.blk_n > 0 && t - self.blk_t0 >= 0.75 * bar {
+                self.blocks.push_back(self.blk_sum / self.blk_n as f32);
+                if self.blocks.len() > 8 {
+                    self.blocks.pop_front();
+                }
+            }
+            self.blk = id;
+            self.blk_t0 = t;
+            self.blk_sum = 0.0;
+            self.blk_n = 0;
+        }
+        self.blk_sum += e;
+        self.blk_n += 1;
+        self.contrast = if self.blocks.len() == 8 {
+            let old: f32 = self.blocks.iter().take(4).sum();
+            let new: f32 = self.blocks.iter().skip(4).sum();
+            if old > 1e-6 { new / old } else { 1.0 }
+        } else {
+            1.0
+        };
+
+        // estabilidade: jitter dos kicks em torno da grade (20.0 ms = 0) × rampa de 8 beats desde a trava
+        if beat.locked && !self.was_locked {
+            self.locked_since = t;
+        }
+        self.was_locked = beat.locked;
+        self.stability = if beat.locked && p > 0.0 {
+            let j = (1.0 - beat.jitter * 1000.0 / 20.0).clamp(0.0, 1.0);
+            let age = ((t - self.locked_since) / (8.0 * p)).min(1.0);
+            (j * age) as f32
+        } else {
+            0.0
+        };
+
+        // kicks por compasso nos últimos 8 beats; sem período ainda, kicks nos últimos 2 s
+        let w = if p > 0.0 { 8.0 * p } else { 2.0 };
+        while self.kicks.front().is_some_and(|&k| k < t - w) {
+            self.kicks.pop_front();
+        }
+        self.kick_rate = if p > 0.0 { self.kicks.len() as f32 / 2.0 } else { self.kicks.len() as f32 };
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -144,6 +259,7 @@ pub struct Analyzer {
     low_ref: f32, // maior grave recente, decai em ~1 min
     low_on: bool,
     pub beat: Beat,
+    trend: Trend,
     ring: Vec<f32>,
     ring_pos: usize,
     fft: Arc<dyn RealToComplex<f32>>,
@@ -187,6 +303,7 @@ impl Analyzer {
             low_ref: 1e-4,
             low_on: false,
             beat: Beat::default(),
+            trend: Trend::default(),
             ring: vec![0.0; FFT],
             ring_pos: 0,
             win: (0..FFT).map(|i| 0.5 - 0.5 * (2.0 * PI * i as f32 / FFT as f32).cos()).collect(),
@@ -246,6 +363,9 @@ impl Analyzer {
         let ratio = self.low_lvl / self.low_ref;
         self.low_on = self.rms >= p.gate && ratio > if self.low_on { 0.7 * p.drop_thr } else { p.drop_thr };
 
+        let e = (self.rms + ms[2].sqrt() + ms[4].sqrt()) / 3.0;
+        self.trend.step(t, dt, e, self.rms < p.gate, &self.beat);
+
         let k = (2.6 - 0.7 * p.sens).max(0.3);
         let (dc, tc) = self.on_click.step(ms[3], k);
         if dc > tc {
@@ -303,6 +423,7 @@ impl Analyzer {
         }
         self.no_click = false;
         self.last_kick = t;
+        self.trend.kicks.push_back(t);
         self.beat.on_kick(t, lo, hi, p.lock);
         Some((0.5 + (ds / thr - 1.0) * 0.5).clamp(0.3, 1.0))
     }
@@ -339,6 +460,10 @@ impl Analyzer {
             spectrum,
             low: if self.low_on { 1.0 } else { 0.0 },
             pos: -1.0,
+            energy: self.trend.energy,
+            contrast: self.trend.contrast,
+            stability: self.trend.stability,
+            kick_rate: self.trend.kick_rate,
         }
     }
 }
@@ -540,6 +665,65 @@ mod tests {
             }
             assert_eq!(drops, 0, "semente {seed}: a trava caiu {drops}×");
         }
+    }
+
+    /// Roda a faixa e devolve um Frame por hop (com o instante), para olhar os indicadores.
+    fn frames(x: &[f32], lo: f32, hi: f32) -> Vec<(f64, Frame)> {
+        let mut an = Analyzer::new(48000.0);
+        let p = Params { bpm_min: lo, bpm_max: hi, ..Default::default() };
+        let mut out = vec![];
+        for (i, c) in x.chunks_exact(HOP).enumerate() {
+            an.process(c, &p);
+            if i % 2 == 1 {
+                out.push(((i + 1) as f64 * HOP as f64 / 48000.0, an.snapshot()));
+            }
+        }
+        out
+    }
+
+    /// DK-031: build-up (8 compassos de ruído subindo no fim do breakdown) passa de 1,2 de
+    /// contraste; groove estável fica < 1,1; ~4 kicks por compasso no groove e 0 no breakdown.
+    #[test]
+    fn indicadores_build_groove_breakdown() {
+        let (bpm, bar) = (148.0, 4.0 * 60.0 / 148.0);
+        let build = Synth { bpm, secs: 32.0 * bar, breakdown: Some((8.0 * bar, 24.0 * bar)), riser: Some((16.0 * bar, 24.0 * bar)), ..Default::default() };
+        let f = frames(&build.render().0, 135.0, 150.0);
+        let max_build = f.iter().filter(|(t, _)| (16.0 * bar..24.0 * bar).contains(t)).map(|(_, f)| f.contrast).fold(0.0, f32::max);
+        let rate_break = f.iter().filter(|(t, _)| (10.0 * bar..24.0 * bar).contains(t)).map(|(_, f)| f.kick_rate).fold(0.0, f32::max);
+        let groove = frames(&Synth { bpm, secs: 30.0, ..Default::default() }.render().0, 135.0, 150.0);
+        let max_groove = groove.iter().map(|(_, f)| f.contrast).fold(0.0, f32::max);
+        let rates: Vec<f32> = groove.iter().filter(|(t, _)| *t > 8.0).map(|(_, f)| f.kick_rate).collect();
+        println!("contraste máx: build {max_build:.2}, groove {max_groove:.2}; kicks/compasso groove {:.1}–{:.1}, breakdown máx {rate_break}", rates.iter().copied().fold(9.0, f32::min), rates.iter().copied().fold(0.0, f32::max));
+        assert!(max_build > 1.2, "build: contraste {max_build}");
+        assert!(max_groove < 1.1, "groove: contraste {max_groove}");
+        assert!(rates.iter().all(|&r| (3.5..=4.5).contains(&r)), "groove: kicks/compasso fora de 3,5–4,5");
+        assert_eq!(rate_break, 0.0, "breakdown: ainda conta kick");
+        // contrato com src/lib/types.ts: o Frame vai inteiro para o front, em camelCase
+        let j = serde_json::to_value(&f[0].1).unwrap();
+        for k in ["energy", "contrast", "stability", "kickRate"] {
+            assert!(j.get(k).is_some(), "Frame sem {k}");
+        }
+    }
+
+    /// DK-031: a estabilidade cai na queda de trava (troca de música 148 → 175) e volta depois;
+    /// 1 s de silêncio zera o histórico do contraste.
+    #[test]
+    fn indicadores_estabilidade_e_reset() {
+        let mut x = Synth { bpm: 148.0, secs: 15.0, ..Default::default() }.render().0;
+        x.extend(Synth { bpm: 175.0, secs: 20.0, seed: 2, ..Default::default() }.render().0);
+        let f = frames(&x, 145.0, 185.0);
+        let at = |a: f64, b: f64| f.iter().filter(move |(t, _)| (a..b).contains(t)).map(|(_, f)| f.stability);
+        let (antes, durante, depois) = (at(10.0, 15.0).fold(1.0, f32::min), at(15.0, 25.0).fold(1.0, f32::min), at(32.0, 35.0).fold(1.0, f32::min));
+        println!("estabilidade: antes {antes:.2}, mínima na troca {durante:.2}, no fim {depois:.2}");
+        assert!(antes > 0.9 && durante == 0.0 && depois > 0.9, "estabilidade {antes} / {durante} / {depois}");
+
+        let mut x = Synth { bpm: 148.0, secs: 20.0, ..Default::default() }.render().0;
+        x.extend(vec![0.0; 3 * 48000]);
+        x.extend(Synth { bpm: 148.0, secs: 10.0, seed: 2, ..Default::default() }.render().0);
+        let f = frames(&x, 135.0, 150.0);
+        let pre = f.iter().find(|(t, _)| *t > 19.0).unwrap().1.contrast;
+        let reset = f.iter().filter(|(t, _)| (21.5..23.0).contains(t)).all(|(_, f)| f.contrast == 1.0);
+        assert!(pre > 0.0 && reset, "silêncio não zerou o contraste");
     }
 
     #[test]
