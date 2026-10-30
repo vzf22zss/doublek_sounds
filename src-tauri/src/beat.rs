@@ -7,6 +7,8 @@ use std::collections::VecDeque;
 const WINDOW: f64 = 8.0; // segundos de kicks usados no ajuste
 const HOLD: f64 = 30.0; // quanto tempo a grade segura sem kick (breakdown)
 const TOL: f64 = 0.12; // fração do beat que um kick pode estar fora da grade
+const FLIP: f32 = 1.5; // o contratempo precisa de 1.5× mais punch para virar a fase
+const FLIP_MIN: usize = 3; // candidatos em cada fase antes de comparar
 
 #[derive(Default)]
 pub struct Beat {
@@ -18,6 +20,7 @@ pub struct Beat {
     last: f64,
     count: i64, // mantém o índice do beat contínuo quando a âncora muda
     fixed: bool, // grade vinda da análise do arquivo: os kicks não mexem nela
+    scored: VecDeque<(f64, f32)>, // candidatos com click (aceitos ou não): instante e punch
 }
 
 impl Beat {
@@ -50,6 +53,20 @@ impl Beat {
             let bpm = 60.0 / p;
             let in_range = freeze || (bpm >= lo * 0.97 && bpm <= hi * 1.03);
             if in_range && n * 10 >= ks.len() * 6 {
+                // volta do drop com menos de 6 kicks na janela: se todos caem na grade travada, ela
+                // vale como está — o período de 4-5 kicks é ruidoso (a detecção oscila ~1 hop), o da
+                // grade vem de muito mais tempo. Só a fase se reajusta.
+                let (a0, p0) = (self.anchor, self.period);
+                let on_old = |k: &f64| {
+                    let x = (k - a0) / p0;
+                    (x - x.round()).abs() < TOL
+                };
+                if self.locked && n < 6 && ks.iter().all(on_old) {
+                    if let Some((_, a1, _, _)) = fit(ks, p0, None, true) {
+                        self.rebase(a1, p0);
+                    }
+                    return;
+                }
                 // volta do drop: a janela tem poucos kicks (o breakdown esvaziou), mas todos caem na
                 // grade que já estava travada → mantém a trava em vez de esperar o 6º kick. Só com a
                 // janela limpa (n == todos): numa troca de música há kicks fora da grade velha.
@@ -61,6 +78,40 @@ impl Beat {
                 self.locked = same || (n >= 6 && sd < 0.035 * p);
                 return;
             }
+        }
+    }
+
+    /// Fase da grade: candidatos com click na fase e no contratempo (meio beat) com o "punch".
+    /// Chimbal + nota do baixo também têm click e sub, e antes de travar passam como kick; se a
+    /// âncora cair neles, os kicks reais ficam fora da grade (e no refratário) e a grade se
+    /// realimenta no contratempo. O que separa os dois não é o sub (a nota do baixo tem tanto
+    /// quanto o kick) e sim o "punch": a varredura do kick passa por 100–200 Hz nos primeiros
+    /// 30 ms. Se o contratempo tiver consistentemente mais punch que a fase atual, a grade anda
+    /// meio beat. Vale também com a grade já travada errada.
+    pub fn score(&mut self, t: f64, peak: f32) {
+        self.scored.push_back((t, peak));
+        while self.scored.front().is_some_and(|&(s, _)| s < t - WINDOW) {
+            self.scored.pop_front();
+        }
+        if self.fixed || self.period <= 0.0 {
+            return;
+        }
+        let (mut on, mut anti) = (vec![], vec![]);
+        for &(s, pk) in &self.scored {
+            let f = ((s - self.anchor) / self.period).rem_euclid(1.0);
+            if f < TOL || f > 1.0 - TOL {
+                on.push((s, pk));
+            } else if (f - 0.5).abs() < TOL {
+                anti.push((s, pk));
+            }
+        }
+        let mean = |v: &[(f64, f32)]| v.iter().map(|x| x.1).sum::<f32>() / v.len().max(1) as f32;
+        if on.len() >= FLIP_MIN && anti.len() >= FLIP_MIN && mean(&anti) > FLIP * mean(&on) {
+            let p = self.period;
+            self.rebase(self.anchor + p / 2.0, p);
+            // a janela do ajuste passa a ser os candidatos da fase nova (os kicks de verdade)
+            self.kicks = anti.iter().map(|x| x.0).collect();
+            self.scored.clear();
         }
     }
 
