@@ -10,7 +10,7 @@ export const MAX_TOTAL_BYTES = 2 * 1024 ** 3; // 2 GiB descomprimido (DEC-03)
 export const MAX_NAME = 120;
 
 /** Arquivos dentro do ZIP. */
-export const FILES = { manifest: 'manifest.json', visual: 'visual.json', scenes: 'scenes.json', roteiros: 'roteiros.json', midi: 'midi.json', assets: 'assets/' } as const;
+export const FILES = { manifest: 'manifest.json', visual: 'visual.json', scenes: 'scenes.json', banks: 'banks.json', roteiros: 'roteiros.json', midi: 'midi.json', assets: 'assets/' } as const;
 
 export type AssetKind = 'logo' | 'bg' | 'video' | 'track';
 export const ASSET_KINDS: readonly AssetKind[] = ['logo', 'bg', 'video', 'track'];

@@ -7,7 +7,8 @@ import { writeZip, type ZipEntry } from './zip.ts';
 
 /** Envelope `{ v, data }` de uma chave doublek.*, como está no localStorage (objeto ou o texto JSON). */
 export type EnvelopeIn = Envelope | string;
-export type StateIn = { visual: EnvelopeIn; trans: EnvelopeIn; videos: EnvelopeIn; scenes: EnvelopeIn; roteiros: EnvelopeIn; midi?: EnvelopeIn | null };
+/** `scenes` = banco ativo (compatibilidade); `banks` = todos os bancos (DK-041), opcional para quem só tem 8 cenas. */
+export type StateIn = { visual: EnvelopeIn; trans: EnvelopeIn; videos: EnvelopeIn; scenes: EnvelopeIn; banks?: EnvelopeIn | null; roteiros: EnvelopeIn; midi?: EnvelopeIn | null };
 export type AssetIn = { kind: AssetKind; refId: string; mime: string; name: string; bytes: Uint8Array };
 export type ShowPackInput = { name: string; appVersion: string; state: StateIn; assets: AssetIn[] };
 export type BuildOpts = ValidateOpts & { includeTracks?: boolean; createdAt?: Date };
@@ -61,6 +62,7 @@ export async function buildShowPack(input: ShowPackInput, opts: BuildOpts = {}):
     jsonFile(FILES.scenes, { 'doublek.scenes': envelope('scenes', s.scenes) }),
     jsonFile(FILES.roteiros, { 'doublek.roteiros': envelope('roteiros', s.roteiros) }),
   ];
+  if (s.banks) files.push(jsonFile(FILES.banks, { 'doublek.banks': envelope('banks', s.banks) }));
   if (s.midi) files.push(jsonFile(FILES.midi, { 'doublek.midi': envelope('midi', s.midi) }));
   for (const [i, a] of manifest.assets.entries()) files.push({ path: FILES.assets + a.path, data: input.assets[i].bytes });
 
