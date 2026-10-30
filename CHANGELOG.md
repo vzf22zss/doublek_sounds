@@ -6,9 +6,20 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Não lançado]
 
+## [0.3.5] - 2026-10-30
+
+### Adicionado
+
+- DK-032/033/034: Intelligent Show v1 — estado musical estimado (breakdown, build-up, groove, drop; "—" quando a confiança é baixa) com histerese, mostrado como chip na linha das macros; mapa de automação por estado (rampas no breakdown/build, macro Drop e cenas opcionais no drop/groove) quantizado no beat/compasso; modos Manual (padrão), Assistido (só rampas e macros) e Automático; "só roteiro" desliga a automação; comando manual pausa a automação por 8 s.
+- DK-051/052: camadas do Psy Engine com ordem, opacidade e modo de mistura (normal, somar, tela, multiplicar) e compositor que só gasta um passe quando precisa; seção "Camadas" na aba Efeitos. Imagem padrão idêntica à anterior.
+- DK-091: servidor OSC local (Rust, sem dependência nova) com parser validado, limite de 200 msg/s e mapeamento `/doublek/v1/...` → comandos do dispatcher (`docs/OSC.md`). Ainda sem botão na tela: entra na 0.3.6.
+- DK-143: roteiro inteiro passa pelo dispatcher (efeitos, vídeo e rampas), ponto de cena pode apontar para um banco fixo ("B2·nome" na timeline), roteiro tocando tem precedência sobre a automação, Reset desfaz os efeitos do roteiro sem pará-lo e PÂNICO para tudo.
+- DK-009 (P7): a grade do BPM não trava mais no contratempo com chimbal (o kick é reconhecido pelo "punch" em 160 Hz); a trava não cai mais na volta do drop com poucos kicks.
+
 ### Alterado
 
-- Capturas do tutorial refeitas com a UI atual (saúde, PÂNICO, bancos, TAKE, macros, Show Pack); seções novas no tutorial (Bancos, Preview e TAKE, Macros, Salvar e abrir um show, Psy Engine); README com Psy Engine, operação de show, Show Pack e requisitos; BASELINE atualizada.
+- Capturas do tutorial refeitas com a UI atual (saúde, PÂNICO, bancos, TAKE, macros, Show Pack); seções novas no tutorial (Bancos, Preview e TAKE, Macros, Salvar e abrir um show, Psy Engine, ponto de cena de outro banco); README com Psy Engine, operação de show, Show Pack e requisitos; BASELINE atualizada.
+- Dados salvos das camadas passam pela mesma validação que o renderer e a tela usam.
 
 ## [0.3.4] - 2026-10-30
 
@@ -107,7 +118,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 - Crossfade de cena, barra do topo em 1280px e selo MIDI nos pads.
 
-[Não lançado]: https://github.com/vzf22zss/doublek_sounds/compare/ef1a66a...main
+[Não lançado]: https://github.com/vzf22zss/doublek_sounds/compare/HASH035...main
+[0.3.5]: https://github.com/vzf22zss/doublek_sounds/compare/ef1a66a...HASH035
 [0.3.4]: https://github.com/vzf22zss/doublek_sounds/compare/1c4ade7...ef1a66a
 [0.3.3]: https://github.com/vzf22zss/doublek_sounds/compare/7582b07...1c4ade7
 [0.3.2]: https://github.com/vzf22zss/doublek_sounds/compare/09a7677...7582b07
