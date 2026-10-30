@@ -6,7 +6,7 @@
   import Performance from './Performance.svelte';
   import Timeline from './Timeline.svelte';
   import RoteiroPanel from './RoteiroPanel.svelte';
-  import { rt, attach as attachRoteiro, tick as roteiroTick, play as roteiroPlay, stop as roteiroStop, pause as roteiroPause, nudge as roteiroNudge } from './roteiro.svelte';
+  import { rt, toggleSound, attach as attachRoteiro, tick as roteiroTick, play as roteiroPlay, stop as roteiroStop, pause as roteiroPause, nudge as roteiroNudge } from './roteiro.svelte';
   import { saveRoteiros } from '../lib/roteiro';
   import { midi, keyOf, bindArmed, clearArmed, keyLabel, learnable, type MidiMsg } from './midi.svelte';
   import { Renderer } from '../render/renderer';
@@ -156,6 +156,7 @@
     logoOnly: () => (vs.logoOnly = !vs.logoOnly),
     go: () => (rt.running && rt.source === 'app' ? roteiroPause() : roteiroPlay()),
     stop: () => roteiroStop(),
+    ab: () => toggleSound(),
     'beat-': () => roteiroNudge(-1),
     'beat+': () => roteiroNudge(1),
     'bar-': () => roteiroNudge(-4),
@@ -289,6 +290,7 @@
     else if (e.code === 'KeyF') fps ? invoke('close_output') : project();
     else if (/^Digit[1-8]$/.test(e.code)) perf.recall(+e.code.slice(5) - 1);
     else if (e.code === 'KeyG') e.shiftKey ? ACTIONS.stop() : ACTIONS.go();
+    else if (e.code === 'KeyR') ACTIONS.ab();
     else if (e.code === 'Comma') ACTIONS['beat-']();
     else if (e.code === 'Period') ACTIONS['beat+']();
     else if (e.code === 'Semicolon') ACTIONS['bar-']();

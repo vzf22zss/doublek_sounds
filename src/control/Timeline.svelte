@@ -2,7 +2,7 @@
   // Timeline do roteiro: forma de onda (rosa = grave), grade de compassos, pontos e cursor.
   // Clique = posiciona · duplo clique = novo ponto (no beat; Shift = no compasso) · arrastar ponto = move
   // · arrastar o fundo = rola · roda = zoom · Delete = apaga o ponto selecionado.
-  import { rt, current, addCue, deleteCue, seek, play, pause, stop, nudge } from './roteiro.svelte';
+  import { rt, current, addCue, deleteCue, seek, play, pause, stop, nudge, setMode } from './roteiro.svelte';
   import { barLabel, beatAt, cueLabel, snap, timeAt, type Cue } from '../lib/roteiro';
   import { listVideos } from '../lib/assets';
   import { learnable } from './midi.svelte';
@@ -161,12 +161,16 @@
     <button onclick={() => nudge(-1)} title=", (−1 beat)" use:learnable={{ id: 'a:beat-', label: 'Roteiro: −1 beat' }}>‹</button>
     <button onclick={() => nudge(1)} title=". (+1 beat)" use:learnable={{ id: 'a:beat+', label: 'Roteiro: +1 beat' }}>›</button>
     <button onclick={() => nudge(4)} title="' (+1 compasso)" use:learnable={{ id: 'a:bar+', label: 'Roteiro: +1 compasso' }}>»</button>
+    <div class="ab" title="R: compara na hora como fica com o roteiro e só com o som" use:learnable={{ id: 'a:ab', label: 'Roteiro: A/B com × sem pontos' }}>
+      <button class:on={rt.mode !== 'sound'} onclick={() => setMode(rt.back)}>Com roteiro</button>
+      <button class:on={rt.mode === 'sound'} onclick={() => setMode('sound')}>Só o som</button>
+    </div>
     {#if r?.bpm}
       <span class="pos">
         <b>compasso {barLabel(r, rt.cursor)}</b> · {mmss(timeAt(r, rt.cursor))}
         {#if next} · próximo: {next.c.kind === 'scene' ? 'cena' : next.c.kind === 'fx' ? next.c.fx : next.c.kind} em {next.in} beat{next.in === 1 ? '' : 's'}{/if}
       </span>
-      {#if rt.running}<span class="live">{rt.mode === 'only' ? 'SÓ ROTEIRO' : 'ROTEIRO + AO VIVO'}</span>{/if}
+      {#if rt.running}<span class="live" class:sound={rt.mode === 'sound'}>{rt.mode === 'only' ? 'SÓ ROTEIRO' : rt.mode === 'sound' ? 'SÓ O SOM' : 'ROTEIRO + AO VIVO'}</span>{/if}
     {/if}
   </div>
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
@@ -182,6 +186,10 @@
   .go { background: #3ee08f; border-color: #3ee08f; color: #0b0b10; letter-spacing: .1em; }
   .pos { margin-left: 6px; }
   .pos b { color: var(--text); }
+  .ab { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-left: 4px; }
+  .ab button { border: 0; border-radius: 0; padding: 4px 9px; background: transparent; color: var(--muted); }
+  .ab button.on { background: var(--accent); color: var(--accent-ink, #fff); font-weight: 700; }
+  .live.sound { background: var(--kick); }
   .live { margin-left: auto; font-size: 10px; font-weight: 800; letter-spacing: .1em; color: #0b0b10; background: #3ee08f; padding: 2px 6px; border-radius: 6px; }
   canvas { flex: 1; width: 100%; min-height: 90px; display: block; border-radius: 8px; background: rgba(0,0,0,.25); cursor: crosshair; outline: none; }
   canvas:focus-visible { box-shadow: 0 0 0 1px var(--accent); }

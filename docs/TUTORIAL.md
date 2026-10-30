@@ -499,6 +499,24 @@ com o **GO**:
   anéis, espectro). Os knobs, as cenas e o MIDI também continuam funcionando.
 - **Só roteiro:** o visual muda **apenas nos pontos marcados** e não reage ao som. Bom para
   um show "coreografado", que fica igual toda vez.
+- **Só o som:** a música toca, mas os pontos **não** disparam: o visual só reage ao áudio,
+  do jeito que ficaria ao vivo sem roteiro.
+
+### Comparar na hora: com roteiro × só o som
+
+Toque a música pelo app e aperte **R** (ou o botão **Com roteiro / Só o som** na barra da
+timeline) **com a música tocando**. O telão troca na hora entre o visual do roteiro e o visual
+só reagindo ao som, no mesmo trecho da música. Assim dá para decidir se um ponto vale a pena
+ou se o som sozinho já resolve.
+
+| Com roteiro (no drop entra a cena "Radial") | Só o som (mesmo trecho, sem os pontos) |
+|---|---|
+| ![Com roteiro](img/ab-roteiro.png) | ![Só o som](img/ab-som.png) |
+
+![Alternando com R durante a música](img/roteiro-ab.gif)
+
+Voltar para o roteiro aplica na hora a cena e o vídeo daquele trecho. O modo também pode ser
+trocado na aba Roteiro, a qualquer momento.
 
 **Exportar / Importar** salvam o roteiro em `.json`, sem a música. Para levar a outro
 computador, importe o roteiro e use **Trocar música** para apontar o arquivo de novo.
@@ -568,6 +586,7 @@ DoubleK. Para o visual, use um **controlador separado** (um pequeno e barato já
 | **Shift + G** | Roteiro: parar |
 | **, / .** | Roteiro: −1 / +1 beat |
 | **; / '** | Roteiro: −1 / +1 compasso |
+| **R** | Roteiro: compara com roteiro × só o som (com a música tocando) |
 | **Esc** | Sair do modo MIDI (no controle) · fechar o telão (no telão) |
 
 ---

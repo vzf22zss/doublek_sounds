@@ -4,7 +4,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { emitTo } from '@tauri-apps/api/event';
 import { getVideo } from '../lib/assets';
-import type { Visual } from '../lib/settings';
+import { lookOf, type Look, type Visual } from '../lib/settings';
 import type { Frame } from '../lib/types';
 import { beatAt, due, loadRoteiros, newCue, rampAt, sanitizeRoteiro, stateAt, timeAt, uid, type Cue, type CueKind, type Roteiro } from '../lib/roteiro';
 
@@ -17,7 +17,8 @@ export const rt = $state({
   loaded: '',                     // id da música pronta no motor
   busy: '',
   source: 'app' as 'app' | 'dj',
-  mode: 'live' as 'live' | 'only',
+  mode: 'live' as 'live' | 'only' | 'sound', // sound = toca sem os pontos (só a reação ao som)
+  back: 'live' as 'live' | 'only',            // modo do roteiro para onde o A/B volta
   output: '',
   running: false,
   cursor: 0,
@@ -205,8 +206,10 @@ export function tick(f: Frame | null, frameAt: number) {
     if (!goAt || !f.bpm) return;
     cur = goAt.beat + (liveBeat(f, frameAt) - goAt.live);
   }
-  if (cur < last || cur - last > 8) chase(r, cur);
-  else due(r.cues, last, cur).forEach(fire);
+  if (rt.mode !== 'sound') {
+    if (cur < last || cur - last > 8) chase(r, cur);
+    else due(r.cues, last, cur).forEach(fire);
+  }
   last = cur;
   rt.cursor = cur;
   active = active.filter((a) => (cur >= a.end ? (a.undo(), false) : true));
@@ -220,17 +223,38 @@ function begin(r: Roteiro, at: number) {
   const vids = [...new Set(r.cues.filter((c) => c.kind === 'video' && c.video).map((c) => c.video!))];
   vids.forEach(getVideo);
   emitTo('output', 'preload', vids);
-  if (rt.mode === 'only') ctx.vs().react = false;
-  chase(r, at - 0.001);
+  ctx.vs().react = rt.mode !== 'only';
+  if (rt.mode !== 'sound') chase(r, at - 0.001);
   last = at - 0.001; // pontos exatamente no começo também disparam
   rt.running = true;
 }
+
+// visual de antes do roteiro começar: é o que "Só o som" mostra (como ficaria ao vivo, sem os pontos)
+let base: Look | null = null;
+
+/** Troca o modo, inclusive com a música tocando: dá para comparar na hora com roteiro × só o som. */
+export function setMode(m: typeof rt.mode) {
+  const prev = rt.mode;
+  if (m !== 'sound') rt.back = m;
+  rt.mode = m;
+  if (!rt.running || prev === m) return;
+  const vs = ctx.vs();
+  vs.react = m !== 'only';
+  if (m === 'sound') {
+    undoAll();
+    if (base) Object.assign(vs, base);
+  } else if (prev === 'sound') chase(current()!, rt.cursor);
+}
+
+/** A/B: alterna entre o roteiro (no modo que estava) e só o som. */
+export const toggleSound = () => setMode(rt.mode === 'sound' ? rt.back : 'sound');
 
 /** App toca: toca do cursor. DJ toca: GO (o beat ao vivo mais próximo vira o `goBeat`). */
 export async function play() {
   const r = current();
   if (!r) return ctx.status('Crie ou escolha um roteiro primeiro.');
   if (!r.bpm) return ctx.status('Este roteiro ainda não tem BPM.');
+  if (!rt.running) base = lookOf($state.snapshot(ctx.vs()) as Visual);
   if (rt.source === 'app') {
     if (rt.loaded !== r.track) await load(r);
     if (rt.loaded !== r.track) return;

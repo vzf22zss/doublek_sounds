@@ -48,6 +48,7 @@ Feito para psytrance, dark/forest e hi-tech (135–220 BPM).
 | F | abrir/fechar o telão |
 | G / Shift+G | roteiro: tocar ou GO / parar |
 | , . / ; ' | roteiro: ±1 beat / ±1 compasso |
+| R | roteiro: comparar com roteiro × só o som |
 
 Knobs: arrastar (Shift = fino), roda do mouse, duplo clique = padrão.
 

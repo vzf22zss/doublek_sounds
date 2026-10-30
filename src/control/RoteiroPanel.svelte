@@ -1,7 +1,7 @@
 <script lang="ts">
   // Aba Roteiro: escolher/criar roteiro, grade (BPM, 1º tempo), quem toca, modo e o ponto selecionado.
   import { invoke } from '@tauri-apps/api/core';
-  import { rt, current, selectedCue, create, open, remove, load, replaceTrack, exportFile, importFile, addCue, deleteCue } from './roteiro.svelte';
+  import { rt, current, selectedCue, create, open, remove, load, replaceTrack, exportFile, importFile, addCue, deleteCue, setMode } from './roteiro.svelte';
   import { barLabel, FX_NAMES, KIND_NAMES, KNOBS, newCue, type CueKind } from '../lib/roteiro';
   import { listVideos } from '../lib/assets';
 
@@ -72,10 +72,12 @@
     {/if}
 
     <h2>Modo</h2>
-    <div class="seg">
-      <button class:on={rt.mode === 'live'} onclick={() => (rt.mode = 'live')} disabled={rt.running}>Roteiro + ao vivo<small>pontos + reage ao som</small></button>
-      <button class:on={rt.mode === 'only'} onclick={() => (rt.mode = 'only')} disabled={rt.running}>Só roteiro<small>muda só nos pontos</small></button>
+    <div class="seg three">
+      <button class:on={rt.mode === 'live'} onclick={() => setMode('live')}>Roteiro + ao vivo<small>pontos + reage ao som</small></button>
+      <button class:on={rt.mode === 'only'} onclick={() => setMode('only')}>Só roteiro<small>muda só nos pontos</small></button>
+      <button class:on={rt.mode === 'sound'} onclick={() => setMode('sound')}>Só o som<small>sem os pontos</small></button>
     </div>
+    <p class="keys">Dá para trocar com a música tocando: aperte <b>R</b> (ou o botão A/B na timeline) e compare na hora como fica <b>com o roteiro</b> e como fica <b>só reagindo ao som</b>.</p>
 
     <h2>Pontos</h2>
     <div class="row">
@@ -154,6 +156,8 @@
   .pair button, .grid2 button, .row button, .btn { padding: 4px 8px; font-size: 12px; }
   .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
   .seg.four { grid-template-columns: repeat(4, 1fr); }
+  .seg.three { grid-template-columns: repeat(3, 1fr); }
+  .seg.three button { padding: 5px 6px; }
   .seg button { text-align: left; font-size: 12px; }
   .seg.four button { text-align: center; padding: 4px 0; }
   .seg small { display: block; color: var(--muted); font-size: 10px; }
