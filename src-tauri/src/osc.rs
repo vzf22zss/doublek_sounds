@@ -132,18 +132,23 @@ impl Server {
     }
 }
 
+/// Erro de bind em português, para o operador (também usado pelo servidor remoto).
+pub fn bind_error(bind: SocketAddr, e: std::io::Error) -> String {
+    match e.kind() {
+        std::io::ErrorKind::AddrInUse => format!("A porta {} já está em uso por outro programa: escolha outra", bind.port()),
+        std::io::ErrorKind::AddrNotAvailable => format!("O endereço {} não existe nesta máquina", bind.ip()),
+        std::io::ErrorKind::PermissionDenied => format!("Sem permissão para a porta {} (reservada pelo Windows?): escolha outra", bind.port()),
+        _ => format!("Não deu para abrir {bind}: {e}"),
+    }
+}
+
 /// Abre a porta já (erro claro se estiver em uso) e escuta numa thread própria até `Server::stop`.
 /// `bind` em 127.0.0.1 = só esta máquina; 0.0.0.0 (LAN) só quando o chamador pede.
 pub fn serve<F>(bind: SocketAddr, mut on_msg: F) -> Result<Server, String>
 where
     F: FnMut(OscMsg) + Send + 'static,
 {
-    let sock = UdpSocket::bind(bind).map_err(|e| match e.kind() {
-        std::io::ErrorKind::AddrInUse => format!("A porta {} já está em uso por outro programa: escolha outra", bind.port()),
-        std::io::ErrorKind::AddrNotAvailable => format!("O endereço {} não existe nesta máquina", bind.ip()),
-        std::io::ErrorKind::PermissionDenied => format!("Sem permissão para a porta {} (reservada pelo Windows?): escolha outra", bind.port()),
-        _ => format!("Não deu para abrir {bind}: {e}"),
-    })?;
+    let sock = UdpSocket::bind(bind).map_err(|e| bind_error(bind, e))?;
     sock.set_read_timeout(Some(Duration::from_millis(200))).map_err(|e| e.to_string())?;
     let addr = sock.local_addr().map_err(|e| e.to_string())?;
     let (stats, stop) = (Arc::new(Stats::default()), Arc::new(AtomicBool::new(false)));

@@ -71,6 +71,8 @@
   }
 
   export const sceneNames = () => scenes.map((s, i) => s?.name ?? `Cena ${i + 1}`);
+  /** Banco ativo e último pad chamado (-1 = nenhum), para o estado do remoto. */
+  export const current = () => ({ bank: bk.active, scene: active });
 
   function setBanks(b: Banks, msg: string) {
     bk = b;
