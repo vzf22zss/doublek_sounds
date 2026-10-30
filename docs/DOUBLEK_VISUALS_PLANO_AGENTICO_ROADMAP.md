@@ -682,7 +682,7 @@ Audio Engine (Rust) ──► Music Features ──► Show Engine / Dispatcher
 
 - [x] **DK-021** Refatorar interface de shaders, cache e fallback. — 2026-10-30, sessão 29, `feat/dk-021-renderer` @ `bb12f61`: `src/render/` em módulos — `renderer.ts` (orquestrador, API pública intacta + `onEffectError`), `music.ts` (toda a lógica de CPU, TS puro, com `music.check.ts`), `gl/program.ts`, `gl/texture.ts`, `effects/{types,scene,feedback,post}.ts` com os GLSL idênticos; cache de programas; módulo opcional que falha é desligado sozinho (cena e pós são `required`). **Imagem idêntica pixel a pixel** antes/depois em 5 cenas no Edge headless determinístico; isolamento de falha provado. Checks, typecheck e build verdes, conferidos pelo coordenador. Desempenho em GPU real, preview e vídeo: NÃO VERIFICADO. Entra na onda 2 de integração.
 - [x] **DK-022** Implementar kaleidoscópio, mandala e fractal tunnel. — 2026-10-30, sessão 29, `feat/dk-022-psy-modulos` @ `1c5ecb9` (base `integ/onda-1`): módulos `effects/{kaleido,tunnel,mandala}.ts` (1 passe cada, laços com teto, FBO só no 1º uso, intensidade 0 = custo zero), chaves novas em `VISUAL` (`kaleido*`, `tunnel*`, `mandala*`, `psyQuality`), `ModTarget`/`DropTarget` ampliados, `PsyEffects.svelte` na aba Efeitos, 6 presets. Ordem: cena → túnel → mandala → caleidoscópio → rastro → pós. Smoke: módulos em 0 = **0 pixels diferentes** vs DK-021; ligados, imagens distintas sem NaN/preto; módulo quebrado cai sozinho. Checks 10/10, typecheck 0, build ok (coordenador). Retoques pedidos: `SAFE_LOOK` zera os 3; `psyQuality` em `NOT_IN_SCENE`. GPU real NÃO VERIFICADO.
-- [ ] **DK-023** Implementar partículas, organic/forest e hi-tech glitch.
+- [x] **DK-023** Implementar partículas, organic/forest e hi-tech glitch. — 2026-10-30, sessão 29, `feat/dk-023-psy-modulos` @ `b1ada0a` (inclui os retoques do DK-022 em `139732e`): módulos `effects/{particles,organic,glitch}.ts`, chaves `particles*`, `organic*`, `glitch` em `VISUAL`, limitador de rajadas do glitch em `music.ts` (≤ 3/s com `safeFlash`, 120 ms cada; testado), `glitch` e os 3 módulos anteriores no `SAFE_LOOK`, `psyQuality` fora das cenas, 6 presets (23 no total). Ordem: cena → orgânico → túnel → partículas → mandala → caleidoscópio → rastro → glitch → pós. Smoke: tudo em 0 = 0 pixels diferentes vs DK-021; rajada do glitch ≈ 117 ms em 7 quadros; módulo quebrado cai sozinho. Checks 10/10, typecheck 0, build ok (coordenador). GPU real NÃO VERIFICADO (6 passes extras em Alta).
 - [ ] **DK-024** Adicionar UI, qualidade, modulação, presets e benchmark.
 
 **Gate M2:** seis módulos demonstráveis com presets salvos e sem regressão crítica de FPS.
@@ -755,9 +755,9 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 | Última revisão do planejamento | 2026-10-30 (alinhado à v0.3.1) |
 | Commit/branch baseline validado | `main` @ `09a7677` (v0.3.1) — ver `docs/quality/BASELINE.md` |
 | Tarefa ativa | **Em paralelo (desde 2026-10-30, coordenador: sessão doublek-sounds-68):** DK-008 → sessão d7 (`feat/dk-008-benchmark`), DK-004 governança → sessão 29 (`docs/dk-004-governanca`), DK-011 → sessão 22 (`feat/dk-011-showpack-schema`); coordenador: plano de teste do DK-141 (`docs/coordenacao-m0`). Regras: cada sessão num `git worktree` próprio, escopo de arquivos disjunto, sem push/merge, só o coordenador edita roadmap/BASELINE/README |
-| Marco ativo | M0 (faltam DK-004 restante, DK-008, DK-141) |
-| Tarefas do roadmap marcadas | 5 (DK-001, DK-002, DK-003, DK-005, DK-006) |
-| Tarefas concluídas | 5 |
+| Marco ativo | M0 quase fechado (faltam DK-004 licença/1ª Release e DK-141 com o mantenedor); M1 feito em software (gate depende de validação no app real + DEC-03/09); M2 em andamento (DK-021/022/023 feitos, DK-024 a fazer); M3 iniciado (DK-041 feito, DK-042 em andamento) |
+| Tarefas do roadmap marcadas | 15 (DK-001, 002, 003, 005, 006, 008, 011, 012, 013, 014, 131, 021, 022, 023, 041) |
+| Tarefas concluídas | 15 (software); DK-009 P3/P4 parcial |
 | Bloqueios conhecidos | Licença (DEC-01); hardware de referência (DEC-02); secret de assinatura e 1ª release (DEC-10); SDK para Spout/Link/gravação |
 | Release alvo | **0.4.0** ao fechar o M0 (decisão do mantenedor, 2026-10-30) |
 
@@ -810,6 +810,8 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 | 2026-10-30 | DK-014 | DONE (software) | `feat/dk-014-showpack-ui` @ `05222d5` (sessão 22) | mock 16/16; checks 9/9, typecheck 0, build, `cargo check` ok (coordenador); `put_track` usa header `x-id` (corpo Raw não aceita args); app real NÃO VERIFICADO | **Gate M1** depende de validação no app real (mantenedor) + DEC-03/DEC-09; DK-142 espera DEC-09; sessão 22 → **DK-041** (bancos de cenas) |
 | 2026-10-30 | DK-022 | DONE (software) | `feat/dk-022-psy-modulos` @ `1c5ecb9` (sessão 29) | diff 0 com módulos em 0; smoke (a)(b)(c); checks 10/10, typecheck 0, build (coordenador); custo por módulo documentado (1 passe, 1–8 iterações/pixel) | retoques SAFE_LOOK + NOT_IN_SCENE na mesma branch; depois **DK-023** (partículas, orgânico, glitch) |
 | 2026-10-30 | DK-041 | DONE (software) | `feat/dk-041-bancos` @ `9bf0358` (sessão 22) | `banks.check.ts` + checks 10/10, typecheck 0, build (coordenador); mock 21/21 com migração real e MIDI salvo; app real/ABNT2 NÃO VERIFICADO | retoque `e.key` para `[ ]`; depois **DK-042** (dispatcher único + macros, ADR 0003) na mesma sessão |
+| 2026-10-30 | ONDA 1 → main | MERGEADA | `main` @ `2ef0451` (ff de `integ/onda-1`), push feito | 35 commits; CI disparado na main (aguardando); worktrees wt-dk004 e wt-dk131 removidos | Montar `integ/onda-2` (DK-021/022/023, DK-014, DK-041, DK-009) quando o retoque ABNT2 e o d7 chegarem |
+| 2026-10-30 | DK-023 (+retoques 022) | DONE (software) | `feat/dk-023-psy-modulos` @ `b1ada0a` (sessão 29) | diff 0 com tudo em 0; limitador de rajadas testado em `music.check`; checks 10/10, typecheck 0, build (coordenador) | **DK-024** (UI final, qualidade, modo seguro, medição de frametime por módulo) na mesma sessão |
 
 ### 8.4. Bloqueios e decisões pendentes
 
