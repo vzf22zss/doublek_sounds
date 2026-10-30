@@ -360,6 +360,8 @@ por camada; a aba Efeitos mostra o custo. Fundo, foto, vídeo, logo e pós (vinh
 blackout) não são camadas: ficam sempre no lugar de sempre. Por enquanto as camadas valem
 para o visual inteiro e não entram nas cenas; isso muda na próxima versão.
 
+![Seção Camadas da aba Efeitos: mandala em Somar a 70 %](img/camadas.png)
+
 ---
 
 ## 11. O que no som move cada efeito
