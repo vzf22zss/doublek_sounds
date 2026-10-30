@@ -11,6 +11,27 @@ npm run tauri dev
 
 Requer Rust (rustup) e Visual Studio Build Tools com C++.
 
+## Ao vivo
+
+| Tecla | Ação |
+|---|---|
+| Espaço | tap tempo |
+| ← → | ajuste fino da fase (5 ms) |
+| 1–8 | chamar cena (crossfade começa no próximo beat) |
+| Shift+clique na cena | gravar o visual atual nela |
+| B | blackout |
+| L | só a logo, sem efeitos |
+| F | abrir/fechar o telão |
+
+Knobs: arrastar (Shift = fino), roda do mouse, duplo clique = padrão.
+
+## Checagens
+
+```
+npm run typecheck
+npm run check
+```
+
 ## Afinar a detecção com faixas reais
 
 ```
