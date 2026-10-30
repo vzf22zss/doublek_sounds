@@ -50,22 +50,25 @@ export function load<T>(key: Key, validate: (raw: unknown) => T, fallback: () =>
   if (text == null) return fallback();
   let raw: unknown;
   try { raw = JSON.parse(text); } catch { backup(key, text); return fallback(); }
-  let { v, data } = isEnvelope(raw) ? raw : { v: 0, data: raw };
-  const target = SCHEMA[key];
-  if (v > target) {
-    // dado de uma versão futura do app: não arrisca; guarda e usa o padrão
-    backup(key, text);
-    return fallback();
-  }
   try {
-    for (; v < target; v++) data = MIGRATIONS[key][v](data);
-    const out = validate(data);
-    if (v !== (isEnvelope(raw) ? raw.v : 0)) save(key, out); // persiste já migrado
+    const out = validate(migrate(key, raw));
+    if (!isEnvelope(raw) || raw.v !== SCHEMA[key]) save(key, out); // persiste já migrado
     return out;
   } catch {
+    // inválido, ou de uma versão futura do app: não arrisca; guarda o bruto e usa o padrão
     backup(key, text);
     return fallback();
   }
+}
+
+/** Leva um envelope (ou dado cru v0) até a versão atual da chave. Lança se for de versão futura.
+ *  Usado por `load` e pela importação do Show Pack, que lê os mesmos envelopes de dentro do ZIP. */
+export function migrate(key: Key, raw: unknown): unknown {
+  let { v, data } = isEnvelope(raw) ? raw : { v: 0, data: raw };
+  const target = SCHEMA[key];
+  if (v > target) throw new Error(`${key}: versão ${v} é mais nova que a deste app (${target})`);
+  for (; v < target; v++) data = MIGRATIONS[key][v](data);
+  return data;
 }
 
 export function save<T>(key: Key, data: T) {
