@@ -448,6 +448,16 @@ backup, levar para outro notebook ou ter um arquivo para cada tipo de festa.
 > O que **não** entra na cena: offset, resolução, recorte da logo, blackout e só logo.
 > São ajustes do lugar e da operação, não do visual.
 
+### Bancos de cenas
+
+Além dos 8 pads, você pode ter até **4 bancos** de 8 cenas (32 no total). O seletor fica à
+esquerda dos pads: **‹ ›** troca de banco, **+** cria um banco vazio, **×** apaga o banco
+atual (pergunta antes se ele tem cenas). Duplo clique no nome do banco para renomear. Teclas
+**[** e **]** trocam de banco; com o MIDI learn ligado, clique em ‹ ou › e mexa num botão do
+controlador para trocar de banco pelo MIDI. Os pads 1–8, as teclas 1–8, os botões MIDI já
+aprendidos e os pontos de cena do roteiro agem sempre no **banco que está aberto**. Quem já
+tinha cenas encontra todas no banco 1, "Principal".
+
 ### Salvar e abrir um show (`.doublekshow`)
 
 Um **show** é um arquivo só com tudo o que você montou: visual, as 8 cenas, transição,
