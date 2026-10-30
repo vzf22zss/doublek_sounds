@@ -1,11 +1,11 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use doublek_lib::analysis::{BeatCmd, Params};
-use doublek_lib::audio;
+use doublek_lib::{audio, midi};
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
 use std::sync::{mpsc, Arc, Mutex};
-use tauri::{ipc::Channel, AppHandle, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{ipc::Channel, AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 type Subs = Arc<Mutex<Vec<(String, Channel<audio::Msg>)>>>;
 
@@ -14,6 +14,7 @@ struct Engine {
     params: Arc<Mutex<Params>>,
     run: Mutex<Option<(Arc<AtomicBool>, mpsc::Sender<BeatCmd>)>>,
     subs: Subs, // uma assinatura por janela (controle, saída)
+    midi_devices: Arc<Mutex<Vec<String>>>,
 }
 
 #[derive(Serialize)]
@@ -95,6 +96,11 @@ async fn open_output(app: AppHandle, monitor: usize) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn midi_devices(engine: State<Engine>) -> Vec<String> {
+    engine.midi_devices.lock().unwrap().clone()
+}
+
+#[tauri::command]
 fn close_output(app: AppHandle) {
     if let Some(w) = app.get_webview_window("output") {
         let _ = w.close();
@@ -104,6 +110,20 @@ fn close_output(app: AppHandle) {
 fn main() {
     tauri::Builder::default()
         .manage(Engine::default())
+        .setup(|app| {
+            let (h1, h2) = (app.handle().clone(), app.handle().clone());
+            let devs = app.state::<Engine>().midi_devices.clone();
+            std::thread::spawn(move || {
+                midi::watch(
+                    move |m| { let _ = h1.emit_to("control", "midi", m); },
+                    move |d| {
+                        *devs.lock().unwrap() = d.clone();
+                        let _ = h2.emit_to("control", "midi-devices", d);
+                    },
+                )
+            });
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             list_inputs,
             subscribe,
@@ -112,7 +132,8 @@ fn main() {
             beat,
             list_monitors,
             open_output,
-            close_output
+            close_output,
+            midi_devices
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar o app");
