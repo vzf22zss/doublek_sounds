@@ -7,9 +7,9 @@ export const SOURCES = {
   beat: 'Beat', bar: 'Compasso', lfo: 'LFO',
 } as const;
 export type Source = keyof typeof SOURCES;
-export type ModTarget = 'amount' | 'glow' | 'chroma' | 'bgPulse' | 'bgFlash' | 'fxFlash' | 'fxShake' | 'trailZoom';
+export type ModTarget = 'amount' | 'glow' | 'chroma' | 'bgPulse' | 'bgFlash' | 'fxFlash' | 'fxShake' | 'trailZoom' | 'kaleido' | 'tunnel' | 'mandala' | 'particles' | 'organic' | 'glitch';
 // Efeitos que podem ficar "só no drop": somem no breakdown sem grave e entram quando o grave volta.
-export type DropTarget = 'fxFlash' | 'fxRings' | 'fxBars' | 'fxRadial' | 'trail' | 'strobe' | 'chroma' | 'fxShake' | 'bgPulse' | 'bgFlash' | 'bgMedia';
+export type DropTarget = 'fxFlash' | 'fxRings' | 'fxBars' | 'fxRadial' | 'trail' | 'strobe' | 'chroma' | 'fxShake' | 'bgPulse' | 'bgFlash' | 'bgMedia' | 'kaleido' | 'tunnel' | 'mandala' | 'particles' | 'organic' | 'glitch';
 
 export const VISUAL = {
   // logo
@@ -19,10 +19,12 @@ export const VISUAL = {
   mod: {
     amount: 'auto', glow: 'auto', chroma: 'auto', bgPulse: 'auto',
     bgFlash: 'auto', fxFlash: 'auto', fxShake: 'kick', trailZoom: 'auto',
+    kaleido: 'lfo', tunnel: 'bass', mandala: 'kick', particles: 'kick', organic: 'sub', glitch: 'kick',
   } as Record<ModTarget, Source>,
   drop: {
     fxFlash: false, fxRings: false, fxBars: false, fxRadial: false, trail: false, strobe: false,
     chroma: false, fxShake: false, bgPulse: false, bgFlash: false, bgMedia: false,
+    kaleido: false, tunnel: false, mandala: false, particles: false, organic: false, glitch: false,
   } as Record<DropTarget, boolean>,
   dropFade: 1, // beats para os efeitos "só no drop" entrarem/saírem
   // fundo
@@ -32,7 +34,16 @@ export const VISUAL = {
   // efeitos
   fxFlash: 0.35, fxRings: 0.4, fxBars: 0, fxRadial: 0, fxVig: 0.4, fxScan: 0, fxGrain: 0, fxShake: 0,
   trail: 0, trailZoom: 0.5, trailRot: 0, strobe: 0, strobeDiv: 1,
+  // Psy Engine (DK-022): intensidade 0 = módulo desligado, sem custo
+  kaleido: 0, kaleidoN: 6, kaleidoSpin: 0.2, kaleidoZoom: 1, kaleidoMirror: true,
+  tunnel: 0, tunnelSpeed: 0.5, tunnelDensity: 0.5,
+  mandala: 0, mandalaPetals: 8,
+  // Psy Engine (DK-023)
+  particles: 0, particlesDensity: 0.5, particlesDir: 90, particlesTurb: 0.3, // direção em graus (90 = sobe)
+  organic: 0, organicScale: 1,
+  glitch: 0, // rajadas curtas no disparo; teto em music.ts (BURST_HZ, BURST_MS)
   // saída / operação (fora das cenas)
+  psyQuality: 1, // 0 baixa · 1 média · 2 alta: amostras/iterações por pixel dos módulos do Psy Engine
   renderScale: 1, blackout: false, logoOnly: false,
   react: true, // false = "só roteiro": o visual muda só nos pontos marcados, sem reagir ao som
   safeFlash: true, // limita strobe/flash a 3 por segundo (fotossensibilidade); fora das cenas, ligado por padrão
@@ -58,7 +69,7 @@ export function saveVisual(v: Visual) {
 
 // ---------- cenas ----------
 // Uma cena é o "visual" sem os ajustes de operação (sincronia, desempenho, blackout, recorte da logo).
-const NOT_IN_SCENE = ['renderScale', 'offset', 'predict', 'blackout', 'logoOnly', 'rmWhite', 'white', 'react', 'safeFlash'] as const;
+const NOT_IN_SCENE = ['renderScale', 'psyQuality', 'offset', 'predict', 'blackout', 'logoOnly', 'rmWhite', 'white', 'react', 'safeFlash'] as const;
 export type Look = Omit<Visual, (typeof NOT_IN_SCENE)[number]>;
 export type Scene = { name: string; look: Look } | null;
 
