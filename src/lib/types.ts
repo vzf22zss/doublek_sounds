@@ -12,6 +12,7 @@ export type Frame = {
   flux: number;
   thr: number;
   spectrum: number[];
+  low: number; // 1 = grave tocando (drop), 0 = breakdown sem grave
 };
 
 export type Msg = { t: 'frame'; v: Frame } | { t: 'status'; v: string };

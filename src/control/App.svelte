@@ -18,7 +18,7 @@
     'Hi-tech': [175, 220],
     Auto: [80, 220],
   };
-  const DEFAULTS = { device: '', channel: 0, gain: 1, gate: 0.003, sens: 1.4, range: 'Psy', lock: false, needClick: true, monitor: 1 };
+  const DEFAULTS = { device: '', channel: 0, gain: 1, gate: 0.003, sens: 1.4, range: 'Psy', lock: false, needClick: true, monitor: 1, dropThr: 0.35 };
   const KEY = 'doublek.settings';
   const TABS = ['Áudio', 'Logo', 'Fundo', 'Efeitos', 'Saída'] as const;
 
@@ -74,7 +74,7 @@
     try { localStorage.setItem(KEY, JSON.stringify(v)); } catch {}
     const [bpmMin, bpmMax] = RANGES[v.range] ?? RANGES.Auto;
     invoke('set_params', {
-      params: { gain: v.gain, gate: v.gate, sens: v.sens, bpmMin, bpmMax, lock: v.lock, needClick: v.needClick },
+      params: { gain: v.gain, gate: v.gate, sens: v.sens, bpmMin, bpmMax, lock: v.lock, needClick: v.needClick, dropThr: v.dropThr },
     });
   });
 
@@ -272,7 +272,7 @@
 
 <main>
   <header class="panel bar">
-    <div class="brand">DOUBLEK<span>visuals</span></div>
+    <div class="brand">DOUBLEK</div>
 
     <div class="group">
       <select bind:value={s.device} title="Entrada de áudio">
@@ -299,6 +299,7 @@
           {#each [0, 1, 2, 3] as i}
             <i class:on={frame?.bpm && beatNow.idx === i} style:opacity={frame?.bpm && beatNow.idx === i ? 1 - beatNow.phase * 0.7 : 1}></i>
           {/each}
+          <span class="dropPill" class:on={!!frame?.low} title="Acende quando há grave (drop). Efeitos com o chip drop só aparecem com ela acesa.">DROP</span>
         </div>
       </div>
     </div>
@@ -371,6 +372,10 @@
           <input type="checkbox" bind:checked={s.lock} />
           <span>Travar BPM <small>só a fase se ajusta aos kicks</small></span>
         </label>
+        <h2>Drop (grave)</h2>
+        <Slider label="Limiar do grave" bind:value={s.dropThr} min={0.1} max={0.8} step={0.01} def={0.35} fmt={pct} />
+        <Slider label="Entrada/saída do drop" bind:value={vs.dropFade} learn="dropFade" min={0.25} max={8} step={0.25} def={VISUAL.dropFade} fmt={(v) => v + ' beat' + (v === 1 ? '' : 's')} />
+        <p class="keys">Efeitos com o chip <b>drop</b> ligado somem no breakdown sem grave e entram quando o grave volta. A pílula DROP no topo acende quando o app ouve grave; se ela apaga com o grave tocando, baixe o limiar.</p>
         <p class="keys">Espaço = tap · ← → = fase · 1–8 = cenas · B = blackout · L = só logo · F = telão</p>
 
       {:else if tab === 'Logo'}
@@ -382,7 +387,7 @@
         <Slider label="Tamanho" bind:value={vs.size} learn="size" min={10} max={150} step={1} def={VISUAL.size} fmt={(v) => v + '%'} />
         <Slider label="Pulso" bind:value={vs.amount} learn="amount" bind:mod={vs.mod.amount} min={0} max={1.5} step={0.01} def={VISUAL.amount} fmt={f2} />
         <Slider label="Brilho (glow)" bind:value={vs.glow} learn="glow" bind:mod={vs.mod.glow} min={0} max={1} step={0.01} def={VISUAL.glow} fmt={f2} />
-        <Slider label="Aberração cromática" bind:value={vs.chroma} learn="chroma" bind:mod={vs.mod.chroma} min={0} max={40} step={0.5} def={VISUAL.chroma} fmt={(v) => v + ' px'} />
+        <Slider label="Aberração cromática" bind:value={vs.chroma} learn="chroma" bind:mod={vs.mod.chroma} bind:drop={vs.drop.chroma} min={0} max={40} step={0.5} def={VISUAL.chroma} fmt={(v) => v + ' px'} />
         <label class="check">
           <input type="checkbox" bind:checked={vs.rmWhite} />
           <span>Remover fundo branco da logo</span>
@@ -413,24 +418,24 @@
           <button class:on={vs.bgFit === 'cover'} onclick={() => (vs.bgFit = 'cover')}>Preencher</button>
           <button class:on={vs.bgFit === 'contain'} onclick={() => (vs.bgFit = 'contain')}>Caber inteira</button>
         </div>
-        <Slider label="Opacidade da foto" bind:value={vs.bgOpacity} learn="bgOpacity" min={0} max={1} step={0.01} def={1} fmt={pct} />
+        <Slider label="Opacidade da foto" bind:value={vs.bgOpacity} learn="bgOpacity" bind:drop={vs.drop.bgMedia} min={0} max={1} step={0.01} def={1} fmt={pct} />
         <Slider label="Desfoque da foto" bind:value={vs.bgBlur} learn="bgBlur" min={0} max={40} step={1} def={0} fmt={(v) => v + ' px'} />
         <Slider label="Brilho da foto" bind:value={vs.bgDim} learn="bgDim" min={0} max={150} step={1} def={100} fmt={(v) => v + '%'} />
         <Slider label="Girar matiz" bind:value={vs.bgHue} learn="bgHue" min={-180} max={180} step={1} def={0} fmt={(v) => v + '°/s'} />
-        <Slider label="Zoom do fundo" bind:value={vs.bgPulse} learn="bgPulse" bind:mod={vs.mod.bgPulse} min={0} max={0.4} step={0.01} def={VISUAL.bgPulse} fmt={f2} />
-        <Slider label="Brilho do fundo" bind:value={vs.bgFlash} learn="bgFlash" bind:mod={vs.mod.bgFlash} min={0} max={1} step={0.01} def={VISUAL.bgFlash} fmt={f2} />
+        <Slider label="Zoom do fundo" bind:value={vs.bgPulse} learn="bgPulse" bind:mod={vs.mod.bgPulse} bind:drop={vs.drop.bgPulse} min={0} max={0.4} step={0.01} def={VISUAL.bgPulse} fmt={f2} />
+        <Slider label="Brilho do fundo" bind:value={vs.bgFlash} learn="bgFlash" bind:mod={vs.mod.bgFlash} bind:drop={vs.drop.bgFlash} min={0} max={1} step={0.01} def={VISUAL.bgFlash} fmt={f2} />
 
       {:else if tab === 'Efeitos'}
-        <Slider label="Flash" bind:value={vs.fxFlash} learn="fxFlash" bind:mod={vs.mod.fxFlash} min={0} max={1} step={0.01} def={VISUAL.fxFlash} fmt={f2} />
-        <Slider label="Anéis a cada kick" bind:value={vs.fxRings} learn="fxRings" min={0} max={1} step={0.01} def={VISUAL.fxRings} fmt={f2} />
-        <Slider label="Espectro em barras" bind:value={vs.fxBars} learn="fxBars" min={0} max={1} step={0.01} def={0} fmt={f2} />
-        <Slider label="Espectro radial na logo" bind:value={vs.fxRadial} learn="fxRadial" min={0} max={1} step={0.01} def={0} fmt={f2} />
+        <Slider label="Flash" bind:value={vs.fxFlash} learn="fxFlash" bind:mod={vs.mod.fxFlash} bind:drop={vs.drop.fxFlash} min={0} max={1} step={0.01} def={VISUAL.fxFlash} fmt={f2} />
+        <Slider label="Anéis a cada kick" bind:value={vs.fxRings} learn="fxRings" bind:drop={vs.drop.fxRings} min={0} max={1} step={0.01} def={VISUAL.fxRings} fmt={f2} />
+        <Slider label="Espectro em barras" bind:value={vs.fxBars} learn="fxBars" bind:drop={vs.drop.fxBars} min={0} max={1} step={0.01} def={0} fmt={f2} />
+        <Slider label="Espectro radial na logo" bind:value={vs.fxRadial} learn="fxRadial" bind:drop={vs.drop.fxRadial} min={0} max={1} step={0.01} def={0} fmt={f2} />
         <h2>Rastro / túnel</h2>
-        <Slider label="Rastro" bind:value={vs.trail} learn="trail" min={0} max={1} step={0.01} def={0} fmt={f2} />
+        <Slider label="Rastro" bind:value={vs.trail} learn="trail" bind:drop={vs.drop.trail} min={0} max={1} step={0.01} def={0} fmt={f2} />
         <Slider label="Zoom do rastro" bind:value={vs.trailZoom} learn="trailZoom" bind:mod={vs.mod.trailZoom} min={-1} max={1} step={0.01} def={VISUAL.trailZoom} fmt={f2} />
         <Slider label="Giro do rastro" bind:value={vs.trailRot} learn="trailRot" min={-1} max={1} step={0.01} def={0} fmt={f2} />
         <h2>Strobe</h2>
-        <Slider label="Intensidade" bind:value={vs.strobe} learn="strobe" min={0} max={1} step={0.01} def={0} fmt={f2} />
+        <Slider label="Intensidade" bind:value={vs.strobe} learn="strobe" bind:drop={vs.drop.strobe} min={0} max={1} step={0.01} def={0} fmt={f2} />
         <div class="seg four">
           {#each [[1, '1/1'], [2, '1/2'], [4, '1/4']] as [d, l]}
             <button class:on={vs.strobeDiv === d} onclick={() => (vs.strobeDiv = d as number)}>{l}</button>
@@ -440,7 +445,7 @@
         <Slider label="Vinheta" bind:value={vs.fxVig} learn="fxVig" min={0} max={1} step={0.01} def={VISUAL.fxVig} fmt={f2} />
         <Slider label="Linhas de TV" bind:value={vs.fxScan} learn="fxScan" min={0} max={1} step={0.01} def={0} fmt={f2} />
         <Slider label="Granulado" bind:value={vs.fxGrain} learn="fxGrain" min={0} max={1} step={0.01} def={0} fmt={f2} />
-        <Slider label="Tremor" bind:value={vs.fxShake} learn="fxShake" bind:mod={vs.mod.fxShake} min={0} max={30} step={1} def={0} fmt={(v) => v + ' px'} />
+        <Slider label="Tremor" bind:value={vs.fxShake} learn="fxShake" bind:mod={vs.mod.fxShake} bind:drop={vs.drop.fxShake} min={0} max={30} step={1} def={0} fmt={(v) => v + ' px'} />
 
       {:else}
         <h2>Telão</h2>
@@ -490,7 +495,6 @@
   }
   .bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 10px 14px; flex-wrap: wrap; }
   .brand { font-weight: 800; letter-spacing: 0.18em; font-size: 14px; }
-  .brand span { font-weight: 400; letter-spacing: 0.05em; color: var(--muted); margin-left: 6px; }
   .group { display: flex; gap: 6px; align-items: center; }
   .group select:first-child { max-width: 130px; }
   .primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink, #fff); font-weight: 600; }
@@ -514,6 +518,8 @@
   .meter.clip .fill { background: var(--clip); }
   .meter span { position: relative; display: block; text-align: center; line-height: 26px; font-size: 12px; font-weight: 600; text-shadow: 0 1px 2px #000; }
 
+  .dropPill { font-size: 9px; font-weight: 800; letter-spacing: .1em; padding: 0 5px; line-height: 12px; margin-left: 4px; border-radius: 6px; color: var(--muted); border: 1px solid var(--line); transition: all .15s; }
+  .dropPill.on { color: #111; background: var(--kick); border-color: var(--kick); box-shadow: 0 0 12px var(--kick); }
   .tempo { display: flex; align-items: center; gap: 10px; margin-left: auto; }
   .bpm { font-size: 30px; font-weight: 700; line-height: 1; color: var(--muted); transition: color .2s; min-width: 92px; text-align: right; }
   .bpm.locked { color: var(--text); text-shadow: 0 0 18px rgba(124,92,255,.6); }

@@ -7,6 +7,8 @@ export const SOURCES = {
 } as const;
 export type Source = keyof typeof SOURCES;
 export type ModTarget = 'amount' | 'glow' | 'chroma' | 'bgPulse' | 'bgFlash' | 'fxFlash' | 'fxShake' | 'trailZoom';
+// Efeitos que podem ficar "só no drop": somem no breakdown sem grave e entram quando o grave volta.
+export type DropTarget = 'fxFlash' | 'fxRings' | 'fxBars' | 'fxRadial' | 'trail' | 'strobe' | 'chroma' | 'fxShake' | 'bgPulse' | 'bgFlash' | 'bgMedia';
 
 export const VISUAL = {
   // logo
@@ -17,6 +19,11 @@ export const VISUAL = {
     amount: 'auto', glow: 'auto', chroma: 'auto', bgPulse: 'auto',
     bgFlash: 'auto', fxFlash: 'auto', fxShake: 'kick', trailZoom: 'auto',
   } as Record<ModTarget, Source>,
+  drop: {
+    fxFlash: false, fxRings: false, fxBars: false, fxRadial: false, trail: false, strobe: false,
+    chroma: false, fxShake: false, bgPulse: false, bgFlash: false, bgMedia: false,
+  } as Record<DropTarget, boolean>,
+  dropFade: 1, // beats para os efeitos "só no drop" entrarem/saírem
   // fundo
   bgc1: '#0b0b10', bgc2: '#2a1060', bgGrad: false, bgAngle: 160, bgFit: 'cover' as 'cover' | 'contain',
   bgOpacity: 1, bgBlur: 0, bgDim: 100, bgHue: 0, bgPulse: 0.05, bgFlash: 0.15,
@@ -33,7 +40,7 @@ const KEY = 'doublek.visual';
 export function loadVisual(): Visual {
   try {
     const s = JSON.parse(localStorage.getItem(KEY) ?? '{}');
-    return { ...VISUAL, ...s, mod: { ...VISUAL.mod, ...s.mod }, blackout: false, logoOnly: false };
+    return { ...VISUAL, ...s, mod: { ...VISUAL.mod, ...s.mod }, drop: { ...VISUAL.drop, ...s.drop }, blackout: false, logoOnly: false };
   } catch {
     return { ...VISUAL };
   }
@@ -111,7 +118,10 @@ export function sanitizeLook(x: unknown): Partial<Look> {
     if (k === 'mod' && v && typeof v === 'object') {
       o.mod = { ...VISUAL.mod };
       for (const [t, src] of Object.entries(v)) if (t in VISUAL.mod && typeof src === 'string' && src in SOURCES) o.mod[t] = src;
-    } else if (k in base && typeof v === typeof base[k] && (typeof v !== 'number' || Number.isFinite(v))) o[k] = v;
+    } else if (k === 'drop' && v && typeof v === 'object') {
+      o.drop = { ...VISUAL.drop };
+      for (const [t, on] of Object.entries(v)) if (t in VISUAL.drop && typeof on === 'boolean') o.drop[t] = on;
+    } else if (k in base && typeof base[k] !== 'object' && typeof v === typeof base[k] && (typeof v !== 'number' || Number.isFinite(v))) o[k] = v;
   }
   return o;
 }

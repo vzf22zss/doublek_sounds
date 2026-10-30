@@ -25,11 +25,12 @@ pub struct Params {
     pub bpm_max: f32,
     pub lock: bool,
     pub need_click: bool,
+    pub drop_thr: f32, // grave atual / grave de referência acima disso = "tem grave" (drop)
 }
 
 impl Default for Params {
     fn default() -> Self {
-        Self { gain: 1.0, gate: 0.003, sens: 1.4, bpm_min: 80.0, bpm_max: 220.0, lock: false, need_click: true }
+        Self { gain: 1.0, gate: 0.003, sens: 1.4, bpm_min: 80.0, bpm_max: 220.0, lock: false, need_click: true, drop_thr: 0.35 }
     }
 }
 
@@ -57,6 +58,7 @@ pub struct Frame {
     pub flux: f32, // subida do sub e limiar atual, para o analisador
     pub thr: f32,
     pub spectrum: Vec<f32>,
+    pub low: f32, // 1 = grave tocando (drop), 0 = breakdown sem grave
 }
 
 #[derive(Clone, Copy)]
@@ -134,6 +136,9 @@ pub struct Analyzer {
     rms: f32,
     flux: f32,
     thr: f32,
+    low_lvl: f32, // grave (sub+bass) suavizado
+    low_ref: f32, // maior grave recente, decai em ~1 min
+    low_on: bool,
     pub beat: Beat,
     ring: Vec<f32>,
     ring_pos: usize,
@@ -171,6 +176,9 @@ impl Analyzer {
             rms: 0.0,
             flux: 0.0,
             thr: 0.0,
+            low_lvl: 0.0,
+            low_ref: 1e-4,
+            low_on: false,
             beat: Beat::default(),
             ring: vec![0.0; FFT],
             ring_pos: 0,
@@ -223,6 +231,13 @@ impl Analyzer {
             self.env[i] += (r - self.env[i]) * (1.0 - (-dt / tau).exp());
             self.env_peak[i] = r.max(self.env_peak[i] * (-dt / 4.0).exp()).max(1e-4);
         }
+
+        // tem grave? comparado com o grave do último minuto, não dos últimos 4 s (senão o breakdown vira "drop")
+        let r = (ms[0] + ms[1]).sqrt();
+        self.low_lvl += (r - self.low_lvl) * (1.0 - (-dt / 0.25).exp());
+        self.low_ref = self.low_lvl.max(self.low_ref * (-dt / 60.0).exp()).max(1e-4);
+        let ratio = self.low_lvl / self.low_ref;
+        self.low_on = self.rms >= p.gate && ratio > if self.low_on { 0.7 * p.drop_thr } else { p.drop_thr };
 
         let k = (2.6 - 0.7 * p.sens).max(0.3);
         let (dc, tc) = self.on_click.step(ms[3], k);
@@ -289,6 +304,7 @@ impl Analyzer {
             flux: self.flux,
             thr: self.thr,
             spectrum,
+            low: if self.low_on { 1.0 } else { 0.0 },
         }
     }
 }
@@ -370,6 +386,35 @@ mod tests {
         assert!((est as f64 - bpm).abs() < 0.5, "{bpm}: estimou {est}");
         assert!(recall >= 0.95, "{bpm}: acerto {recall}");
         assert!(false_rate < 0.05, "{bpm}: falsos {false_rate}");
+    }
+
+    /// Faixa 10 s → breakdown 8 s (sem kick nem baixo; só um pad médio e ruído) → drop 8 s.
+    #[test]
+    fn drop_breakdown() {
+        let sr = 48000.0;
+        let (a, _) = track(148.0, 10.0, sr, true);
+        let (b, _) = track(148.0, 8.0, sr, true);
+        let pad: Vec<f32> = (0..(8.0 * sr) as usize).map(|i| 0.15 * (2.0 * PI * 880.0 * i as f32 / sr).sin()).collect();
+        let x: Vec<f32> = a.into_iter().chain(pad).chain(b).collect();
+        let mut an = Analyzer::new(sr);
+        let p = Params { bpm_min: 135.0, bpm_max: 150.0, ..Default::default() };
+        let (mut first_on_after_drop, mut wrong) = (None, vec![]);
+        for (i, c) in x.chunks_exact(HOP).enumerate() {
+            let t = (i + 1) as f64 * HOP as f64 / sr as f64;
+            an.process(c, &p);
+            let low = an.snapshot().low > 0.5;
+            let expect = if t > 2.0 && t < 10.0 { Some(true) } else if t > 11.0 && t < 18.0 { Some(false) } else { None };
+            if expect.is_some_and(|e| e != low) {
+                wrong.push(t);
+            }
+            if t >= 18.0 && low && first_on_after_drop.is_none() {
+                first_on_after_drop = Some(t - 18.0);
+            }
+        }
+        assert!(wrong.is_empty(), "drop errado em {} hops, ex.: {:.2}s", wrong.len(), wrong[0]);
+        let dt = first_on_after_drop.expect("o drop não voltou");
+        println!("drop voltou {:.0} ms depois do primeiro kick", dt * 1000.0);
+        assert!(dt < 60.0 / 148.0, "drop demorou {dt:.2}s");
     }
 
     #[test]

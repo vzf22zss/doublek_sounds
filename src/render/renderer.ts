@@ -1,7 +1,7 @@
 // Renderer WebGL2 em 3 passes: cena → rastro (feedback) → pós. Usado pela janela de saída e pelo preview.
 // Tudo que é por quadro roda na GPU; o CPU só calcula envelopes e uniforms.
 import type { Frame } from '../lib/types';
-import type { ModTarget, Source, Visual } from '../lib/settings';
+import type { DropTarget, ModTarget, Source, Visual } from '../lib/settings';
 import { LOGO_PAD, type Prepared } from '../lib/assets';
 
 const VS = `#version 300 es
@@ -131,7 +131,7 @@ export class Renderer {
   private v: Visual;
   private frame: Frame | null = null;
   private rxAt = 0; private lastT = 0; private lastKickRx = -1e9; private strength = 0.8;
-  private kickEnv = 0; private waveEnv = 0; private presence = 0; private black = 0;
+  private kickEnv = 0; private waveEnv = 0; private presence = 0; private black = 0; private dropEnv = 1;
   private prevPh = 0; private lastTrig = -1e9;
   private rings: { t: number; s: number }[] = [];
   private spec = new Float32Array(64);
@@ -226,6 +226,10 @@ export class Renderer {
     };
     const m = (k: ModTarget) => (stale ? p : S[v.mod[k]] ?? p);
     const fx = v.logoOnly ? 0 : 1; // L = só a logo, sem efeitos
+    // "só no drop": some no breakdown sem grave e entra quando o grave volta, em dropFade beats
+    const lowT = f && !stale ? f.low ?? 1 : 0;
+    this.dropEnv += (lowT - this.dropEnv) * (1 - Math.exp(-dt / Math.max(0.02, (v.dropFade * period) / 3000)));
+    const d = (k: DropTarget) => (v.drop?.[k] ? this.dropEnv : 1);
     this.black += ((v.blackout ? 1 : 0) - this.black) * (1 - Math.exp(-dt / 0.08));
     if (f && !stale) for (let i = 0; i < 64; i++) {
       const s = f.spectrum[i] ?? 0;
@@ -250,12 +254,12 @@ export class Renderer {
     gl.uniform1f(u('uGrad'), v.bgGrad ? 1 : 0);
     gl.uniform1f(u('uAngle'), v.bgAngle);
     gl.uniform1f(u('uHasBg'), this.bgAspect ? 1 : 0);
-    gl.uniform1f(u('uBgOpacity'), v.bgOpacity);
+    gl.uniform1f(u('uBgOpacity'), v.bgOpacity * d('bgMedia'));
     gl.uniform1f(u('uBgDim'), v.bgDim / 100);
     gl.uniform1f(u('uHue'), ((now / 1000) * v.bgHue * Math.PI) / 180);
-    gl.uniform1f(u('uBgZoom'), 1 + m('bgPulse') * v.bgPulse);
-    gl.uniform1f(u('uBgBright'), 1 + m('bgFlash') * v.bgFlash);
-    gl.uniform1f(u('uFlash'), m('fxFlash') * v.fxFlash * fx);
+    gl.uniform1f(u('uBgZoom'), 1 + m('bgPulse') * v.bgPulse * d('bgPulse'));
+    gl.uniform1f(u('uBgBright'), 1 + m('bgFlash') * v.bgFlash * d('bgFlash'));
+    gl.uniform1f(u('uFlash'), m('fxFlash') * v.fxFlash * fx * d('fxFlash'));
     const A = W / H, B = this.bgAspect ? 1 / this.bgAspect : A; // aspecto largura/altura
     const wide = B > A;
     gl.uniform2f(u('uBgScale'), ...((v.bgFit === 'cover') === wide ? [A / B, 1] : [1, B / A]) as [number, number]);
@@ -263,15 +267,15 @@ export class Renderer {
     gl.uniform2f(u('uLogoSize'), logoW * (1 + 2 * LOGO_PAD), logoW * this.logoAspect * (1 + 2 * LOGO_PAD));
     gl.uniform1f(u('uLogoR'), (v.size / 100) * mn * 0.5 * Math.max(1, this.logoAspect));
     gl.uniform1f(u('uGlowAmt'), v.glow * (0.15 + m('glow') * 1.5));
-    gl.uniform1f(u('uChroma'), m('chroma') * v.chroma * px);
-    gl.uniform1f(u('uBars'), v.fxBars * fx);
-    gl.uniform1f(u('uRadial'), v.fxRadial * fx);
+    gl.uniform1f(u('uChroma'), m('chroma') * v.chroma * px * d('chroma'));
+    gl.uniform1f(u('uBars'), v.fxBars * fx * d('fxBars'));
+    gl.uniform1f(u('uRadial'), v.fxRadial * fx * d('fxRadial'));
     gl.uniform1fv(u('uSpec'), this.spec);
     const r0 = (mn * v.size) / 200, rMax = Math.max(W, H) * 0.75, rings = new Float32Array(64);
     this.rings = this.rings.filter((r) => now - r.t < 900);
     this.rings.forEach((r, i) => {
       const q = (now - r.t) / 900;
-      rings.set([r0 + (rMax - r0) * (1 - (1 - q) ** 2), (1 - q) ** 1.5 * r.s * v.fxRings, (2 + 7 * (1 - q) * r.s) * px, 0], i * 4);
+      rings.set([r0 + (rMax - r0) * (1 - (1 - q) ** 2), (1 - q) ** 1.5 * r.s * v.fxRings * d('fxRings'), (2 + 7 * (1 - q) * r.s) * px, 0], i * 4);
     });
     gl.uniform4fv(u('uRings'), rings);
     gl.uniform1i(u('uNRings'), v.fxRings > 0 && fx ? this.rings.length : 0);
@@ -282,10 +286,11 @@ export class Renderer {
     let src = this.fbs[0].tex;
 
     // ---- passe 2: rastro (só se ligado) ----
-    if (v.trail > 0 && fx) {
+    const trail = v.trail * d('trail');
+    if (trail > 0.01 && fx) {
       const cur = 1 + this.ping, prev = 2 - this.ping;
       u = this.use(this.feedback, this.fbs[cur].fb, W, H);
-      gl.uniform1f(u('uDecay'), 0.6 + 0.38 * v.trail);
+      gl.uniform1f(u('uDecay'), 0.6 + 0.38 * trail);
       gl.uniform1f(u('uZoom'), 1 + v.trailZoom * 0.03 * (1 + m('trailZoom')));
       gl.uniform1f(u('uRot'), v.trailRot * 0.01);
       this.bind(0, src, u('uScene'));
@@ -297,7 +302,7 @@ export class Renderer {
 
     // ---- passe 3: pós ----
     u = this.use(this.post, null, W, H);
-    const shake = m('fxShake') * v.fxShake * px * fx;
+    const shake = m('fxShake') * v.fxShake * px * fx * d('fxShake');
     gl.uniform2f(u('uRes'), W, H);
     gl.uniform2f(u('uShake'), (Math.random() * 2 - 1) * shake, (Math.random() * 2 - 1) * shake);
     gl.uniform1f(u('uVig'), v.fxVig);
@@ -309,7 +314,7 @@ export class Renderer {
     if (v.strobe > 0 && fx) {
       const sub = (ph * v.strobeDiv) % 1;
       strobe = this.predicting() ? (sub < 0.15 ? 1 - sub / 0.15 : 0) : this.kickEnv;
-      strobe *= v.strobe;
+      strobe *= v.strobe * d('strobe');
     }
     gl.uniform1f(u('uStrobe'), strobe);
     gl.uniform1f(u('uBlack'), this.black);

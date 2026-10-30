@@ -22,6 +22,15 @@ assert.equal(s.mod!.fxFlash, VISUAL.mod.fxFlash);
 assert.ok(!('bogus' in s.mod!));
 assert.deepEqual(sanitizeLook(null), {});
 
+// "só no drop": entra nas cenas e é saneado como o mod
+const dr = sanitizeLook({ drop: { fxRings: true, strobe: 'sim', bogus: true }, dropFade: 2 });
+assert.equal(dr.drop!.fxRings, true);
+assert.equal(dr.drop!.strobe, false);
+assert.ok(!('bogus' in dr.drop!));
+assert.equal(dr.dropFade, 2);
+assert.equal(blend(from, { ...to, drop: { ...VISUAL.drop, trail: true } }, 1).drop.trail, true);
+assert.deepEqual(sanitizeLook({ mod: 'x', drop: [1] }).drop, { ...VISUAL.drop }); // objeto inválido não passa
+
 // cores da foto: muito azul escuro + um pouco de vermelho vivo → brilho vermelho, fundo azul escuro
 const px = (rgb: number[], n: number) => Array.from({ length: n }, () => [...rgb, 255]).flat();
 const c = pickColors([...px([10, 20, 60], 300), ...px([230, 20, 30], 60), ...px([128, 128, 128], 100)])!;
