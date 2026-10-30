@@ -129,6 +129,7 @@ pub struct Analyzer {
     on_sub: Onset,
     on_click: Onset,
     sub_over: bool,
+    no_click: bool, // o cruzamento atual do sub foi recusado só por falta de click
     last_click: f64,
     last_kick: f64,
     env: [f32; 5],
@@ -169,6 +170,7 @@ impl Analyzer {
             on_sub: Onset::default(),
             on_click: Onset::default(),
             sub_over: false,
+            no_click: false,
             last_click: -1.0,
             last_kick: -1.0,
             env: [0.0; 5],
@@ -253,14 +255,20 @@ impl Analyzer {
         self.flux = ds;
         self.thr = thr;
         let over = ds > thr;
-        let rising = over && !self.sub_over;
+        let click_now = t - self.last_click < 0.017;
+        // borda nova, ou o mesmo cruzamento que foi recusado só por falta de click e agora tem click:
+        // a subida do sub às vezes passa o limiar 1 hop antes do click do kick chegar
+        let rising = over && (!self.sub_over || (self.no_click && click_now));
         self.sub_over = over;
+        if !over {
+            self.no_click = false;
+        }
 
         let (lo, hi) = (p.bpm_min.min(p.bpm_max) as f64, p.bpm_min.max(p.bpm_max) as f64);
         if !rising || pk < p.gate || t - self.last_kick < 0.6 * 60.0 / hi {
             return None;
         }
-        let click_ok = !p.need_click || t - self.last_click < 0.017;
+        let click_ok = !p.need_click || click_now;
         let strong = ds > 2.0 * ts;
         let accept = match grid {
             Some(true) => click_ok || strong,
@@ -268,8 +276,10 @@ impl Analyzer {
             None => click_ok,
         };
         if !accept {
+            self.no_click = !click_ok;
             return None;
         }
+        self.no_click = false;
         self.last_kick = t;
         self.beat.on_kick(t, lo, hi, p.lock);
         Some((0.5 + (ds / thr - 1.0) * 0.5).clamp(0.3, 1.0))
@@ -321,9 +331,13 @@ mod tests {
     }
 
     fn check(bpm: f64, lo: f32, hi: f32) {
+        check_track(bpm, lo, hi, true);
+    }
+
+    fn check_track(bpm: f64, lo: f32, hi: f32, rolling: bool) {
         let sr = 48000.0;
         let secs = 20.0;
-        let (x, truth) = track(bpm, secs, sr, true);
+        let (x, truth) = track(bpm, secs, sr, rolling);
         let mut an = Analyzer::new(sr);
         let p = Params { bpm_min: lo, bpm_max: hi, ..Default::default() };
         let (mut det, mut last_beat) = (vec![], i64::MIN);
@@ -427,6 +441,14 @@ mod tests {
             println!("Auto {bpm} (início {start} s): {est:.2}");
             assert!(an.beat.locked && (est as f64 - bpm).abs() < 0.5, "Auto {bpm}: estimou {est}");
         }
+    }
+
+    /// Só kick, sem baixo rolante: a subida do sub passava o limiar 1 hop antes do click e
+    /// travava a borda, perdendo ~15 % dos kicks (DETECCAO.md §4.2).
+    #[test]
+    fn limpo_sem_baixo() {
+        check_track(140.0, 135.0, 150.0, false);
+        check_track(160.0, 145.0, 185.0, false);
     }
 
     #[test]
