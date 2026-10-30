@@ -23,7 +23,8 @@ meu-show.doublekshow
 
 Regras do contêiner:
 
-- ZIP comum (deflate ou store), sem senha, sem comentário executável. Entradas fora da lista acima são **ignoradas** na importação; nunca extraídas.
+- ZIP **só com método STORE** (sem compressão: mídia já vem comprimida e os JSONs são pequenos), sem senha, sem descritor de dados, sem vários volumes e **sem ZIP64**: cada arquivo e o pacote inteiro ficam abaixo de 4 GiB (o manifesto já limita a 2 GiB). Nomes em UTF-8 (bit 11). Escritor e leitor: `src/lib/showpack/zip.ts`, sem dependência.
+- O leitor confere assinaturas, cabeçalho local × diretório central, tamanhos e CRC-32 de cada entrada. Qualquer entrada com nome perigoso (`..`, absoluto, letra de unidade, `\`, segmento vazio, caractere de controle) ou compressão recusa **o pacote inteiro**. Entradas com nome seguro fora da lista acima são ignoradas, nunca extraídas.
 - Os nomes de arquivo na raiz são fixos e em minúsculas. `assets/` contém exatamente os caminhos do manifesto: asset no manifesto sem arquivo no ZIP, ou arquivo em `assets/` fora do manifesto, é erro.
 - Os JSONs de estado respeitam o teto de JSON de `src/lib/limits.ts` (2 MB cada). O manifesto também.
 
@@ -135,7 +136,11 @@ Sempre nesta ordem; **o primeiro erro para tudo**, sem ter tocado no estado atua
 5. **Hashes** — `sha256` com 64 hex no manifesto; depois (DK-013) o hash **do conteúdo extraído** em staging bate com o declarado, e o tamanho real bate com `bytes`.
 6. **Referências** — `refId` presente e válido; `logo`/`bg` com `refId` igual ao tipo e no máximo um de cada; `refId` único por tipo. Em seguida (DK-013): cada asset do manifesto existe no ZIP, cada arquivo de `assets/` está no manifesto, e as referências cruzadas da seção 5 resolvem.
 
-As etapas 1–4, 5 (forma) e 6 (internas) são `validateManifest`, pura e testada em Node. O restante precisa do ZIP e fica em `import.ts`.
+As etapas 1–4, 5 (forma) e 6 (internas) são `validateManifest`. O restante está em `inspectShowPack` (`src/lib/showpack/import.ts`), também pura e testada em Node: lê o ZIP, confere tamanho e sha256 reais de cada asset, recusa arquivo em `assets/` fora do manifesto, migra e valida cada chave com `migrate` + os validadores do app (`validVisual`, `validScenes`, `validRoteiros`, `validVideos`, MIDI) e resolve as referências cruzadas. O resultado é um **plano** já validado, com os bytes dos assets; nada é gravado nessa fase.
+
+Decodificar as imagens (`logo`, `bg`) para provar que são imagens de verdade é feito com `createImageBitmap` no navegador, antes de qualquer escrita. Em Node essa etapa é pulada, e SVG também (o Chromium não decodifica SVG em `createImageBitmap`; o `<img>` do app valida depois).
+
+Avisos que não impedem a importação vão em `plan.warnings`: roteiro cuja música não veio (`includeTracks: false`) e vídeo do pacote que não está na lista.
 
 Mensagens de erro são em **português**, curtas, com o índice e o caminho do asset quando houver (`asset 3 (loop.mp4): arquivo grande demais (650 MB; máximo 600 MB)`), prontas para a linha de status. Nunca expõem caminho de disco do usuário.
 
@@ -145,9 +150,13 @@ Mensagens de erro são em **português**, curtas, com o índice e o caminho do a
 
 ## 8. Modos de importação
 
-- **Substituir show atual (padrão).** Antes de aplicar qualquer coisa, o app exporta o estado atual para `backup-<data>.doublekshow` na pasta de dados (`app_data/backups/`, mantendo os 5 mais recentes) e só então troca: chaves `doublek.*` (exceto `doublek.settings`), `logo`, `bg`, todos os `video:*`, e tracks que vieram no pacote. Vídeos e tracks do show antigo que o novo não usa são removidos (estão no backup).
-- **Importar como novo.** Nada do show atual é apagado: assets entram com ids novos (vídeos e tracks recebem id novo; `logo`/`bg` do pacote **não** substituem os atuais a menos que o DJ confirme), cenas e roteiros entram re-vinculados aos ids novos. Serve para juntar dois shows. Em caso de `id` de vídeo igual a um já existente, o do pacote ganha id novo e as referências são reescritas.
-- Em ambos: staging primeiro (validar tudo, extrair para memória/pasta temporária, conferir hash e tamanho), aplicar por último; falha em qualquer etapa → nada muda e o temporário é apagado (ADR 0001, item 2). `doublek.midi` só é aplicado se o pacote tiver `midi.json` **e** o DJ marcar "aplicar MIDI".
+Aplicação: `applyShowPack(plan, mode, deps)`. As escritas passam por `deps` (IndexedDB, localStorage, músicas), o que permite testar em Node. Ordem: checar imagens → **backup** → assets → chaves `doublek.*`. Cada escrita registra a operação inversa; se qualquer passo falhar, as inversas rodam do fim para o começo e o erro sai como `importação desfeita: <motivo>`. Falha no backup aborta antes de qualquer escrita.
+
+O backup é um `.doublekshow` do estado atual (`collectShowPack`) entregue a `saveBackup(nome, bytes)`. O destino (`app_data/backups/` via Rust, mantendo os 5 mais recentes, ou download) é decidido na DK-014.
+
+- **Substituir show atual (padrão).** Troca chaves `doublek.*` (exceto `doublek.settings`), `logo`, `bg` e a biblioteca de vídeos, mantendo os ids do pacote. `logo`/`bg` ausentes no pacote são removidos (volta a logo padrão). Vídeos do show antigo que o novo não usa são removidos do IndexedDB (estão no backup). Músicas antigas em `app_data/tracks/` **não** são apagadas (limpeza fica para DK-142).
+- **Importar como novo.** Vídeos e músicas do pacote recebem **ids novos** e todas as referências são reescritas (`visual.bgVideo`, `scene.look.bgVideo`, `cue.video`, `roteiro.track`). Roteiros e cues ganham ids novos. A biblioteca de vídeos e a lista de roteiros são **somadas** às atuais. `logo`/`bg` só substituem os atuais se `plan.replaceLogoBg` (o DJ confirma). Visual, transição e as 8 cenas são posições únicas: as do pacote **substituem** as atuais, que ficam no backup.
+- Em ambos: inspeção completa primeiro, aplicar por último; falha em qualquer etapa → nada muda (ADR 0001, item 2). `doublek.midi` só é aplicado se o pacote tiver `midi.json` **e** `plan.applyMidi` (o DJ marca "aplicar MIDI"). Pacote com música exige `deps.addTrack`; sem ele, a aplicação recusa antes de escrever.
 
 ## 9. Compatibilidade com os JSONs atuais
 

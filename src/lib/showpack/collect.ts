@@ -1,10 +1,11 @@
 // Ponte com o app (DK-012): junta o estado real (localStorage + IndexedDB) e monta o Show Pack.
 // Só roda no navegador; a lógica testável fica em export.ts. Sem músicas nesta versão (DEC-09 pendente).
-import { getAsset, listVideos, type VideoInfo } from '../assets.ts';
+import { getAsset, listVideos, setAsset, type VideoInfo } from '../assets.ts';
 import { loadRoteiros } from '../roteiro.ts';
 import { loadScenes, loadVisual } from '../settings.ts';
 import { load, SCHEMA, type Envelope } from '../store.ts';
 import { buildShowPack, showPackFileName, type AssetIn } from './export.ts';
+import type { ApplyDeps } from './import.ts';
 import type { AssetKind } from './manifest.ts';
 
 const MIME_EXT: Record<string, string> = {
@@ -49,6 +50,30 @@ export async function collectShowPack(o: CollectOpts) {
     },
     assets,
   });
+}
+
+/**
+ * Dependências reais de applyShowPack (DK-013). O backup é um .doublekshow do estado atual entregue a
+ * `saveBackup`; o destino (pasta app_data/backups via Rust ou download) é decisão da DK-014.
+ */
+export function importDeps(o: CollectOpts & { saveBackup(name: string, bytes: Uint8Array): Promise<void> }): ApplyDeps {
+  return {
+    backup: async () => {
+      const name = `backup ${new Date().toISOString().slice(0, 19)}`;
+      const { bytes } = await collectShowPack({ ...o, name });
+      await o.saveBackup(showPackFileName(name), bytes);
+    },
+    getAsset: (k) => getAsset(k),
+    setAsset: (k, v) => setAsset(k, v),
+    listVideoIds: () => listVideos().map((v) => v.id),
+    getText: (k) => localStorage.getItem(k),
+    setText: (k, t) => (t == null ? localStorage.removeItem(k) : localStorage.setItem(k, t)),
+    checkImage: async (bytes, mime, path) => {
+      if (mime === 'image/svg+xml') return; // createImageBitmap não decodifica SVG no Chromium; o <img> do app valida depois
+      try { (await createImageBitmap(new Blob([bytes as BlobPart], { type: mime }))).close(); }
+      catch { throw new Error(`imagem inválida (${path})`); }
+    },
+  };
 }
 
 /** Salva pela caixa de download do WebView2, igual ao exportFile de Performance.svelte. */

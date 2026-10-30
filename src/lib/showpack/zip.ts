@@ -1,7 +1,7 @@
 // Escritor de ZIP mínimo (DK-012): método STORE (sem compressão — mídia já vem comprimida e JSON é pequeno),
 // CRC-32, cabeçalho local, diretório central e EOCD. Sem dependência, roda no Node e no WebView2.
 // Limite: sem ZIP64, então cada arquivo e o total precisam ficar < 4 GiB (o manifesto já limita a 2 GiB).
-// ponytail: só escreve; o leitor do pacote é da DK-013.
+// Leitor (DK-013): só STORE, só o que o escritor produz; recusa ZIP64, descritor de dados e nome perigoso.
 
 export type ZipEntry = { path: string; data: Uint8Array };
 
@@ -93,5 +93,60 @@ export function writeZip(entries: ZipEntry[], when = new Date()): Uint8Array {
   const out = new Uint8Array(parts.reduce((n, b) => n + b.length, 0));
   let pos = 0;
   for (const b of parts) { out.set(b, pos); pos += b.length; }
+  return out;
+}
+
+const MAX_EOCD_SCAN = 22 + 0xffff; // EOCD + comentário máximo
+
+/** Nome de entrada aceitável: relativo, com `/`, sem `\`, sem `..`, sem unidade, sem controle. */
+export function safeZipName(n: string): boolean {
+  return n.length > 0 && n.length <= 512 && !/[\\\x00-\x1f]/.test(n) && !n.startsWith('/') && !/^[A-Za-z]:/.test(n)
+    && n.split('/').every((s) => s !== '' && s !== '.' && s !== '..');
+}
+
+/** Lê um ZIP STORE. Lança Error (em português) em qualquer inconsistência; nunca devolve dados parciais. */
+export function readZip(z: Uint8Array): ZipEntry[] {
+  const bad = (m: string) => new Error(`arquivo .doublekshow inválido: ${m}`);
+  const dv = new DataView(z.buffer, z.byteOffset, z.byteLength), dec = new TextDecoder();
+  const u16 = (p: number) => dv.getUint16(p, true), u32 = (p: number) => dv.getUint32(p, true);
+  if (z.length < 22) throw bad('arquivo pequeno demais');
+
+  let eocd = z.length - 22;
+  const stop = Math.max(0, z.length - MAX_EOCD_SCAN);
+  while (eocd >= stop && u32(eocd) !== 0x06054b50) eocd--;
+  if (eocd < stop) throw bad('fim do ZIP não encontrado');
+  if (u16(eocd + 4) !== 0 || u16(eocd + 6) !== 0) throw bad('ZIP em vários volumes não é aceito');
+  const count = u16(eocd + 10), cdSize = u32(eocd + 12), cdOff = u32(eocd + 16);
+  if (count === 0xffff || u16(eocd + 8) === 0xffff || cdSize === MAX32 || cdOff === MAX32 || (eocd >= 20 && u32(eocd - 20) === 0x07064b50)) throw bad('ZIP64 não é aceito');
+  if (u16(eocd + 8) !== count) throw bad('contagem de entradas inconsistente');
+  if (cdOff + cdSize !== eocd) throw bad('diretório central fora do lugar');
+
+  const out: ZipEntry[] = [], names = new Set<string>();
+  let p = cdOff;
+  for (let i = 0; i < count; i++) {
+    if (p + 46 > eocd || u32(p) !== 0x02014b50) throw bad('diretório central corrompido');
+    const flags = u16(p + 8), method = u16(p + 10), crc = u32(p + 16), csize = u32(p + 20), size = u32(p + 24);
+    const nlen = u16(p + 28), elen = u16(p + 30), clen = u16(p + 32), lo = u32(p + 42);
+    if (p + 46 + nlen + elen + clen > eocd) throw bad('diretório central corrompido');
+    const name = dec.decode(z.subarray(p + 46, p + 46 + nlen));
+    if (!safeZipName(name)) throw bad(`nome de arquivo perigoso (${name})`);
+    if (names.has(name)) throw bad(`arquivo repetido (${name})`);
+    if (method !== 0) throw bad(`compressão não é aceita (${name}); o pacote usa só STORE`);
+    if (flags & 0x0008) throw bad(`descritor de dados não é aceito (${name})`);
+    if (flags & 0x0001) throw bad(`arquivo com senha não é aceito (${name})`);
+    if (csize !== size) throw bad(`tamanhos inconsistentes (${name})`);
+    if (lo + 30 > cdOff || u32(lo) !== 0x04034b50) throw bad(`cabeçalho local corrompido (${name})`);
+    if (u16(lo + 8) !== 0 || u32(lo + 18) !== size || u32(lo + 22) !== size) throw bad(`cabeçalho local inconsistente (${name})`);
+    const lnlen = u16(lo + 26), lelen = u16(lo + 28);
+    if (dec.decode(z.subarray(lo + 30, lo + 30 + lnlen)) !== name) throw bad(`nome inconsistente (${name})`);
+    const start = lo + 30 + lnlen + lelen;
+    if (start + size > cdOff) throw bad(`dados fora do arquivo (${name})`);
+    const data = z.subarray(start, start + size);
+    if (crc32(data) !== crc) throw bad(`conteúdo corrompido (${name})`);
+    names.add(name);
+    out.push({ path: name, data });
+    p += 46 + nlen + elen + clen;
+  }
+  if (p !== eocd) throw bad('tamanho do diretório central inconsistente');
   return out;
 }
