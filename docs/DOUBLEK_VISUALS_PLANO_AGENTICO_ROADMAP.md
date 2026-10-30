@@ -211,7 +211,7 @@ A **música** do roteiro é **opt-in** no pacote (direitos autorais e tamanho; D
 
 **Requisitos:**
 
-- Formato `.doublekshow` baseado em ZIP, com `manifest.json`, `visual.json`, `scenes.json`, `assets/` e, se escolhido, `midi-mappings.json`.
+- Formato `.doublekshow` baseado em ZIP, com `manifest.json`, `visual.json`, `scenes.json`, `roteiros.json`, `assets/` e, se escolhido, `midi.json` (especificado em [`docs/SHOWPACK.md`](SHOWPACK.md), DK-011). `doublek.settings` (dispositivo de áudio, ganho) **não** entra: é da máquina, não do show.
 - Manifesto versionado (`schemaVersion`, `appVersion`, `createdAt`, `name`, `assets[]` com caminho, tipo, tamanho e hash SHA-256).
 - Importação transacional: validar primeiro, instalar assets e estado apenas quando tudo estiver consistente; rollback em falha.
 - Validar caminhos internos (bloquear `../` e caminhos absolutos), tamanhos, quantidade de arquivos, MIME real, dimensões de imagem e consumo descomprimido.
@@ -460,7 +460,7 @@ A **música** do roteiro é **opt-in** no pacote (direitos autorais e tamanho; D
 
 **Tarefas:**
 
-- **DK-141 — Validação com áudio real (P0, M0).** Subir 3 mp3 de psy/dark/hi-tech; conferir BPM e 1º beat contra o Rekordbox; tocar pelo app e medir se os pontos caem no beat (gravar tela + áudio); testar troca de saída de áudio, mensagem "a saída está em … Hz", fim da faixa, seek durante a música e A/B (tecla R); testar GO com uma faixa tocando por outra fonte. Registrar em `docs/quality/` o que passou e o que falhou. Sem hardware → **NÃO VERIFICADO**, não "aprovado".
+- **DK-141 — Validação com áudio real (P0, M0).** Plano passo a passo para o mantenedor: [`docs/quality/DK-141-plano-de-teste.md`](quality/DK-141-plano-de-teste.md). Subir 3 mp3 de psy/dark/hi-tech; conferir BPM e 1º beat contra o Rekordbox; tocar pelo app e medir se os pontos caem no beat (gravar tela + áudio); testar troca de saída de áudio, mensagem "a saída está em … Hz", fim da faixa, seek durante a música e A/B (tecla R); testar GO com uma faixa tocando por outra fonte. Registrar em `docs/quality/` o que passou e o que falhou. Sem hardware → **NÃO VERIFICADO**, não "aprovado".
 - **DK-142 — Roteiros e músicas no Show Pack (P1, M1).** Roteiros (`doublek.roteiros`), vídeos referenciados e, opt-in, as músicas de `app_data/tracks/` entram no `.doublekshow` com hash; importar re-vincula ids. Depende de DK-010.
 - **DK-143 — Convivência com automação e Program/Preview (P1, M4).** Regra: ponto de roteiro > automação (DK-030); definir se ponto de cena faz TAKE direto ou vai para o Preview (DK-040); modo *só roteiro* desliga automação; override manual com cooldown vale para os dois. Depende de DK-030 e DK-040.
 
@@ -559,6 +559,17 @@ A **música** do roteiro é **opt-in** no pacote (direitos autorais e tamanho; D
 
 **Aceite:** relatório reproduzível e casos degradados documentados.
 
+### DK-009 — Correções de detecção apontadas pelo benchmark — P0
+
+Nascida do DK-008 (`docs/quality/DETECCAO.md` §7). Cada correção entra separada, com a linha do bench antes/depois no commit, sem piorar nenhuma outra linha nem quebrar `cargo test`.
+
+- **P3 (maior impacto no show):** ao voltar o drop depois de um breakdown, `Beat::on_kick` refaz o ajuste com só 4 kicks e grava `locked = n >= 6` → a trava cai por 2–3 beats exatamente no drop, o renderer sai de `predicting()` e o limiar da grade some. Corrigir sem perder a capacidade de soltar a trava quando a música muda de verdade.
+- **P4:** faixa Auto + cold start ≥ 160 BPM → trava em ½ (175 → 87,5) e se realimenta. Nas faixas do gênero não acontece.
+- **P1:** ruído alto (−14 dBFS) mascara o click; recall 0,66–0,87.
+- **P2:** sem baixo rolante, oscilação do sub 1 hop antes do kick cruza o limiar abaixado da grade e "rouba" o `rising` do kick real; recall 0,84–0,91 em 135–160.
+
+**Aceite:** bench regenerado em `DETECCAO.md` com as linhas afetadas melhoradas e as demais iguais (±0,01); testes verdes; limites de regressão do §8 do DETECCAO viram asserts quando o mantenedor aprovar.
+
 ---
 
 ## 6. DECISÕES DE ARQUITETURA RECOMENDADAS
@@ -650,18 +661,19 @@ Audio Engine (Rust) ──► Music Features ──► Show Engine / Dispatcher
 - [ ] **DK-004** Configurar CI, versionamento, licença pendente e plano de Release.
 - [x] **DK-005** Revisar CSP, permissões e regras de arquivo. — 2026-10-30, branch `feat/dk-005-seguranca`: CSP de produção (`default-src 'self'`, `img-src blob: data:`, `media-src blob:`, `connect-src ipc: http://ipc.localhost`, sem inline) + `devCsp`; estilos do telão saíram do HTML para `output.css`; `src/lib/limits.ts` (extensão/tipo/tamanho: imagem 25 MB, vídeo 600 MB, música 300 MB, JSON 2 MB) em todas as entradas de arquivo; Rust `track::check_upload`/`check_id` e teto de 20 min por faixa (antes e durante a decodificação); OSV/RustSec sobre o `Cargo.lock`: 3 avisos, nenhum aplicável ao Windows. Mock com a CSP injetada: nada recusado. **Confirmado no app real** (2026-10-30, WebView2 inspecionado pela porta de depuração): build de produção (`tauri build --no-bundle`) e modo dev (Vite) — IPC, lista de entradas/monitores, telão 1920×1080, telemetria; **nada recusado**. Único ruído era o `favicon.ico` automático (500 no protocolo de assets), silenciado com `<link rel="icon" href="data:,">`.
 - [x] **DK-006** Fortalecer blackout e reduzir riscos de strobe. — 2026-10-30, branch `feat/dk-006-seguranca-visual`: `safeFlash` (ligado por padrão, fora das cenas) limita strobe a ≤ 3 flashes/s pulando pulsos (`src/lib/safety.ts`, provado para 80–220 BPM × 1/1, 1/2, 1/4) e o flash de tela a 50%; BLACKOUT também por CSS no telão (independente do WebGL); botão/tecla **PÂNICO (P)** para o roteiro e zera strobe/flash/tremor/aberração/rastro; aviso de fotossensibilidade na aba Saída e taxa real de flashes na aba Efeitos; etiqueta BLACKOUT no preview. Mock: P zera, B apaga o canvas por CSS e volta. **Com público/hardware: NÃO VERIFICADO.**
-- [ ] **DK-008** Criar suite inicial de áudio e métricas de latência.
+- [x] **DK-008** Criar suite inicial de áudio e métricas de latência. — 2026-10-30, sessão d7, `feat/dk-008-benchmark` (`684b491`, `5fe7743`, `9a06838`): `src-tauri/src/synth.rs` (faixa sintética determinística, usada pelos testes), `examples/bench.rs` (7 BPM × 6 cenários × faixa do gênero + Auto = 84 linhas: precisão/recall, erro de BPM, tempo até travar, ½/×2), [`docs/quality/DETECCAO.md`](quality/DETECCAO.md) com 4 casos degradados explicados hop a hop e propostas P1–P5. `cargo test --release` 11/11. **Hardware/música real: NÃO VERIFICADO** (latência só analítica: ≈ 14–28 ms kick→quadro por software).
+- [ ] **DK-009** Correções de detecção propostas pelo benchmark, com antes/depois: **P3** trava cai 1× ao voltar o drop (todas as 14 combinações) · **P4** ½ em Auto no cold start ≥ 160 BPM · P1 recall 0,66–0,87 com ruído alto · P2 recall 0,84–0,91 sem baixo rolante em 135–160.
 - [ ] **DK-141** Validar o roteiro com música real, saída de som e GO (hoje NÃO VERIFICADO).
 
 **Gate M0:** build repetível, áudio/telão/MIDI preservados, checklist de segurança concluído, sem regressões críticas abertas.
 
 ### Marco M1 — Shows portáteis (semanas 3–4)
 
-- [ ] **DK-011** Definir schema do `.doublekshow` e limites de importação.
-- [ ] **DK-012** Implementar exportação com assets, hashes e testes de roundtrip.
+- [x] **DK-011** Definir schema do `.doublekshow` e limites de importação. — 2026-10-30, sessão 22, `feat/dk-011-showpack-schema` @ `fb00d17`: [`docs/SHOWPACK.md`](SHOWPACK.md), `src/lib/showpack/manifest.ts` (`validateManifest`, `safeAssetPath`, limites 50 assets / 2 GiB / tetos de `limits.ts`), `manifest.check.ts` (positivos, zip-slip, versão futura, hash, mime, refId, ordem dos erros). `npm run check` e `typecheck` verdes, conferidos pelo coordenador. Sem ZIP nem UI (DK-012/013/014).
+- [x] **DK-012** Implementar exportação com assets, hashes e testes de roundtrip. — 2026-10-30, sessão 22, `feat/dk-012-showpack-export` @ `c32a408`: `zip.ts` (escritor STORE sem dependência, CRC-32, sem ZIP64 — teto 4 GiB, coberto pelos 2 GiB do manifesto), `export.ts` (`buildShowPack`: sha256 via `crypto.subtle`, valida o manifesto **antes** de montar), `collect.ts` (ponte com localStorage/IndexedDB, só navegador), `export.check.ts` (leitor de ZIP no teste, roundtrip, hashes, 10+ casos negativos). `includeTracks` padrão false. Checks e typecheck verdes, conferidos pelo coordenador. UI "Salvar show" = DK-014.
 - [ ] **DK-013** Implementar importação validada, staging, rollback e migração JSON.
 - [ ] **DK-014** UI “Salvar/Abrir Show”, mensagens de erro e tutorial.
-- [ ] **DK-131** Criar catálogo inicial de presets locais e metadados.
+- [x] **DK-131** Criar catálogo inicial de presets locais e metadados. — 2026-10-30, sessão 29, `feat/dk-131-presets` @ `204d333`: `src/lib/presets.ts` (11 presets de fábrica em 7 estilos, `presetLook`, `presetsByStyle`, `searchPresets` sem acento), `presets.check.ts` (ids únicos, looks completos e saneáveis, strobe ≤ 0,7 e flash ≤ 0,5 — coerente com DK-006 —, cópia profunda), botão **Catálogo** na barra de performance (select por estilo, "Aplicar agora", "Gravar no pad" com confirmação se ocupado). Checks, typecheck e build verdes, conferidos pelo coordenador. Miniaturas e pacotes compartilháveis = DK-132.
 - [ ] **DK-142** Roteiros, vídeos e (opt-in) músicas dentro do Show Pack.
 
 **Gate M1:** abrir Show Pack em perfil limpo com logo, fundo, cenas e ajustes intactos.
@@ -742,7 +754,7 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 |---|---|
 | Última revisão do planejamento | 2026-10-30 (alinhado à v0.3.1) |
 | Commit/branch baseline validado | `main` @ `09a7677` (v0.3.1) — ver `docs/quality/BASELINE.md` |
-| Tarefa ativa | DK-141 (validação real, exige o mantenedor) · DK-008 (benchmark de detecção) READY para o agente · DK-004 restante (licença, governança, 1ª Release) com o mantenedor |
+| Tarefa ativa | **Em paralelo (desde 2026-10-30, coordenador: sessão doublek-sounds-68):** DK-008 → sessão d7 (`feat/dk-008-benchmark`), DK-004 governança → sessão 29 (`docs/dk-004-governanca`), DK-011 → sessão 22 (`feat/dk-011-showpack-schema`); coordenador: plano de teste do DK-141 (`docs/coordenacao-m0`). Regras: cada sessão num `git worktree` próprio, escopo de arquivos disjunto, sem push/merge, só o coordenador edita roadmap/BASELINE/README |
 | Marco ativo | M0 (faltam DK-004 restante, DK-008, DK-141) |
 | Tarefas do roadmap marcadas | 5 (DK-001, DK-002, DK-003, DK-005, DK-006) |
 | Tarefas concluídas | 5 |
@@ -784,6 +796,12 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 | 2026-10-30 | DK-003 | DONE (software) | `feat/dk-003-telemetria` | `telemetry.check.ts` ok · typecheck 0 · build ok · `cargo test` 9/9 · mock Edge headless: header cabe em 1280, telemetria chega, `WEBGL_lose_context` → bolinha vermelha + "contexto perdido" no diário → `restoreContext` → renderer recriado; Diagnóstico JSON com 12 seções | **DK-005** (CSP, limites de arquivo em `add_track`, capabilities); teste de 2 h e matriz de máquinas com o mantenedor (NÃO VERIFICADO) |
 | 2026-10-30 | DK-005 | DONE (software) | `feat/dk-005-seguranca` | `limits.check.ts` 18 asserts · `cargo test` 10/10 (novo `limites_de_upload_e_id`) · typecheck 0 · build ok · OSV 529 crates: 2 avisos não aplicáveis · mock com CSP injetada nas duas janelas: nada recusado, vídeo blob: e logo data: ok, `.exe` recusado com mensagem | App real rodado com autorização (prod + dev, via `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port` + Puppeteer): IPC, telão e telemetria ok, nada recusado; de quebra, a migração v0→v1 do DK-002 rodou sobre os dados reais da v0.3.1 instalada. Próximo: **DK-006** ou **DK-008** |
 | 2026-10-30 | DK-006 | DONE (software) | `feat/dk-006-seguranca-visual` | `safety.check.ts` (≤ 3 Hz em 80–220 BPM × 1/1,1/2,1/4) · typecheck 0 · build ok · mock: P zera strobe/flash/tremor e reporta; B → `body.black`, canvas opacity 0, etiqueta no preview; header cabe em 1280 | **DK-008** (benchmark de detecção com fixtures); DEC-07 resolvida (3 Hz, revisável) |
+| 2026-10-30 | COORD | IN_PROGRESS | `docs/coordenacao-m0` | Três sessões em paralelo com briefs completos: DK-008 (d7), DK-004 governança (29), DK-011 (22); worktrees separados, escopos disjuntos, relatório §11 de volta ao coordenador | Integrar as três branches na `main` com autorização; atualizar este painel com as evidências de cada uma |
+| 2026-10-30 | DK-004 (docs) | PARCIAL → documentos DONE | `docs/dk-004-governanca` @ `731d370` (sessão 29) | CONTRIBUTING, SECURITY (placeholders `[PREENCHER]` para canal de relato), templates de issue/PR, CHANGELOG 0.1.0→0.3.1 + Não lançado; só Markdown, revisado pelo coordenador. Faltam: licença (DEC-01), 1ª Release (DEC-10), assinatura do instalador | Mantenedor preenche SECURITY e decide DEC-01; merge; templates só valem na default branch |
+| 2026-10-30 | DK-011 | DONE (contrato) | `feat/dk-011-showpack-schema` @ `fb00d17` (sessão 22) | `manifest.check.ts` + todos os checks ok e typecheck 0, rodados pelo coordenador no worktree; spec `docs/SHOWPACK.md`; decisões de schema registradas em DEC-03 | **DK-012** (exportar ZIP, mesma sessão, em cima desta branch); DK-013 precisa de `store.migrate(key, envelope)` para aplicar sobre texto do ZIP |
+| 2026-10-30 | DK-012 | DONE (biblioteca) | `feat/dk-012-showpack-export` @ `c32a408` (sessão 22) | `export.check.ts` + todos os checks ok e typecheck 0, rodados pelo coordenador; sem dependência nova; `collect.ts`/`downloadShowPack` NÃO VERIFICADOS no app (sem GUI) | **DK-013** (importação com staging/rollback, mesma sessão, com `store.migrate` de `feat/store-migrate`); depois DK-014 (UI) |
+| 2026-10-30 | DK-131 | DONE (software) | `feat/dk-131-presets` @ `204d333` (sessão 29) | `presets.check.ts` + checks ok, typecheck 0, build ok, rodados pelo coordenador; UI do Catálogo fotografada no mock em 1280 px | **DK-021** (renderer modular, mesma sessão); DK-132 depois do Show Pack |
+| 2026-10-30 | DK-008 | DONE (software) | `feat/dk-008-benchmark` @ `9a06838` (sessão d7) | `cargo test --release` 11/11 e bench rodados pelo coordenador no worktree; 84 linhas, 4 casos degradados com mecanismo; latência analítica 14–28 ms; música real NÃO VERIFICADO | **DK-009** P3 e P4 (mesma sessão, antes/depois pelo bench); P1/P2 depois; fixtures reais dependem de DEC-01/mp3 do mantenedor |
 
 ### 8.4. Bloqueios e decisões pendentes
 
@@ -791,7 +809,7 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 |---|---|---|---|---|
 | DEC-01 | Licença do repositório e contribuições | Mantenedor | PENDENTE | Escolher licença e política de contribuição |
 | DEC-02 | Mínimo hardware/Windows/GPU suportados | Mantenedor + agente | PENDENTE | Definir máquina de referência e medir baseline |
-| DEC-03 | Tamanho/limites do Show Pack | Agente + mantenedor | PENDENTE | Benchmark de assets reais e análise de risco |
+| DEC-03 | Tamanho/limites do Show Pack | Agente + mantenedor | PROPOSTA (DK-011) | Em `docs/SHOWPACK.md`: 50 assets, 2 GiB descomprimidos (soma do manifesto, checada antes de extrair), por asset os tetos de `limits.ts`; `settings` fora do pacote; música só com `includeTracks` (DEC-09). Mantenedor confirma ou ajusta |
 | DEC-04 | Codec/container padrão de gravação | Agente + mantenedor | PENDENTE | Spike com compatibilidade WebView2/Windows |
 | DEC-05 | Viabilidade técnica/licença do Spout | Agente + mantenedor | PENDENTE | POC, benchmark e revisão de distribuição |
 | DEC-06 | SDK/licença Ableton Link | Agente + mantenedor | PENDENTE | POC mínima com compatibilidade demonstrada |

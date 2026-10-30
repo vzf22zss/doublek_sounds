@@ -121,6 +121,12 @@ Se a versão já tiver sido publicada, o workflow falha e pede para subir a vers
 **Guarde uma cópia da chave em lugar seguro.** Se ela for perdida, os apps já instalados
 não aceitam mais nenhuma atualização e precisam ser reinstalados à mão.
 
+### Contribuir, segurança e histórico
+
+[CONTRIBUTING.md](CONTRIBUTING.md) (fluxo por tarefa do roadmap e definição de pronto) ·
+[SECURITY.md](SECURITY.md) (o que o app guarda e como relatar) · [CHANGELOG.md](CHANGELOG.md).
+Licença do repositório ainda em definição (DEC-01 no roadmap).
+
 ### Checagens
 
 ```
