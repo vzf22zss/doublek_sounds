@@ -13,11 +13,15 @@
   import { blend, lookOf, sanitizeLook, VISUAL, type Look, type Scene, type Visual } from '../lib/settings';
   import { addBank, loadBanks, MAX_BANKS, removeBank, renameBank, saveBanks, stepBank, usedScenes, type Banks } from '../lib/banks';
   import { FACTORY_PRESETS, presetLook, presetsByStyle, STYLES } from '../lib/presets';
+  import { MACROS, type MacroId, type ShowCommand } from '../lib/commands';
 
-  let { vs = $bindable(), beatInfo, onstatus }: {
+  // `cmd`: pads, bancos, "Só logo" e macros passam pelo dispatcher (fonte 'ui'), que chama de volta recall/saveScene/…
+  let { vs = $bindable(), beatInfo, onstatus, cmd, macro = null }: {
     vs: Visual;
     beatInfo: () => { bpm: number; ph: number } | null;
     onstatus: (s: string) => void;
+    cmd: (c: ShowCommand) => unknown;
+    macro?: MacroId | null; // macro rodando agora (acende o botão)
   } = $props();
 
   // Bancos (DK-041): os 8 pads mostram o banco ativo; recall, gravar, renomear, MIDI c:0..7 e o roteiro agem nele.
@@ -74,6 +78,11 @@
     const b = stepBank($state.snapshot(bk), d);
     setBanks(b, `Banco ${b.active + 1}/${b.banks.length}: ${b.banks[b.active].name}`);
   }
+  /** Vai direto ao banco i (BANK_SET). Índice que não existe só avisa. */
+  export function setBank(i: number) {
+    if (i >= bk.banks.length) return onstatus(`Não existe o banco ${i + 1} (há ${bk.banks.length}).`);
+    setBanks({ ...$state.snapshot(bk), active: i }, `Banco ${i + 1}/${bk.banks.length}: ${bk.banks[i].name}`);
+  }
   function newBank() {
     const b = addBank($state.snapshot(bk));
     if (b !== bk) setBanks(b, `Banco ${b.active + 1} criado, vazio: grave cenas nos pads.`);
@@ -85,16 +94,22 @@
     setBanks(removeBank($state.snapshot(bk), bk.active), `Banco "${name}" apagado.`);
   }
 
-  function save(i: number) {
+  export function saveScene(i: number) {
     scenes[i] = { name: scenes[i]?.name ?? `Cena ${i + 1}`, look: lookOf($state.snapshot(vs) as Visual) };
     active = i;
     onstatus(`Cena ${i + 1} gravada.`);
   }
 
   function pad(e: MouseEvent, i: number) {
-    if (e.shiftKey || !scenes[i]) save(i);
-    else recall(i);
+    cmd(e.shiftKey || !scenes[i] ? { type: 'SCENE_SAVE', index: i } : { type: 'SCENE_RECALL', index: i });
   }
+
+  const MACRO_NAMES: Record<MacroId, [string, string]> = {
+    BUILD_UP: ['Build-up', 'Sobe rastro, anéis e zoom do fundo aos poucos por 16 beats'],
+    DROP: ['Drop', 'Flash + strobe 1/1 por 2 beats e anéis no máximo; depois volta (respeita o limite de flashes)'],
+    CHAOS: ['Caos', 'Sorteia aberração, tremor e giro do rastro a cada beat, por 4 beats; depois volta'],
+    RESET: ['Reset', 'Zera strobe, flash, tremor, aberração e rastro; o roteiro continua (diferente do PÂNICO)'],
+  };
 
   function exportFile() {
     const data = { app: 'doublek', version: 1, look: lookOf($state.snapshot(vs) as Visual), scenes: $state.snapshot(scenes) };
@@ -232,8 +247,8 @@
         <span ondblclick={() => (editingBank = true)}>{bank.name}</span>
       {/if}
       <div class="bk">
-        <button onclick={() => stepBankBy(-1)} title="Banco anterior ([)" use:learnable={{ id: 'a:bank-', label: 'Banco anterior' }}>‹</button>
-        <button onclick={() => stepBankBy(1)} title="Banco seguinte (])" use:learnable={{ id: 'a:bank+', label: 'Banco seguinte' }}>›</button>
+        <button onclick={() => cmd({ type: 'BANK_STEP', delta: -1 })} title="Banco anterior ([)" use:learnable={{ id: 'a:bank-', label: 'Banco anterior' }}>‹</button>
+        <button onclick={() => cmd({ type: 'BANK_STEP', delta: 1 })} title="Banco seguinte (])" use:learnable={{ id: 'a:bank+', label: 'Banco seguinte' }}>›</button>
         <button onclick={newBank} disabled={bk.banks.length >= MAX_BANKS} title="Novo banco vazio (até {MAX_BANKS})">+</button>
         <button onclick={dropBank} disabled={bk.banks.length < 2} title="Apagar este banco">×</button>
       </div>
@@ -270,12 +285,18 @@
           <button class:on={trans === b} onclick={() => (trans = b)}>{b ? b + ' beat' + (b > 1 ? 's' : '') : 'corte'}</button>
         {/each}
       </div>
-      <button class:on={vs.logoOnly} onclick={() => (vs.logoOnly = !vs.logoOnly)} title="L" use:learnable={{ id: 'a:logoOnly', label: 'Só logo' }}>Só logo</button>
+      <button class:on={vs.logoOnly} onclick={() => cmd({ type: 'LOGO_ONLY' })} title="L" use:learnable={{ id: 'a:logoOnly', label: 'Só logo' }}>Só logo</button>
       <button onclick={exportFile} title="Salva visual e cenas num arquivo">Exportar</button>
       <label class="btn" title="Carrega visual e cenas de um arquivo">Importar<input type="file" accept=".json,application/json" onchange={(e) => { importFile(e.currentTarget.files?.[0]); e.currentTarget.value = ''; }} /></label>
       <button class:on={catalog} onclick={() => (catalog = !catalog)} title="Presets de fábrica por estilo">Catálogo</button>
       <button onclick={saveShow} disabled={busy} title="Salva o show inteiro num arquivo .doublekshow: visual, cenas, roteiros, logo, foto, vídeos e, se quiser, o MIDI">Salvar show</button>
       <label class="btn" class:disabled={busy} title="Abre um .doublekshow: confere tudo antes e faz backup do show atual">Abrir show<input type="file" accept=".doublekshow" disabled={busy} onchange={(e) => { openShow(e.currentTarget.files?.[0]); e.currentTarget.value = ''; }} /></label>
+    </div>
+    <div class="row">
+      <span>Macros</span>
+      {#each MACROS as m}
+        <button class:on={macro === m} onclick={() => cmd({ type: 'MACRO', id: m })} title={MACRO_NAMES[m][1]} use:learnable={{ id: `a:macro:${m}`, label: 'Macro ' + MACRO_NAMES[m][0] }}>{MACRO_NAMES[m][0]}</button>
+      {/each}
     </div>
     {#if catalog}
       <div class="row">
