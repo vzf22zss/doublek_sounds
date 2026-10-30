@@ -73,6 +73,22 @@ export const mod = (u: MusicUniforms, v: Visual, k: ModTarget) => (u.stale ? u.p
 /** "Só no drop": multiplica pelo envelope do grave se o efeito estiver marcado. */
 export const gate = (u: MusicUniforms, v: Visual, k: DropTarget) => (v.drop?.[k] ? u.drop : 1);
 
+// ---------- rajadas do glitch (DK-023) ----------
+// Teto coerente com o limite de flashes: no máximo BURST_HZ rajadas por segundo, cada uma de BURST_MS.
+// Sem safeFlash, o operador pode liberar até o dobro da taxa (a duração não muda).
+export const BURST_HZ = 3, BURST_MS = 120;
+export type Burst = { start: number; prev: number; n: number };
+export const burstState = (): Burst => ({ start: -1e9, prev: 0, n: 0 });
+
+/** Dispara quando a fonte cruza 0,5 subindo e já passou o intervalo mínimo. Devolve 1 → 0 durante a rajada. */
+export function burst(b: Burst, now: number, src: number, safe: boolean) {
+  const rise = src >= 0.5 && b.prev < 0.5;
+  b.prev = src;
+  if (rise && now - b.start >= 1000 / (BURST_HZ * (safe ? 1 : 2))) { b.start = now; b.n++; }
+  const t = now - b.start;
+  return t >= 0 && t < BURST_MS ? 1 - t / BURST_MS : 0;
+}
+
 /** Um quadro: avança envelopes e fase e devolve os valores que os efeitos usam. */
 export function music(st: MusicState, v: Visual, now: number): MusicUniforms {
   const dt = Math.min(0.1, (now - st.lastT) / 1000);

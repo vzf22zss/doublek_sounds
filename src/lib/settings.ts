@@ -7,9 +7,9 @@ export const SOURCES = {
   beat: 'Beat', bar: 'Compasso', lfo: 'LFO',
 } as const;
 export type Source = keyof typeof SOURCES;
-export type ModTarget = 'amount' | 'glow' | 'chroma' | 'bgPulse' | 'bgFlash' | 'fxFlash' | 'fxShake' | 'trailZoom' | 'kaleido' | 'tunnel' | 'mandala';
+export type ModTarget = 'amount' | 'glow' | 'chroma' | 'bgPulse' | 'bgFlash' | 'fxFlash' | 'fxShake' | 'trailZoom' | 'kaleido' | 'tunnel' | 'mandala' | 'particles' | 'organic' | 'glitch';
 // Efeitos que podem ficar "só no drop": somem no breakdown sem grave e entram quando o grave volta.
-export type DropTarget = 'fxFlash' | 'fxRings' | 'fxBars' | 'fxRadial' | 'trail' | 'strobe' | 'chroma' | 'fxShake' | 'bgPulse' | 'bgFlash' | 'bgMedia' | 'kaleido' | 'tunnel' | 'mandala';
+export type DropTarget = 'fxFlash' | 'fxRings' | 'fxBars' | 'fxRadial' | 'trail' | 'strobe' | 'chroma' | 'fxShake' | 'bgPulse' | 'bgFlash' | 'bgMedia' | 'kaleido' | 'tunnel' | 'mandala' | 'particles' | 'organic' | 'glitch';
 
 export const VISUAL = {
   // logo
@@ -19,12 +19,12 @@ export const VISUAL = {
   mod: {
     amount: 'auto', glow: 'auto', chroma: 'auto', bgPulse: 'auto',
     bgFlash: 'auto', fxFlash: 'auto', fxShake: 'kick', trailZoom: 'auto',
-    kaleido: 'lfo', tunnel: 'bass', mandala: 'kick',
+    kaleido: 'lfo', tunnel: 'bass', mandala: 'kick', particles: 'kick', organic: 'sub', glitch: 'kick',
   } as Record<ModTarget, Source>,
   drop: {
     fxFlash: false, fxRings: false, fxBars: false, fxRadial: false, trail: false, strobe: false,
     chroma: false, fxShake: false, bgPulse: false, bgFlash: false, bgMedia: false,
-    kaleido: false, tunnel: false, mandala: false,
+    kaleido: false, tunnel: false, mandala: false, particles: false, organic: false, glitch: false,
   } as Record<DropTarget, boolean>,
   dropFade: 1, // beats para os efeitos "só no drop" entrarem/saírem
   // fundo
@@ -38,6 +38,10 @@ export const VISUAL = {
   kaleido: 0, kaleidoN: 6, kaleidoSpin: 0.2, kaleidoZoom: 1, kaleidoMirror: true,
   tunnel: 0, tunnelSpeed: 0.5, tunnelDensity: 0.5,
   mandala: 0, mandalaPetals: 8,
+  // Psy Engine (DK-023)
+  particles: 0, particlesDensity: 0.5, particlesDir: 90, particlesTurb: 0.3, // direção em graus (90 = sobe)
+  organic: 0, organicScale: 1,
+  glitch: 0, // rajadas curtas no disparo; teto em music.ts (BURST_HZ, BURST_MS)
   // saída / operação (fora das cenas)
   psyQuality: 1, // 0 baixa · 1 média · 2 alta: amostras/iterações por pixel dos módulos do Psy Engine
   renderScale: 1, blackout: false, logoOnly: false,

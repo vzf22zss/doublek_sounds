@@ -1,6 +1,6 @@
 // npm run check — lógica musical do renderer (DK-021): envelopes, fase, fontes, drop, strobe e blackout.
 import assert from 'node:assert/strict';
-import { music, musicFrame, musicState } from './music.ts';
+import { BURST_HZ, BURST_MS, burst, burstState, music, musicFrame, musicState } from './music.ts';
 import { VISUAL, type Visual } from '../lib/settings.ts';
 import { SAFE_STROBE_MAX, MAX_FLASH_HZ } from '../lib/safety.ts';
 import type { Frame } from '../lib/types.ts';
@@ -128,6 +128,30 @@ for (const safeFlash of [true, false]) {
   const nop = musicState(), vn = V({ predict: false });
   musicFrame(nop, F({ bpm, locked: true, kick: 0.9 }), vn, 1000);
   assert.equal(nop.rings.length, 1, 'sem predict: dispara no kick');
+}
+
+// glitch: nunca mais de 3 rajadas em qualquer janela de 1 s, cada uma ≤ 120 ms; sem safeFlash, até o dobro
+for (const safe of [true, false]) {
+  const b = burstState(), starts: number[] = [];
+  let on = 0, longest = 0;
+  for (let t = 0; t <= 10000; t++) {
+    const src = Math.floor(t / 50) % 2 ? 0 : 0.9; // fonte batendo a 10 Hz: bem acima do teto
+    const n = b.n, e = burst(b, t, src, safe);
+    if (b.n > n) starts.push(t);
+    on = e > 0 ? on + 1 : 0;
+    longest = Math.max(longest, on);
+  }
+  const cap = BURST_HZ * (safe ? 1 : 2);
+  for (const s of starts) assert.ok(starts.filter((x) => x >= s && x < s + 1000).length <= cap, `${safe}: mais de ${cap} rajadas/s a partir de ${s}`);
+  assert.ok(starts.length >= cap * 10 * 0.75, `${safe}: rajadas demais cortadas (${starts.length})`);
+  assert.ok(longest <= BURST_MS, `rajada de ${longest} ms`);
+}
+{
+  const b = burstState();
+  for (let t = 0; t < 2000; t++) burst(b, t, 0.3, true); // fonte abaixo do limiar: nada
+  assert.equal(b.n, 0);
+  for (let t = 2000; t < 4000; t++) burst(b, t, 0.9, true); // fonte parada no alto: uma rajada só
+  assert.equal(b.n, 1);
 }
 
 console.log('music: ok');

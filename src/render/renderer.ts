@@ -15,6 +15,9 @@ import { PostEffect } from './effects/post';
 import { TunnelEffect } from './effects/tunnel';
 import { MandalaEffect } from './effects/mandala';
 import { KaleidoEffect } from './effects/kaleido';
+import { OrganicEffect } from './effects/organic';
+import { ParticlesEffect } from './effects/particles';
+import { GlitchEffect } from './effects/glitch';
 
 export class Renderer {
   private gl: WebGL2RenderingContext;
@@ -45,9 +48,12 @@ export class Renderer {
       target: (W, H) => target(gl, W, H),
       dropTarget: (t) => dropTarget(gl, t),
     };
-    // Psy Engine (DK-022) entre a cena e o rastro: túnel por baixo, mandala em volta da logo, caleidoscópio
-    // dobrando tudo. Com intensidade 0 cada um devolve null e não desenha (custo zero).
-    this.effects = [new SceneEffect(), new TunnelEffect(), new MandalaEffect(), new KaleidoEffect(), new FeedbackEffect(), new PostEffect()];
+    // Psy Engine (DK-022/023): orgânico, túnel e partículas por baixo da logo; mandala em volta dela; caleidoscópio
+    // dobrando tudo; glitch depois do rastro (não deixa rastro). Com intensidade 0 cada um devolve null e não desenha.
+    this.effects = [
+      new SceneEffect(), new OrganicEffect(), new TunnelEffect(), new ParticlesEffect(), new MandalaEffect(), new KaleidoEffect(),
+      new FeedbackEffect(), new GlitchEffect(), new PostEffect(),
+    ];
     for (const e of this.effects) this.guard(e, () => e.init(gl, h));
     quad(gl);
     this.tex = { logo: texture(gl), glow: texture(gl), bg: texture(gl), vid: texture(gl) };

@@ -34,6 +34,25 @@
   <p class="keys">Anéis em volta da logo que abrem a cada compasso. A fonte escolhida acende o brilho.</p>
 {/if}
 
+<Slider label="Partículas" bind:value={vs.particles} learn="particles" bind:mod={vs.mod.particles} bind:drop={vs.drop.particles} min={0} max={1} step={0.01} def={0} fmt={f2} />
+{#if vs.particles > 0}
+  <Slider label="Quantidade" bind:value={vs.particlesDensity} learn="particlesDensity" min={0} max={1} step={0.01} def={VISUAL.particlesDensity} fmt={f2} />
+  <Slider label="Direção" bind:value={vs.particlesDir} learn="particlesDir" min={0} max={360} step={1} def={VISUAL.particlesDir} fmt={(v) => Math.round(v) + '°'} />
+  <Slider label="Turbulência" bind:value={vs.particlesTurb} learn="particlesTurb" min={0} max={1} step={0.01} def={VISUAL.particlesTurb} fmt={f2} />
+  <p class="keys">Passam por baixo da logo. A fonte escolhida dá o empurrão e o brilho. 90° = sobem.</p>
+{/if}
+
+<Slider label="Orgânico" bind:value={vs.organic} learn="organic" bind:mod={vs.mod.organic} bind:drop={vs.drop.organic} min={0} max={1} step={0.01} def={0} fmt={f2} />
+{#if vs.organic > 0}
+  <Slider label="Escala" bind:value={vs.organicScale} learn="organicScale" min={0.3} max={3} step={0.01} def={VISUAL.organicScale} fmt={f2} />
+  <p class="keys">Textura viva com as cores do fundo; gira com a Matiz do fundo. A fonte escolhida acende a cor.</p>
+{/if}
+
+<Slider label="Glitch" bind:value={vs.glitch} learn="glitch" bind:mod={vs.mod.glitch} bind:drop={vs.drop.glitch} min={0} max={1} step={0.01} def={0} fmt={f2} />
+{#if vs.glitch > 0}
+  <p class="keys">Rajadas de 120 ms quando a fonte bate: no máximo {vs.safeFlash ? 3 : 6} por segundo{vs.safeFlash ? '' : ' (limite de flashes desligado)'}.</p>
+{/if}
+
 <span class="lbl">Qualidade do Psy Engine</span>
 <div class="seg">
   {#each ['Baixa', 'Média', 'Alta'] as l, i}
