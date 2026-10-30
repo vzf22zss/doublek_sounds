@@ -1,6 +1,6 @@
 // Ajustes visuais: a janela de controle é a dona; a saída lê na abertura e recebe o evento 'visual'.
 import { isObj, load, save, shaped } from './store.ts';
-import { defaultLayers } from '../render/layers.ts';
+import { defaultLayers, sanitizeLayers } from '../render/layers.ts';
 
 // De onde cada efeito tira o movimento. "Auto" = kick quando há kick, a onda quando não há.
 export const SOURCES = {
@@ -63,6 +63,7 @@ export function validVisual(raw: unknown): Visual {
   for (const k of Object.keys(v.mod) as ModTarget[]) if (!(v.mod[k] in SOURCES)) v.mod[k] = VISUAL.mod[k];
   if (v.bgFit !== 'cover' && v.bgFit !== 'contain') v.bgFit = VISUAL.bgFit;
   if (![1, 2, 4].includes(v.strobeDiv)) v.strobeDiv = VISUAL.strobeDiv;
+  v.layers = sanitizeLayers(v.layers); // dado salvo passa pelo mesmo crivo que o renderer e a UI
   return { ...v, blackout: false, logoOnly: false, react: true };
 }
 
