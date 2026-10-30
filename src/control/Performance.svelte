@@ -13,18 +13,22 @@
   import { blend, lookOf, sanitizeLook, VISUAL, type Look, type Scene, type Visual } from '../lib/settings';
   import { addBank, loadBanks, MAX_BANKS, removeBank, renameBank, saveBanks, stepBank, usedScenes, type Banks } from '../lib/banks';
   import { FACTORY_PRESETS, presetLook, presetsByStyle, STYLES } from '../lib/presets';
-  import { MACROS, routePad, type MacroId, type ShowCommand } from '../lib/commands';
+  import { MACROS, routePad, type AutomationMode, type MacroId, type ShowCommand } from '../lib/commands';
+  import type { StateName } from '../lib/show-engine/state';
   import { afterRemoveBank, resolve, stage, take as takeOf, type PreviewRef, type Take } from '../lib/preview';
 
   // `cmd`: pads, bancos, "Só logo" e macros passam pelo dispatcher (fonte 'ui'), que chama de volta recall/saveScene/…
-  let { vs = $bindable(), beatInfo, onstatus, cmd, macro = null, previewMode = false }: {
+  let { vs = $bindable(), beatInfo, onstatus, cmd, macro = null, previewMode = false, show = { state: 'UNKNOWN', confidence: 0 }, automationMode = 'MANUAL' }: {
     vs: Visual;
     beatInfo: () => { bpm: number; ph: number } | null;
     onstatus: (s: string) => void;
     cmd: (c: ShowCommand) => unknown;
     macro?: MacroId | null; // macro rodando agora (acende o botão)
     previewMode?: boolean;  // DK-043: tocar um pad prepara a cena em vez de chamar
+    show?: { state: StateName; confidence: number }; // DK-032: estado estimado da música
+    automationMode?: AutomationMode;
   } = $props();
+  const STATE_LABEL: Record<StateName, string> = { UNKNOWN: '—', BREAKDOWN: 'BREAK', BUILD_UP: 'BUILD', GROOVE: 'GROOVE', DROP: 'DROP' };
 
   // Bancos (DK-041): os 8 pads mostram o banco ativo; recall, gravar, renomear, MIDI c:0..7 e o roteiro agem nele.
   let bk = $state<Banks>(loadBanks());
@@ -336,6 +340,14 @@
         <button class:on={macro === m} onclick={() => cmd({ type: 'MACRO', id: m })} title={MACRO_NAMES[m][1]} use:learnable={{ id: `a:macro:${m}`, label: 'Macro ' + MACRO_NAMES[m][0] }}>{MACRO_NAMES[m][0]}</button>
       {/each}
       <button class:on={vs.logoOnly} onclick={() => cmd({ type: 'LOGO_ONLY' })} title="L" use:learnable={{ id: 'a:logoOnly', label: 'Só logo' }}>Só logo</button>
+      <span class="state" class:hot={show.state === 'DROP' || show.state === 'BUILD_UP'} class:dim={show.state === 'UNKNOWN'}
+        title="Estado estimado da música e confiança (0–1). É uma estimativa pelo som: o drop aparece depois de detectado, nunca antes.">{STATE_LABEL[show.state]} {show.confidence.toFixed(1)}</span>
+      <select data-automation value={automationMode} onchange={(e) => cmd({ type: 'AUTOMATION_MODE', mode: e.currentTarget.value as AutomationMode })}
+        title="Manual: só mostra o estado · Assistido: knobs, rampas e macros, nunca troca cena · Automático: também troca cena. Qualquer comando seu pausa a automação por 8 s.">
+        <option value="MANUAL">Manual</option>
+        <option value="ASSIST">Assistido</option>
+        <option value="AUTO">Automático</option>
+      </select>
     </div>
     {#if catalog}
       <div class="row">
@@ -388,5 +400,8 @@
   .btn input { display: none; }
   .btn.disabled { opacity: .5; pointer-events: none; }
   .row select { padding: 4px 8px; font-size: 12px; }
+  .state { min-width: 74px; text-align: center; padding: 3px 8px; border: 1px solid var(--line); border-radius: 8px; font-weight: 700; letter-spacing: .04em; color: var(--text); font-variant-numeric: tabular-nums; }
+  .state.hot { border-color: var(--kick); color: var(--kick); }
+  .state.dim { color: var(--muted); }
   .desc { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 </style>

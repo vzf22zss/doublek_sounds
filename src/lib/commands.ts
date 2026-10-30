@@ -145,7 +145,7 @@ export function createDispatcher(handlers: Handlers, opts: DispatchOpts = {}) {
       return record(source, cmd, { ok: false, reason: `${cmd.type}: roteiro em andamento (a automação só mexe em ajustes)` });
     if (source === 'automation' && !prio && now() < manualUntil)
       return record(source, cmd, { ok: false, reason: `override manual: automação pausada por mais ${Math.ceil((manualUntil - now()) / 1000)} s` });
-    if (MANUAL.has(source)) manualUntil = now() + cooldown;
+    if (MANUAL.has(source) && cmd.type !== 'AUTOMATION_MODE') manualUntil = now() + cooldown; // ligar o Automático não pausa a automação
     if (running && !prio) { queue.push([cmd, source]); return { ok: true }; } // histórico quando executar
     if (cmd.type === 'PANIC') queue = []; // nada que estava esperando volta a mexer no visual depois do pânico
     if (running) return record(source, cmd, run(cmd, source)); // prioridade dentro de outro comando: executa já

@@ -13,7 +13,10 @@
   import { Renderer } from '../render/renderer';
   import { VISUAL, loadVisual, saveVisual } from '../lib/settings';
   import { SAFE_LOOK, strobeRate } from '../lib/safety';
-  import { createDispatcher, fromTarget, keyCommand, routePad, startMacro, type Handlers, type MacroId, type MacroRun, type ShowCommand, type Source } from '../lib/commands';
+  import { createMusicState, type StateName } from '../lib/show-engine/state';
+  import { DEFAULT_RULES, plan, quantizeDelay } from '../lib/show-engine/rules';
+  import { busy as fxBusy, clear as clearFx, EMPTY as NO_FX, startBurst, startRamp, step as stepFx, type Running } from '../lib/roteiro-fx';
+  import { createDispatcher, fromTarget, keyCommand, routePad, startMacro, type AutomationMode, type Handlers, type MacroId, type MacroRun, type ShowCommand, type Source } from '../lib/commands';
   import { addVideo, assetSync, imageColors, listVideos, removeVideo, setAsset, videoColors } from '../lib/assets';
   import { load as storeLoad, save as storeSave, shaped } from '../lib/store';
   import { getVersion } from '@tauri-apps/api/app';
@@ -137,6 +140,8 @@
     frameAt = performance.now();
     preview?.setFrame(f);
     if (f.kick > 0) kickAt = frameAt;
+    if (fxBusy(liveFx)) { const r = stepFx(liveFx, liveBeat()); liveFx = r.run; Object.assign(vs, r.set); }
+    automate(f);
     if (calUntil) {
       if (frameAt < calUntil) calMax = Math.max(calMax, f.peak);
       else {
@@ -146,6 +151,34 @@
       }
     }
   }
+
+  // ---------- Intelligent Show (DK-032/033/034) ----------
+  // O motor sempre estima o estado (o chip mostra); as regras só mandam comandos em Assistido/Automático, pela fonte
+  // 'automation' (o dispatcher já descarta durante o override manual e não deixa trocar cena com o roteiro tocando).
+  const music = createMusicState();
+  const rulesCfg = structuredClone(DEFAULT_RULES);
+  let automationMode = $state<AutomationMode>('MANUAL');
+  let show = $state({ state: 'UNKNOWN' as StateName, confidence: 0 });
+  let prevState: StateName = 'UNKNOWN', autoTurn = 0;
+  function automate(f: Frame) {
+    const m = music.update(f);
+    if (m.state !== show.state || Math.abs(m.confidence - show.confidence) >= 0.05) show = { state: m.state, confidence: m.confidence };
+    if (!m.dropEvent && m.state === prevState) return;
+    const steps = plan(prevState, m, rulesCfg, { mode: automationMode, scriptOnly: !vs.react, turn: autoTurn++ });
+    prevState = m.state;
+    for (const st of steps) {
+      const d = quantizeDelay(st.quantize, f);
+      if (d) setTimeout(() => dispatch(st.cmd, 'automation'), d);
+      else dispatch(st.cmd, 'automation');
+    }
+  }
+
+  // efeitos com duração e rampas fora do roteiro (automação, MIDI): mesmo módulo do roteiro, no relógio do beat ao vivo
+  let liveFx: Running = NO_FX;
+  const liveBeat = () => {
+    const f = frame;
+    return f?.bpm ? f.beat + f.beatPhase + ((performance.now() - frameAt) / 1000) * (f.bpm / 60) : performance.now() / 500; // sem BPM: 120
+  };
 
   const ch = new Channel<Msg>();
   ch.onmessage = (m) => {
@@ -211,10 +244,24 @@
     ROTEIRO_AB: () => toggleSound(),
     MACRO: (c) => runMacro(c.id),
     // DK-143: o roteiro desfaz o efeito e avança a rampa no tick; aqui só começa (e o histórico registra)
-    FX_BURST: (c) => roteiroBurst(c.fx, c.beats, c.div),
+    // do roteiro: no tempo do roteiro; de outra fonte (automação, MIDI): no beat ao vivo
+    FX_BURST: (c, src) => {
+      if (src === 'roteiro') return roteiroBurst(c.fx, c.beats, c.div);
+      const r = startBurst(liveFx, vs as any, c.fx, liveBeat(), c.beats, c.div);
+      liveFx = r.run;
+      Object.assign(vs, r.set);
+    },
     VIDEO_SET: (c) => (vs.bgVideo = c.id),
-    PARAM_RAMP: (c) => roteiroRamp(c.key, c.to, c.beats),
-    // AUTOMATION_MODE: sem handler até existir automação (DK-030/040); o dispatcher responde "sem efeito"
+    PARAM_RAMP: (c, src) => {
+      if (src === 'roteiro') return roteiroRamp(c.key, c.to, c.beats);
+      liveFx = startRamp(liveFx, vs as any, c.key, c.to, liveBeat(), c.beats);
+    },
+    AUTOMATION_MODE: (c) => {
+      automationMode = c.mode;
+      status = c.mode === 'MANUAL' ? 'Automação: Manual (só mostra o estado da música).'
+        : c.mode === 'ASSIST' ? 'Automação: Assistido (knobs, rampas e macros; nunca troca cena).'
+        : 'Automação: Automático (também troca cena do mapa). Qualquer comando seu pausa a automação por 8 s.';
+    },
   };
   const commands = createDispatcher(handlers, { roteiroRunning: () => rt.running });
 
@@ -222,11 +269,17 @@
   function cancelRunning() {
     stopMacro();
     roteiroCancelFx();
+    const r = clearFx(liveFx);
+    liveFx = r.run;
+    Object.assign(vs, r.set);
   }
 
   // knobs e sliders da tela escrevem no `vs` direto (bind), sem comando; contam como mexida manual para a automação
   $effect(() => {
-    const manual = (e: Event) => { if ((e.target as Element | null)?.closest?.('.knob, input, select, textarea')) commands.markManual(); };
+    const manual = (e: Event) => {
+      const el = e.target as Element | null;
+      if (el?.closest?.('.knob, input, select, textarea') && !el.closest('[data-automation]')) commands.markManual(); // o seletor do modo não conta
+    };
     const evs = ['input', 'pointerdown', 'wheel'] as const;
     evs.forEach((ev) => window.addEventListener(ev, manual, { capture: true, passive: true }));
     return () => evs.forEach((ev) => window.removeEventListener(ev, manual, { capture: true }));
@@ -357,6 +410,7 @@
       control: { maxFrameGapMs: Math.round(uiGap), jsHeapMB: mem ? Math.round(mem.usedJSHeapSize / 1048576) : null },
       visual: $state.snapshot(vs), roteiro: rt.cur ? { name: rt.list.find((r) => r.id === rt.cur)?.name, running: rt.running, mode: rt.mode, source: rt.source } : null,
       commands: commands.history(),
+      show: { ...$state.snapshot(show), mode: automationMode, rules: rulesCfg.enabled, manualLeftMs: commands.manualLeft() },
       log: logEntries(),
     };
     const a = document.createElement('a');
@@ -719,7 +773,7 @@
     </div>
   </aside>
 
-  <Performance bind:this={perf} bind:vs {beatInfo} onstatus={(m) => (status = m)} cmd={(c) => dispatch(c, 'ui')} macro={macroId} {previewMode} />
+  <Performance bind:this={perf} bind:vs {beatInfo} onstatus={(m) => (status = m)} cmd={(c) => dispatch(c, 'ui')} macro={macroId} {previewMode} {show} {automationMode} />
 
   <footer class="status">
     <span>{status}</span>

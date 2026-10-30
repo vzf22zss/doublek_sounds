@@ -256,6 +256,9 @@ const reason = (r: { ok: boolean; reason?: string }) => (r.ok ? '' : (r as any).
   assert.match(reason(d.dispatch({ type: 'SET_PARAMETER', key: 'trail', value: 0.1 }, 'automation')), /override manual/);
   t += 8000;
   assert.ok(d.dispatch({ type: 'SET_PARAMETER', key: 'trail', value: 0.1 }, 'automation').ok);
+  // trocar o modo de automação é comando da UI, mas não pausa a automação (senão ligar o Automático a desligaria por 8 s)
+  d.dispatch({ type: 'AUTOMATION_MODE', mode: 'AUTO' }, 'ui');
+  assert.equal(d.manualLeft(), 0);
 }
 
 console.log('commands: ok');
