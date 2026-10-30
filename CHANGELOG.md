@@ -6,14 +6,51 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Não lançado]
 
+### Alterado
+
+- Capturas do tutorial refeitas com a UI atual (saúde, PÂNICO, bancos, TAKE, macros, Show Pack); seções novas no tutorial (Bancos, Preview e TAKE, Macros, Salvar e abrir um show, Psy Engine); README com Psy Engine, operação de show, Show Pack e requisitos; BASELINE atualizada.
+
+## [0.3.4] - 2026-10-30
+
 ### Adicionado
 
-- Roadmap agêntico alinhado à v0.3.1 (`docs/DOUBLEK_VISUALS_PLANO_AGENTICO_ROADMAP.md`).
-- DK-001: baseline técnica da v0.3.1 (`docs/quality/BASELINE.md`) e ADRs de persistência, renderer e protocolo de comandos.
+- DK-024: custo por módulo do Psy Engine (GPU via timer query quando a placa informa, CPU senão), orçamento automático de frametime (rebaixa a qualidade e desliga o módulo mais caro quando o p95 passa do teto; volta com folga) e interruptor "Psy Engine ligado/desligado"; o telão envia orçamento e custos à aba Efeitos.
+- DK-043: Program/Preview e TAKE — Shift+1..8 prepara uma cena só no canvas do operador, T manda para o telão no próximo beat com a transição escolhida; modo Preview para pads e MIDI; novos comandos e ids MIDI (`a:take`, `a:previewMode`, `a:previewClear`).
+
+### Alterado
+
+- Shift+dígito deixou de chamar a cena (agora prepara); rótulos da transição em números; "Só logo" na linha das macros.
+
+## [0.3.3] - 2026-10-30
+
+### Adicionado
+
+- DK-021: renderer em módulos (orquestrador, lógica de CPU pura e testada, helpers GL, efeitos cena/rastro/pós) com imagem idêntica pixel a pixel; módulo que falha é desligado sozinho.
+- DK-022/023: Psy Engine com seis módulos — caleidoscópio, túnel fractal, mandala, partículas, orgânico e glitch (rajadas limitadas a 3/s com o limite de flashes) — com fonte de modulação, chip "drop", qualidade e 12 presets novos (23 no total).
+- DK-014: botões "Salvar show" e "Abrir show" (`.doublekshow`) com conferência antes de qualquer escrita, backup automático em `app_data/backups` (5 mais recentes) e comandos Rust `save_backup`/`put_track`.
+- DK-041: até 4 bancos de 8 cenas, migração automática das cenas existentes, seletor na barra, teclas `[`/`]` (também por caractere, ABNT2) e ações MIDI de banco; `banks.json` no Show Pack.
+- DK-042: dispatcher único de comandos (teclado, MIDI, botões e cenas do roteiro) com validação, prioridade de BLACKOUT/PÂNICO, override manual e histórico no Diagnóstico; macros Build-up, Drop, Caos e Reset.
+- DK-009 (P1–P4): a trava do BPM não cai mais ao voltar o drop; Auto não trava em meio tempo; kick sem baixo rolante não perde mais a borda; ruído alto não mascara o click no beat previsto. Benchmark com estresse de 10 sementes e chimbal (`docs/quality/DETECCAO.md`).
+
+### Alterado
+
+- PÂNICO zera também os módulos do Psy Engine; qualidade do Psy Engine fora das cenas.
+
+## [0.3.2] - 2026-10-30
+
+### Adicionado
+
+- Roadmap agêntico alinhado à v0.3.1 (`docs/DOUBLEK_VISUALS_PLANO_AGENTICO_ROADMAP.md`) e plano de teste do roteiro com música real (`docs/quality/DK-141-plano-de-teste.md`).
+- DK-001: baseline técnica (`docs/quality/BASELINE.md`) e ADRs de persistência, renderer e protocolo de comandos.
 - DK-002: armazenamento versionado com envelope `{ v, data }`, migrações, validação dos dados salvos e workflow de CI em push/PR.
 - DK-003: telemetria local do telão (fps, p50/p95/p99, quadros perdidos), bolinhas de saúde do show, diário de eventos e botão de Diagnóstico (JSON sem áudio); fail-safe do telão com recuperação do contexto WebGL.
-- DK-005: CSP restritiva nas duas janelas, limites de tamanho e tipo para imagem, vídeo, música e JSON, auditoria de licenças e vulnerabilidades das dependências.
+- DK-004 (parte): CONTRIBUTING, SECURITY, templates de issue/PR e este changelog.
+- DK-005: CSP restritiva nas duas janelas (confirmada no app real), limites de tamanho e tipo para imagem, vídeo, música e JSON, auditoria de licenças e vulnerabilidades das dependências.
 - DK-006: limite de 3 flashes por segundo (ligado por padrão), blackout por CSS independente do renderer e botão PÂNICO.
+- DK-008: benchmark de detecção de kick/BPM com faixa sintética (`examples/bench.rs`, `docs/quality/DETECCAO.md`).
+- DK-011/012/013: formato Show Pack (`docs/SHOWPACK.md`), validador do manifesto, exportação ZIP sem dependência e importação com inspeção, backup e rollback (biblioteca).
+- DK-131: catálogo de 11 presets de fábrica por estilo e botão Catálogo.
+- `store.migrate` para aplicar migrações a dados vindos de arquivo.
 
 ### Corrigido
 
@@ -70,7 +107,10 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 - Crossfade de cena, barra do topo em 1280px e selo MIDI nos pads.
 
-[Não lançado]: https://github.com/vzf22zss/doublek_sounds/compare/09a7677...main
+[Não lançado]: https://github.com/vzf22zss/doublek_sounds/compare/ef1a66a...main
+[0.3.4]: https://github.com/vzf22zss/doublek_sounds/compare/1c4ade7...ef1a66a
+[0.3.3]: https://github.com/vzf22zss/doublek_sounds/compare/7582b07...1c4ade7
+[0.3.2]: https://github.com/vzf22zss/doublek_sounds/compare/09a7677...7582b07
 [0.3.1]: https://github.com/vzf22zss/doublek_sounds/compare/24883e2...09a7677
 [0.3.0]: https://github.com/vzf22zss/doublek_sounds/compare/ecf84ce...24883e2
 [0.2.0]: https://github.com/vzf22zss/doublek_sounds/compare/40f3349...ecf84ce

@@ -123,7 +123,7 @@ Funciona no improviso: pode ser o microfone do notebook ou um microfone USB pert
 | 7 | **Analisador** | Mostra o que o app está ouvindo e cada kick que ele aceitou (seção 6). |
 | 8 | **Abas de ajuste** | Áudio, Logo, Fundo, Efeitos, Saída e **Roteiro** (seção 16). |
 | 9 | **Knobs de performance** | Os 10 efeitos mais usados ao vivo, sempre à mão. |
-| 10 | **Cenas** | 8 visuais prontos para trocar com crossfade no beat (seção 15). |
+| 10 | **Cenas e barra de performance** | 8 pads por banco (até 4 bancos), transição, **TAKE**/Preview, **Macros**, Catálogo de presets, Exportar/Importar e **Salvar/Abrir show** (seção 15). |
 
 **As 4 bolinhas de saúde** (passe o mouse para ver o nome de cada uma):
 
@@ -307,6 +307,31 @@ tocando, então trocar de cena pode trocar o vídeo.
 | **Vinheta** | Escurece os cantos. |
 | **Linhas de TV / Granulado** | Textura de tela antiga e de filme. |
 | **Tremor** | A imagem treme no kick. |
+
+### Psy Engine
+
+Abaixo dos efeitos clássicos, a aba Efeitos tem a seção **Psy Engine**: seis módulos que
+desenham por cima ou por baixo da logo, cada um com o próprio knob (0 = desligado, custo zero),
+fonte de modulação e chip **drop**.
+
+| Módulo | O que faz | O que a fonte de modulação move |
+|---|---|---|
+| **Caleidoscópio** | Dobra o quadro inteiro em N fatias simétricas (3–12), com giro e zoom. A logo entra na dobra. | Empurrão no giro |
+| **Túnel fractal** | Túnel procedural por baixo da logo, com velocidade e densidade. | Velocidade |
+| **Mandala** | Anéis e pétalas geométricas em volta da logo, abrindo no compasso. | Brilho |
+| **Partículas** | Campo de partículas com direção e turbulência. | Velocidade e brilho |
+| **Orgânico** | Padrão orgânico/floresta por baixo da logo, cores do fundo, matiz pelo knob **Matiz**. | Acende a cor da logo nos picos |
+| **Glitch** | Fatias deslocadas, blocos e separação RGB em rajadas curtas (≤ 120 ms). | **Disparo** da rajada |
+
+- **Qualidade** (baixa/média/alta) é ajuste da máquina, não da cena. Com **Ajuste automático**
+  ligado, se o telão engasgar (p95 acima do **Teto do quadro**, 22 ms por padrão) por 3 s, o
+  app desce um degrau sozinho e, em baixa, desliga o módulo mais caro; volta devagar quando
+  sobra folga. A linha de status avisa.
+- Abaixo de cada knob aparece o **custo medido** (ms de GPU, ou de CPU quando a placa não
+  informa).
+- **Psy Engine: ligado/desligado** é um interruptor que pausa os seis módulos sem mexer nos
+  valores das cenas. **PÂNICO** e **Reset** zeram os módulos.
+- O glitch respeita o limite de flashes: com ele ligado, no máximo 3 rajadas por segundo.
 
 Exemplos de cenas que já vêm prontas:
 
@@ -608,6 +633,13 @@ trocado na aba Roteiro, a qualquer momento.
 
 **Exportar / Importar** salvam o roteiro em `.json`, sem a música. Para levar a outro
 computador, importe o roteiro e use **Trocar música** para apontar o arquivo de novo.
+
+**Ponto de cena de outro banco:** ao editar um ponto de cena, escolha "Banco aberto na hora"
+(o pad do banco que estiver aberto quando o ponto passar, como sempre foi) ou um banco fixo.
+Com banco fixo, o app abre esse banco na hora do ponto e chama a cena; na timeline o ponto
+aparece como "B2·nome". **Reset** desfaz na hora os efeitos do roteiro que estiverem rodando
+(strobe, blackout, só logo) e para as rampas de knob, mas o roteiro continua; **PÂNICO** faz o
+mesmo e para o roteiro. Tudo o que o roteiro faz fica registrado no Diagnóstico.
 
 ---
 
