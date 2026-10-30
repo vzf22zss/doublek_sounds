@@ -130,6 +130,7 @@ pub struct Analyzer {
     on_click: Onset,
     sub_over: bool,
     no_click: bool, // o cruzamento atual do sub foi recusado só por falta de click
+    pend: Vec<(f64, f32)>, // candidatos com click acumulando o punch (30 ms) para a fase da grade
     last_click: f64,
     last_soft_click: f64, // click mais fraco, só vale no beat previsto
     last_kick: f64,
@@ -172,6 +173,7 @@ impl Analyzer {
             on_click: Onset::default(),
             sub_over: false,
             no_click: false,
+            pend: vec![],
             last_click: -1.0,
             last_soft_click: -1.0,
             last_kick: -1.0,
@@ -267,6 +269,20 @@ impl Analyzer {
         self.sub_over = over;
         if !over {
             self.no_click = false;
+        }
+
+        // "punch" (energia da banda de 160 Hz nos 30 ms depois de cada candidato com click), para o
+        // Beat escolher a fase da grade: kick × chimbal + baixo. Antes do refratário, porque o
+        // candidato do contratempo cai nele.
+        for c in &mut self.pend {
+            c.1 += ms[1];
+        }
+        if rising && click_now && pk >= p.gate {
+            self.pend.push((t, ms[1]));
+        }
+        while self.pend.first().is_some_and(|c| t - c.0 > 0.03) {
+            let (ct, cp) = self.pend.remove(0);
+            self.beat.score(ct, cp);
         }
 
         let (lo, hi) = (p.bpm_min.min(p.bpm_max) as f64, p.bpm_min.max(p.bpm_max) as f64);
@@ -462,6 +478,48 @@ mod tests {
     fn ruido_alto() {
         check_synth(Synth { bpm: 140.0, secs: 20.0, noise: 0.2, ..Default::default() }, 135.0, 150.0);
         check_synth(Synth { bpm: 175.0, secs: 20.0, noise: 0.2, ..Default::default() }, 145.0, 185.0);
+    }
+
+    /// Termina travado em `bpm` com a grade nos kicks reais (não no contratempo)?
+    fn grade_nos_kicks(s: Synth, lo: f32, hi: f32) -> (bool, f32, f64) {
+        let (x, truth) = s.render();
+        let mut an = Analyzer::new(s.sr);
+        let p = Params { bpm_min: lo, bpm_max: hi, ..Default::default() };
+        for c in x.chunks_exact(HOP) {
+            an.process(c, &p);
+        }
+        let fase = (truth[0] - an.beat.anchor) / an.beat.period;
+        let fase = (fase - fase.round()).abs();
+        (an.beat.locked && fase < 0.15, an.beat.at(s.secs).0, fase)
+    }
+
+    /// Chimbal no contratempo + nota do baixo: têm click e sub e passavam como kick antes da
+    /// trava; se a âncora caísse neles, a grade ficava meio beat fora a música inteira
+    /// (DETECCAO.md §4.7). 175/semente 3 e kick a meio volume falhavam sem a escolha de fase.
+    #[test]
+    fn contratempo_com_chimbal() {
+        for (seed, kick) in [(3, 1.0), (1, 0.5), (2, 0.5)] {
+            let s = Synth { bpm: 175.0, secs: 30.0, hats: 0.15, kick, seed, ..Default::default() };
+            let (ok, bpm, fase) = grade_nos_kicks(s, 145.0, 185.0);
+            println!("175 chimbal, semente {seed}, kick {kick}: {bpm:.2} BPM, fase {fase:.2}");
+            assert!(ok && (bpm - 175.0).abs() < 0.5, "semente {seed}, kick {kick}: {bpm} BPM, fase {fase:.2}");
+        }
+    }
+
+    /// Espelho: a escolha de fase não pode inverter uma grade certa. Chimbal 4× mais alto com o
+    /// kick a meio volume, e kick fraco sem chimbal (sem candidato no contratempo, nada vira).
+    /// Limite conhecido: com o kick a ≤ 0,3 do volume (≈ −10 dB) ele nem é detectado sob o baixo
+    /// (sem chimbal não trava); com chimbal a grade trava no único evento com click, o contratempo,
+    /// com ou sem a escolha de fase (DETECCAO.md §4.7).
+    #[test]
+    fn contratempo_espelho() {
+        for (hats, kick) in [(0.6, 0.5), (0.0, 0.4)] {
+            for seed in 1..=3 {
+                let s = Synth { bpm: 175.0, secs: 30.0, hats, kick, seed, ..Default::default() };
+                let (ok, bpm, fase) = grade_nos_kicks(s, 145.0, 185.0);
+                assert!(ok && (bpm - 175.0).abs() < 0.5, "chimbal {hats}, kick {kick}, semente {seed}: {bpm} BPM, fase {fase:.2}");
+            }
+        }
     }
 
     #[test]

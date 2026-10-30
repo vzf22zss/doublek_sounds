@@ -7,6 +7,8 @@ use std::collections::VecDeque;
 const WINDOW: f64 = 8.0; // segundos de kicks usados no ajuste
 const HOLD: f64 = 30.0; // quanto tempo a grade segura sem kick (breakdown)
 const TOL: f64 = 0.12; // fração do beat que um kick pode estar fora da grade
+const FLIP: f32 = 1.5; // o contratempo precisa de 1.5× mais punch para virar a fase
+const FLIP_MIN: usize = 3; // candidatos em cada fase antes de comparar
 
 #[derive(Default)]
 pub struct Beat {
@@ -18,6 +20,7 @@ pub struct Beat {
     last: f64,
     count: i64, // mantém o índice do beat contínuo quando a âncora muda
     fixed: bool, // grade vinda da análise do arquivo: os kicks não mexem nela
+    scored: VecDeque<(f64, f32)>, // candidatos com click (aceitos ou não): instante e punch
 }
 
 impl Beat {
@@ -61,6 +64,40 @@ impl Beat {
                 self.locked = same || (n >= 6 && sd < 0.035 * p);
                 return;
             }
+        }
+    }
+
+    /// Fase da grade: candidatos com click na fase e no contratempo (meio beat) com o "punch".
+    /// Chimbal + nota do baixo também têm click e sub, e antes de travar passam como kick; se a
+    /// âncora cair neles, os kicks reais ficam fora da grade (e no refratário) e a grade se
+    /// realimenta no contratempo. O que separa os dois não é o sub (a nota do baixo tem tanto
+    /// quanto o kick) e sim o "punch": a varredura do kick passa por 100–200 Hz nos primeiros
+    /// 30 ms. Se o contratempo tiver consistentemente mais punch que a fase atual, a grade anda
+    /// meio beat. Vale também com a grade já travada errada.
+    pub fn score(&mut self, t: f64, peak: f32) {
+        self.scored.push_back((t, peak));
+        while self.scored.front().is_some_and(|&(s, _)| s < t - WINDOW) {
+            self.scored.pop_front();
+        }
+        if self.fixed || self.period <= 0.0 {
+            return;
+        }
+        let (mut on, mut anti) = (vec![], vec![]);
+        for &(s, pk) in &self.scored {
+            let f = ((s - self.anchor) / self.period).rem_euclid(1.0);
+            if f < TOL || f > 1.0 - TOL {
+                on.push((s, pk));
+            } else if (f - 0.5).abs() < TOL {
+                anti.push((s, pk));
+            }
+        }
+        let mean = |v: &[(f64, f32)]| v.iter().map(|x| x.1).sum::<f32>() / v.len().max(1) as f32;
+        if on.len() >= FLIP_MIN && anti.len() >= FLIP_MIN && mean(&anti) > FLIP * mean(&on) {
+            let p = self.period;
+            self.rebase(self.anchor + p / 2.0, p);
+            // a janela do ajuste passa a ser os candidatos da fase nova (os kicks de verdade)
+            self.kicks = anti.iter().map(|x| x.0).collect();
+            self.scored.clear();
         }
     }
 
