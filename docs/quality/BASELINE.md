@@ -84,7 +84,7 @@ Renderer (WebGL2, 1 classe, telão e preview) ──► passe 1 cena: fundo (cor
 | Músicas dos roteiros | disco | `%APPDATA%\com.doublek.visuals\tracks\<id>.<ext>` |
 | Chave do updater (pública) | `tauri.conf.json` | `plugins.updater.pubkey` |
 
-Exportações existentes: preset JSON (visual + 8 cenas, sem mídia) e roteiro JSON (sem música). Carregamento passa por `store.load` (migra v0→v1; valida com `validVisual`/`validScenes`/`validRoteiros`/`validMidiMap`/`validVideos`/`shaped`; inválido ou versão futura → padrão e o bruto vai para `<chave>.bak`). `sanitizeLook`/`sanitizeRoteiro` validam importações de arquivo.
+Exportações existentes: preset JSON (visual + 8 cenas, sem mídia) e roteiro JSON (sem música). Carregamento passa por `store.load` (migra v0→v1; valida com `validVisual`/`validScenes`/`validRoteiros`/`validMidiMap`/`validVideos`/`shaped`; inválido ou versão futura → padrão e o bruto vai para `<chave>.bak`). `sanitizeLook`/`sanitizeRoteiro` validam importações de arquivo. **Migração v0→v1 observada em dados reais** (2026-10-30): o build de produção abriu sobre o perfil da v0.3.1 instalada, leu os ajustes antigos e retomou a entrada de áudio salva.
 
 ## 7. Comandos Tauri e eventos
 
@@ -92,7 +92,7 @@ Exportações existentes: preset JSON (visual + 8 cenas, sem mídia) e roteiro J
 
 **Eventos:** control → output: `visual`, `assets`, `preload`; output → control: `telemetry` (fps, p50/p95/p99, drops, lost; substituiu `fps` em DK-003), `output-log`; Rust → control: `midi`, `midi-devices`.
 
-**Capabilities:** `core:default`, `updater:default`, `process:allow-restart` para as janelas `control` e `output`. **CSP (desde DK-005):** `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src ipc: http://ipc.localhost; object-src 'none'; frame-src 'none'` + `devCsp` liberando `localhost:5173`/`ws:`. Sem inline (o `<style>` do telão virou `output.css`). Validado no mock; **no Tauri real: NÃO VERIFICADO**.
+**Capabilities:** `core:default`, `updater:default`, `process:allow-restart` para as janelas `control` e `output`. **CSP (desde DK-005):** `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src ipc: http://ipc.localhost; object-src 'none'; frame-src 'none'` + `devCsp` liberando `localhost:5173`/`ws:`. Sem inline (o `<style>` do telão virou `output.css`). Validado no mock **e no app real** (2026-10-30: produção via `tauri build --no-bundle` e dev via Vite, WebView2 inspecionado pela porta de depuração remota): IPC, telão 1920×1080, telemetria, nada recusado. `favicon.ico` automático devolvia 500 no protocolo de assets; silenciado com `<link rel="icon" href="data:,">`.
 
 **Limites de entrada (DK-005):** front `src/lib/limits.ts` (imagem 25 MB png/jpg/jpeg/webp/gif/bmp/svg; vídeo 600 MB mp4/webm/mov/m4v; música 300 MB mp3/wav/flac/m4a/aac/ogg; JSON 2 MB) em logo, foto, vídeo, música, preset e roteiro; Rust `track::check_upload` (mesma lista e teto, na borda do comando), `check_id` (nome de arquivo seguro) e `MAX_SECS` = 20 min por faixa, checado antes (`n_frames`) e durante a decodificação.
 
@@ -136,7 +136,7 @@ Tudo isso foi corrigido no roadmap em `e011daf`.
 2. **Nenhuma Release publicada; secret de assinatura não cadastrado** → updater inerte (DEC-10).
 3. ~~Sem CI~~ **resolvido em DK-002** (`ci.yml`; 1ª execução verde: run 41108914633, 2026-10-30).
 4. ~~Sem schema versionado~~ **resolvido em DK-002** (`src/lib/store.ts`: envelope `{v, data}`, migrações por chave, validadores, `.bak`).
-5. ~~CSP null; `add_track` sem limites~~ **resolvido em DK-005** (CSP sem inline, limites de tipo/tamanho/duração no front e no Rust). Pendente: confirmar a CSP com o app real rodando.
+5. ~~CSP null; `add_track` sem limites~~ **resolvido em DK-005** (CSP sem inline, limites de tipo/tamanho/duração no front e no Rust); CSP confirmada no app real em 2026-10-30.
 6. **Vídeo decodificado duas vezes** (telão + preview) e sem detecção de codec.
 7. **Cenas fixas em 8**; `Performance.svelte` e `settings.ts` assumem o tamanho.
 8. **Sem licença no repositório.**
