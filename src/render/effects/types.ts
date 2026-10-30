@@ -31,6 +31,8 @@ export interface Effect {
   id: string;
   /** Sem ele não há imagem: erro propaga (o telão trata). Os outros são desligados sozinhos. */
   required?: boolean;
+  /** Módulo do Psy Engine: pula com `psySafe` e entra no orçamento automático. */
+  psy?: boolean;
   init(gl: WebGL2RenderingContext, h: Helpers): void;
   resize(W: number, H: number): void;
   render(ctx: Ctx): WebGLTexture | null;

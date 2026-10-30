@@ -16,6 +16,7 @@ export const quality = (v: Visual) => Math.max(0, Math.min(2, Math.round(v.psyQu
 
 export abstract class Pass implements Effect {
   abstract id: string;
+  psy = true;
   protected abstract fs: string;
   protected abstract label: string;
   protected h!: Helpers;
