@@ -1,7 +1,7 @@
 // Renderer WebGL2 em 3 passes: cena → rastro (feedback) → pós. Usado pela janela de saída e pelo preview.
 // Tudo que é por quadro roda na GPU; o CPU só calcula envelopes e uniforms.
 import type { Frame } from '../lib/types';
-import type { Visual } from '../lib/settings';
+import type { ModTarget, Source, Visual } from '../lib/settings';
 import { LOGO_PAD, type Prepared } from '../lib/assets';
 
 const VS = `#version 300 es
@@ -199,10 +199,11 @@ export class Renderer {
     const period = f?.bpm ? 60000 / f.bpm : 420;
 
     // fase do beat extrapolada, já com o offset visual (negativo = adiantado)
-    let ph = 0;
+    let ph = 0, bar = (now / 2000) % 1;
     if (f?.bpm) {
       const x = f.beatPhase + ((now - this.rxAt - v.offset) / 1000) * (f.bpm / 60);
       ph = x - Math.floor(x);
+      bar = ((((f.beat + Math.floor(x)) % 4) + 4) % 4 + ph) / 4;
       if (this.predicting() && ph < this.prevPh - 0.5 && now - this.lastTrig > period * 0.5) this.trigger(now, this.strength);
     }
     this.prevPh = ph;
@@ -217,6 +218,14 @@ export class Renderer {
     const kick = this.presence * this.kickEnv;
     let p = kick + (1 - this.presence) * this.waveEnv * v.wave;
     if (stale) p = 0.12 * (0.5 + 0.5 * Math.sin(now / 1000 * 1.6)); // sem sinal: respira devagar
+
+    // matriz de modulação: cada efeito escolhe a fonte do movimento
+    const S: Record<Source, number> = {
+      auto: p, kick, sub: b[0], bass: b[1], mid: b[2], hats: b[3],
+      beat: f?.bpm ? (1 - ph) ** 2 : 0, bar: f?.bpm ? 1 - bar : 0, lfo: 0.5 + 0.5 * Math.sin(2 * Math.PI * bar),
+    };
+    const m = (k: ModTarget) => (stale ? p : S[v.mod[k]] ?? p);
+    const fx = v.logoOnly ? 0 : 1; // L = só a logo, sem efeitos
     this.black += ((v.blackout ? 1 : 0) - this.black) * (1 - Math.exp(-dt / 0.08));
     if (f && !stale) for (let i = 0; i < 64; i++) {
       const s = f.spectrum[i] ?? 0;
@@ -244,19 +253,19 @@ export class Renderer {
     gl.uniform1f(u('uBgOpacity'), v.bgOpacity);
     gl.uniform1f(u('uBgDim'), v.bgDim / 100);
     gl.uniform1f(u('uHue'), ((now / 1000) * v.bgHue * Math.PI) / 180);
-    gl.uniform1f(u('uBgZoom'), 1 + p * v.bgPulse);
-    gl.uniform1f(u('uBgBright'), 1 + p * v.bgFlash);
-    gl.uniform1f(u('uFlash'), p * v.fxFlash);
+    gl.uniform1f(u('uBgZoom'), 1 + m('bgPulse') * v.bgPulse);
+    gl.uniform1f(u('uBgBright'), 1 + m('bgFlash') * v.bgFlash);
+    gl.uniform1f(u('uFlash'), m('fxFlash') * v.fxFlash * fx);
     const A = W / H, B = this.bgAspect ? 1 / this.bgAspect : A; // aspecto largura/altura
     const wide = B > A;
     gl.uniform2f(u('uBgScale'), ...((v.bgFit === 'cover') === wide ? [A / B, 1] : [1, B / A]) as [number, number]);
-    const logoW = (v.size / 100) * mn * (1 + p * v.amount);
+    const logoW = (v.size / 100) * mn * (1 + m('amount') * v.amount);
     gl.uniform2f(u('uLogoSize'), logoW * (1 + 2 * LOGO_PAD), logoW * this.logoAspect * (1 + 2 * LOGO_PAD));
     gl.uniform1f(u('uLogoR'), (v.size / 100) * mn * 0.5 * Math.max(1, this.logoAspect));
-    gl.uniform1f(u('uGlowAmt'), v.glow * (0.15 + p * 1.5));
-    gl.uniform1f(u('uChroma'), p * v.chroma * px);
-    gl.uniform1f(u('uBars'), v.fxBars);
-    gl.uniform1f(u('uRadial'), v.fxRadial);
+    gl.uniform1f(u('uGlowAmt'), v.glow * (0.15 + m('glow') * 1.5));
+    gl.uniform1f(u('uChroma'), m('chroma') * v.chroma * px);
+    gl.uniform1f(u('uBars'), v.fxBars * fx);
+    gl.uniform1f(u('uRadial'), v.fxRadial * fx);
     gl.uniform1fv(u('uSpec'), this.spec);
     const r0 = (mn * v.size) / 200, rMax = Math.max(W, H) * 0.75, rings = new Float32Array(64);
     this.rings = this.rings.filter((r) => now - r.t < 900);
@@ -265,7 +274,7 @@ export class Renderer {
       rings.set([r0 + (rMax - r0) * (1 - (1 - q) ** 2), (1 - q) ** 1.5 * r.s * v.fxRings, (2 + 7 * (1 - q) * r.s) * px, 0], i * 4);
     });
     gl.uniform4fv(u('uRings'), rings);
-    gl.uniform1i(u('uNRings'), v.fxRings > 0 ? this.rings.length : 0);
+    gl.uniform1i(u('uNRings'), v.fxRings > 0 && fx ? this.rings.length : 0);
     this.bind(0, this.tex.bg, u('uBg'));
     this.bind(1, this.tex.logo, u('uLogo'));
     this.bind(2, this.tex.glow, u('uGlow'));
@@ -273,11 +282,11 @@ export class Renderer {
     let src = this.fbs[0].tex;
 
     // ---- passe 2: rastro (só se ligado) ----
-    if (v.trail > 0) {
+    if (v.trail > 0 && fx) {
       const cur = 1 + this.ping, prev = 2 - this.ping;
       u = this.use(this.feedback, this.fbs[cur].fb, W, H);
       gl.uniform1f(u('uDecay'), 0.6 + 0.38 * v.trail);
-      gl.uniform1f(u('uZoom'), 1 + v.trailZoom * 0.03 * (1 + p));
+      gl.uniform1f(u('uZoom'), 1 + v.trailZoom * 0.03 * (1 + m('trailZoom')));
       gl.uniform1f(u('uRot'), v.trailRot * 0.01);
       this.bind(0, src, u('uScene'));
       this.bind(1, this.fbs[prev].tex, u('uPrev'));
@@ -288,16 +297,16 @@ export class Renderer {
 
     // ---- passe 3: pós ----
     u = this.use(this.post, null, W, H);
-    const shake = kick * v.fxShake * px;
+    const shake = m('fxShake') * v.fxShake * px * fx;
     gl.uniform2f(u('uRes'), W, H);
     gl.uniform2f(u('uShake'), (Math.random() * 2 - 1) * shake, (Math.random() * 2 - 1) * shake);
     gl.uniform1f(u('uVig'), v.fxVig);
-    gl.uniform1f(u('uScan'), v.fxScan);
-    gl.uniform1f(u('uGrain'), v.fxGrain);
+    gl.uniform1f(u('uScan'), v.fxScan * fx);
+    gl.uniform1f(u('uGrain'), v.fxGrain * fx);
     gl.uniform1f(u('uTime'), now / 1000);
     gl.uniform1f(u('uPx'), Math.max(1, px));
     let strobe = 0;
-    if (v.strobe > 0) {
+    if (v.strobe > 0 && fx) {
       const sub = (ph * v.strobeDiv) % 1;
       strobe = this.predicting() ? (sub < 0.15 ? 1 - sub / 0.15 : 0) : this.kickEnv;
       strobe *= v.strobe;
