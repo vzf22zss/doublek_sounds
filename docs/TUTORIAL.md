@@ -234,6 +234,9 @@ os kicks. Use quando o BPM estiver certo e você não quiser que ele oscile.
 - **Cor 1 / Cor 2 / Degradê:** um fundo liso ou em degradê, com ângulo ajustável.
 - **Foto de fundo:** escolha uma imagem, ou **arraste a imagem para cima da janela**.
   *Preencher* corta para cobrir a tela toda; *Caber inteira* mostra a foto inteira.
+- **Cores da foto (automático):** ao escolher a foto, o app tira dela a cor mais viva para o
+  **brilho** (glow, anéis, flash e espectro) e as **Cor 1 / Cor 2** do fundo. Mudou as cores
+  na mão e quer voltar às da foto? Clique em **Cores da foto**.
 - **Opacidade, Desfoque e Brilho da foto:** para a foto não brigar com a logo.
   Escurecer e desfocar um pouco costuma ficar ótimo.
 - **Girar matiz:** as cores do fundo giram sem parar (graus por segundo).

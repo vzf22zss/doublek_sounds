@@ -1,6 +1,7 @@
 // npm run check — crossfade de cenas e saneamento de presets.
 import assert from 'node:assert/strict';
 import { blend, lookOf, sanitizeLook, VISUAL, type Visual } from './settings.ts';
+import { pickColors } from './assets.ts';
 
 const from: Visual = { ...VISUAL, amount: 0, color: '#000000', bgGrad: false, strobeDiv: 1, blackout: true };
 const to = { ...lookOf(VISUAL), amount: 1, color: '#ffffff', bgGrad: true, strobeDiv: 4, mod: { ...VISUAL.mod, glow: 'bass' as const } };
@@ -20,5 +21,16 @@ assert.equal(s.mod!.glow, 'kick');
 assert.equal(s.mod!.fxFlash, VISUAL.mod.fxFlash);
 assert.ok(!('bogus' in s.mod!));
 assert.deepEqual(sanitizeLook(null), {});
+
+// cores da foto: muito azul escuro + um pouco de vermelho vivo → brilho vermelho, fundo azul escuro
+const px = (rgb: number[], n: number) => Array.from({ length: n }, () => [...rgb, 255]).flat();
+const c = pickColors([...px([10, 20, 60], 300), ...px([230, 20, 30], 60), ...px([128, 128, 128], 100)])!;
+const rgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+const [r, g, b] = rgb(c.color);
+assert.ok(r > 200 && g < 120 && b < 120, 'brilho deveria ser vermelho: ' + c.color);
+const [r1, g1, b1] = rgb(c.bgc1);
+assert.ok(b1 > r1 && b1 > g1 && b1 < 40, 'fundo deveria ser azul bem escuro: ' + c.bgc1);
+assert.equal(pickColors(px([0, 0, 0], 10).map((v, i) => (i % 4 === 3 ? 0 : v))), null); // tudo transparente
+assert.match(pickColors(px([200, 200, 200], 10))!.color, /^#([0-9a-f]{2})\1\1$/); // foto cinza → brilho cinza
 
 console.log('settings: ok');

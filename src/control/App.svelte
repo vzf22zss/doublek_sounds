@@ -7,7 +7,7 @@
   import { midi, keyOf, bindArmed, clearArmed, keyLabel, learnable, type MidiMsg } from './midi.svelte';
   import { Renderer } from '../render/renderer';
   import { VISUAL, loadVisual, saveVisual } from '../lib/settings';
-  import { assetSync, setAsset } from '../lib/assets';
+  import { assetSync, bgColors, setAsset } from '../lib/assets';
   import type { Frame, Msg } from '../lib/types';
 
   const RANGES: Record<string, [number, number]> = {
@@ -177,6 +177,14 @@
     await setAsset(kind, file);
     sync?.($state.snapshot(vs), true);
     emitTo('output', 'assets');
+    if (kind === 'bg') photoColors();
+  }
+
+  async function photoColors() {
+    const c = await bgColors();
+    if (!c) { status = 'Escolha uma foto de fundo primeiro.'; return; }
+    Object.assign(vs, c);
+    status = `Cores da foto: brilho ${c.color}, fundo ${c.bgc1} → ${c.bgc2}.`;
   }
 
   async function clearBg() {
@@ -362,6 +370,7 @@
         <div class="files">
           <label class="btn">Foto de fundo<input type="file" accept="image/*" onchange={(e) => pick('bg', e.currentTarget.files?.[0])} /></label>
           <button onclick={clearBg}>Remover foto</button>
+          <button onclick={photoColors} title="Brilho e cores do fundo tirados da foto (já acontece ao escolher a foto)">Cores da foto</button>
         </div>
         <div class="files">
           <label class="color">Cor 1 <input type="color" bind:value={vs.bgc1} /></label>
