@@ -1,14 +1,14 @@
 # Detecção de kick/BPM — benchmark sintético e latência (DK-008)
 
-> **Tarefas:** DK-008 (benchmark) e DK-009 (correções P3/P4) do [roadmap](../DOUBLEK_VISUALS_PLANO_AGENTICO_ROADMAP.md) · **Data:** 2026-10-30 · **Branches:** `feat/dk-008-benchmark`, `feat/dk-009-deteccao`  
+> **Tarefas:** DK-008 (benchmark) e DK-009 (correções P1–P4) do [roadmap](../DOUBLEK_VISUALS_PLANO_AGENTICO_ROADMAP.md) · **Data:** 2026-10-30 · **Branches:** `feat/dk-008-benchmark`, `feat/dk-009-deteccao`  
 > Tudo aqui vem de **faixas sintéticas** (`src-tauri/src/synth.rs`). Nenhum número abaixo foi medido com música real, interface de áudio, projetor ou pessoa: ver a seção 6.  
-> DK-008 só mediu. DK-009 corrigiu P3 e P4 em `beat.rs` (seção 8, antes/depois); P1 e P2 seguem propostas (seção 7). Os parâmetros do detector (`analysis.rs`) não mudaram.
+> DK-008 só mediu. DK-009 corrigiu P1–P4 (seção 8, antes/depois); P6 foi medido e ficou como proposta; P7 (grade no contratempo com chimbal) é achado novo (seção 4.7).
 
 ## 1. Como regenerar
 
 ```powershell
 cd src-tauri
-cargo run --release --example bench            # ≈ 7 s na máquina de desenvolvimento (i5-11400H), fora a compilação
+cargo run --release --example bench            # ≈ 43 s na máquina de desenvolvimento (i5-11400H), fora a compilação (≈ 36 s são o estresse)
 cargo run --release --example bench -- 60      # faixas de 60 s em vez de 30 s
 ```
 
@@ -38,9 +38,13 @@ A saída é Markdown; cole-a na seção 3 deste arquivo ao regenerar. O bench é
 - **Trava após:** tempo entre o primeiro kick e `Beat.locked` virar verdadeiro pela primeira vez.
 - **Atraso:** mediana de (instante da detecção − instante real do kick). A detecção é marcada no **fim** do hop em que ocorre, então isto já inclui o hop (5,3 ms).
 - **½/×2:** estimativa a ±3 % da metade ou do dobro do BPM real ("outra razão" para ⅔, ¾, 4/3, 3/2).
-- **Obs.:** "perdeu a trava N×" = `locked` caiu de verdadeiro para falso N vezes; "não travou" = nunca travou.
+- **Obs.:** "perdeu a trava N×" = `locked` caiu de verdadeiro para falso N vezes; "não travou" = nunca travou; "grade no contratempo" = travou com a âncora a mais de 0,35 beat dos kicks reais.
 
-## 3. Resultados (gerado em 2026-10-30, `feat/dk-009-deteccao` após P3 e P4)
+**Estresse** (desde DK-009, última tabela): os cenários limpo, baixo rolante, breakdown e ruído alto, mais **chimbal no contratempo** (`hats` = 0,15: ruído agudo de 30 ms a meio beat, junto com a 2ª nota do baixo) e chimbal + breakdown, cada um com 10 sementes × 7 BPM na faixa do gênero. Agrega precisão/recall, soma quedas de trava e grades no contratempo, e lista as faixas com problema como BPM/semente (reproduzir com `Synth { bpm, seed, .. }`).
+
+## 3. Resultados (gerado em 2026-10-30, `feat/dk-009-deteccao` após P1–P4)
+
+A última tabela é o **estresse**: os mesmos cenários com 10 sementes × 7 BPM, mais o chimbal no contratempo, com as faixas problemáticas listadas como BPM/semente.
 
 <!-- gerado por `cargo run --release --example bench` (src-tauri); faixas de 30 s a 48 kHz, HOP 256, janela ±30 ms, medido após 3 s -->
 
@@ -48,46 +52,46 @@ A saída é Markdown; cole-a na seção 3 deste arquivo ao regenerar. O bench é
 
 | BPM | Faixa | Cenário | Precisão | Recall | Erro BPM | Trava após | Atraso | ½/×2 | Obs. |
 |---:|---|---|---:|---:|---:|---:|---:|:---:|---|
-| 135 | Psy 135–150 | limpo | 1.00 | 0.85 | -0.01 | 2.2 s | 3.3 ms | não |  |
+| 135 | Psy 135–150 | limpo | 1.00 | 1.00 | -0.01 | 2.2 s | 3.3 ms | não |  |
 | 135 | Psy 135–150 | baixo rolante | 1.00 | 1.00 | +0.00 | 2.2 s | 6.9 ms | não |  |
 | 135 | Psy 135–150 | breakdown 10–18 s | 1.00 | 1.00 | +0.00 | 2.2 s | 6.9 ms | não |  |
-| 135 | Psy 135–150 | ruído alto (−14 dBFS) | 1.00 | 0.73 | +0.00 | 2.7 s | 6.9 ms | não |  |
+| 135 | Psy 135–150 | ruído alto (−14 dBFS) | 1.00 | 0.97 | +0.00 | 2.7 s | 6.9 ms | não |  |
 | 135 | Psy 135–150 | volume −20 dB | 1.00 | 1.00 | +0.00 | 2.2 s | 6.9 ms | não |  |
 | 135 | Psy 135–150 | cold start (2 s de silêncio) | 1.00 | 0.98 | -0.01 | 3.1 s | 7.1 ms | não |  |
-| 140 | Psy 135–150 | limpo | 1.00 | 0.84 | +0.02 | 2.6 s | 4.5 ms | não |  |
-| 140 | Psy 135–150 | baixo rolante | 1.00 | 1.00 | -0.01 | 2.6 s | 6.8 ms | não |  |
+| 140 | Psy 135–150 | limpo | 1.00 | 1.00 | +0.00 | 2.1 s | 4.1 ms | não |  |
+| 140 | Psy 135–150 | baixo rolante | 1.00 | 1.00 | -0.01 | 2.2 s | 6.8 ms | não |  |
 | 140 | Psy 135–150 | breakdown 10–18 s | 1.00 | 1.00 | -0.01 | 2.2 s | 6.4 ms | não |  |
-| 140 | Psy 135–150 | ruído alto (−14 dBFS) | 1.00 | 0.66 | -0.02 | 3.0 s | 6.0 ms | não |  |
+| 140 | Psy 135–150 | ruído alto (−14 dBFS) | 1.00 | 0.97 | -0.01 | 2.6 s | 6.8 ms | não |  |
 | 140 | Psy 135–150 | volume −20 dB | 1.00 | 1.00 | -0.01 | 2.6 s | 6.8 ms | não |  |
 | 140 | Psy 135–150 | cold start (2 s de silêncio) | 1.00 | 1.00 | +0.00 | 2.1 s | 6.5 ms | não |  |
-| 148 | Psy 135–150 | limpo | 1.00 | 0.91 | +0.03 | 2.0 s | 4.5 ms | não |  |
+| 148 | Psy 135–150 | limpo | 1.00 | 1.00 | +0.03 | 2.0 s | 4.4 ms | não |  |
 | 148 | Psy 135–150 | baixo rolante | 1.00 | 1.00 | -0.05 | 2.0 s | 7.0 ms | não |  |
-| 148 | Psy 135–150 | breakdown 10–18 s | 1.00 | 1.00 | -0.07 | 2.4 s | 7.8 ms | não |  |
-| 148 | Psy 135–150 | ruído alto (−14 dBFS) | 1.00 | 0.69 | -0.05 | 2.0 s | 7.2 ms | não |  |
+| 148 | Psy 135–150 | breakdown 10–18 s | 1.00 | 1.00 | -0.07 | 2.0 s | 7.8 ms | não |  |
+| 148 | Psy 135–150 | ruído alto (−14 dBFS) | 1.00 | 0.98 | -0.05 | 2.0 s | 7.2 ms | não |  |
 | 148 | Psy 135–150 | volume −20 dB | 1.00 | 1.00 | -0.05 | 2.0 s | 7.0 ms | não |  |
-| 148 | Psy 135–150 | cold start (2 s de silêncio) | 1.00 | 0.98 | +0.03 | 3.7 s | 7.9 ms | não |  |
-| 160 | Dark 145–185 | limpo | 1.00 | 0.89 | -0.02 | 2.3 s | 4.3 ms | não |  |
-| 160 | Dark 145–185 | baixo rolante | 1.00 | 1.00 | +0.00 | 2.3 s | 7.7 ms | não |  |
+| 148 | Psy 135–150 | cold start (2 s de silêncio) | 1.00 | 0.98 | +0.03 | 3.3 s | 7.9 ms | não |  |
+| 160 | Dark 145–185 | limpo | 1.00 | 1.00 | -0.02 | 1.9 s | 4.0 ms | não |  |
+| 160 | Dark 145–185 | baixo rolante | 1.00 | 1.00 | +0.00 | 1.9 s | 7.7 ms | não |  |
 | 160 | Dark 145–185 | breakdown 10–18 s | 1.00 | 1.00 | +0.00 | 1.9 s | 7.7 ms | não |  |
-| 160 | Dark 145–185 | ruído alto (−14 dBFS) | 0.98 | 0.87 | -0.09 | 2.6 s | 8.0 ms | não |  |
+| 160 | Dark 145–185 | ruído alto (−14 dBFS) | 0.99 | 0.99 | -0.08 | 2.3 s | 7.7 ms | não |  |
 | 160 | Dark 145–185 | volume −20 dB | 1.00 | 1.00 | +0.00 | 2.3 s | 7.7 ms | não |  |
 | 160 | Dark 145–185 | cold start (2 s de silêncio) | 1.00 | 0.97 | +0.01 | 3.0 s | 7.3 ms | não |  |
-| 175 | Dark 145–185 | limpo | 1.00 | 1.00 | -0.01 | 2.1 s | 4.9 ms | não |  |
-| 175 | Dark 145–185 | baixo rolante | 1.00 | 0.97 | +0.00 | 3.8 s | 7.9 ms | não |  |
-| 175 | Dark 145–185 | breakdown 10–18 s | 1.00 | 1.00 | +0.00 | 2.8 s | 7.9 ms | não |  |
-| 175 | Dark 145–185 | ruído alto (−14 dBFS) | 1.00 | 0.78 | +0.01 | 3.1 s | 8.7 ms | não |  |
+| 175 | Dark 145–185 | limpo | 1.00 | 1.00 | -0.01 | 1.7 s | 4.9 ms | não |  |
+| 175 | Dark 145–185 | baixo rolante | 1.00 | 1.00 | +0.00 | 2.8 s | 7.9 ms | não |  |
+| 175 | Dark 145–185 | breakdown 10–18 s | 1.00 | 1.00 | +0.00 | 2.4 s | 7.9 ms | não |  |
+| 175 | Dark 145–185 | ruído alto (−14 dBFS) | 1.00 | 0.99 | +0.00 | 1.7 s | 7.9 ms | não |  |
 | 175 | Dark 145–185 | volume −20 dB | 1.00 | 0.99 | +0.00 | 3.4 s | 7.9 ms | não |  |
 | 175 | Dark 145–185 | cold start (2 s de silêncio) | 1.00 | 0.96 | +0.00 | 3.1 s | 8.4 ms | não |  |
-| 200 | Hi-tech 175–220 | limpo | 1.00 | 1.00 | -0.01 | 2.7 s | 11.3 ms | não |  |
-| 200 | Hi-tech 175–220 | baixo rolante | 1.00 | 1.00 | -0.01 | 2.1 s | 11.3 ms | não |  |
+| 200 | Hi-tech 175–220 | limpo | 1.00 | 1.00 | -0.01 | 2.1 s | 11.3 ms | não |  |
+| 200 | Hi-tech 175–220 | baixo rolante | 1.00 | 1.00 | -0.01 | 1.8 s | 11.3 ms | não |  |
 | 200 | Hi-tech 175–220 | breakdown 10–18 s | 1.00 | 1.00 | -0.01 | 2.4 s | 11.3 ms | não |  |
-| 200 | Hi-tech 175–220 | ruído alto (−14 dBFS) | 1.00 | 0.83 | -0.01 | 2.4 s | 10.0 ms | não |  |
+| 200 | Hi-tech 175–220 | ruído alto (−14 dBFS) | 1.00 | 0.99 | -0.01 | 2.1 s | 11.3 ms | não |  |
 | 200 | Hi-tech 175–220 | volume −20 dB | 1.00 | 1.00 | -0.01 | 2.1 s | 11.3 ms | não |  |
 | 200 | Hi-tech 175–220 | cold start (2 s de silêncio) | 1.00 | 0.98 | -0.01 | 3.0 s | 10.7 ms | não |  |
 | 220 | Hi-tech 175–220 | limpo | 1.00 | 1.00 | -0.00 | 3.6 s | 6.2 ms | não |  |
 | 220 | Hi-tech 175–220 | baixo rolante | 1.00 | 1.00 | -0.02 | 1.4 s | 4.3 ms | não |  |
-| 220 | Hi-tech 175–220 | breakdown 10–18 s | 1.00 | 0.99 | -0.02 | 1.4 s | 4.3 ms | não |  |
-| 220 | Hi-tech 175–220 | ruído alto (−14 dBFS) | 1.00 | 0.77 | -0.01 | 1.9 s | 4.3 ms | não |  |
+| 220 | Hi-tech 175–220 | breakdown 10–18 s | 1.00 | 1.00 | -0.02 | 1.4 s | 4.3 ms | não |  |
+| 220 | Hi-tech 175–220 | ruído alto (−14 dBFS) | 1.00 | 0.99 | -0.01 | 1.9 s | 4.1 ms | não |  |
 | 220 | Hi-tech 175–220 | volume −20 dB | 1.00 | 1.00 | -0.02 | 1.4 s | 4.3 ms | não |  |
 | 220 | Hi-tech 175–220 | cold start (2 s de silêncio) | 1.00 | 1.00 | +0.02 | 1.4 s | 4.1 ms | não |  |
 
@@ -95,85 +99,81 @@ A saída é Markdown; cole-a na seção 3 deste arquivo ao regenerar. O bench é
 
 | BPM | Faixa | Cenário | Precisão | Recall | Erro BPM | Trava após | Atraso | ½/×2 | Obs. |
 |---:|---|---|---:|---:|---:|---:|---:|:---:|---|
-| 135 | Auto 80–220 | limpo | 1.00 | 0.85 | -0.01 | 2.2 s | 3.3 ms | não |  |
+| 135 | Auto 80–220 | limpo | 1.00 | 1.00 | -0.01 | 2.2 s | 3.3 ms | não |  |
 | 135 | Auto 80–220 | baixo rolante | 1.00 | 1.00 | +0.00 | 2.2 s | 6.9 ms | não |  |
 | 135 | Auto 80–220 | breakdown 10–18 s | 1.00 | 1.00 | +0.00 | 2.2 s | 6.9 ms | não |  |
-| 135 | Auto 80–220 | ruído alto (−14 dBFS) | 1.00 | 0.73 | +0.00 | 2.7 s | 6.9 ms | não |  |
+| 135 | Auto 80–220 | ruído alto (−14 dBFS) | 1.00 | 0.97 | +0.00 | 2.7 s | 6.9 ms | não |  |
 | 135 | Auto 80–220 | volume −20 dB | 1.00 | 1.00 | +0.00 | 2.2 s | 6.9 ms | não |  |
 | 135 | Auto 80–220 | cold start (2 s de silêncio) | 1.00 | 0.98 | -0.01 | 3.1 s | 7.1 ms | não |  |
-| 140 | Auto 80–220 | limpo | 1.00 | 0.84 | +0.02 | 2.6 s | 4.5 ms | não |  |
-| 140 | Auto 80–220 | baixo rolante | 1.00 | 1.00 | -0.01 | 2.6 s | 6.8 ms | não |  |
+| 140 | Auto 80–220 | limpo | 1.00 | 1.00 | +0.00 | 2.1 s | 4.1 ms | não |  |
+| 140 | Auto 80–220 | baixo rolante | 1.00 | 1.00 | -0.01 | 2.2 s | 6.8 ms | não |  |
 | 140 | Auto 80–220 | breakdown 10–18 s | 1.00 | 1.00 | -0.01 | 2.2 s | 6.4 ms | não |  |
-| 140 | Auto 80–220 | ruído alto (−14 dBFS) | 1.00 | 0.66 | -0.02 | 3.0 s | 6.0 ms | não |  |
+| 140 | Auto 80–220 | ruído alto (−14 dBFS) | 1.00 | 0.97 | -0.01 | 2.6 s | 6.8 ms | não |  |
 | 140 | Auto 80–220 | volume −20 dB | 1.00 | 1.00 | -0.01 | 2.6 s | 6.8 ms | não |  |
 | 140 | Auto 80–220 | cold start (2 s de silêncio) | 1.00 | 1.00 | +0.00 | 2.1 s | 6.5 ms | não |  |
-| 148 | Auto 80–220 | limpo | 1.00 | 0.91 | +0.03 | 2.0 s | 4.5 ms | não |  |
+| 148 | Auto 80–220 | limpo | 1.00 | 1.00 | +0.03 | 2.0 s | 4.4 ms | não |  |
 | 148 | Auto 80–220 | baixo rolante | 1.00 | 1.00 | -0.05 | 2.0 s | 7.0 ms | não |  |
-| 148 | Auto 80–220 | breakdown 10–18 s | 1.00 | 1.00 | -0.07 | 2.4 s | 7.8 ms | não |  |
-| 148 | Auto 80–220 | ruído alto (−14 dBFS) | 1.00 | 0.69 | -0.05 | 2.0 s | 7.2 ms | não |  |
+| 148 | Auto 80–220 | breakdown 10–18 s | 1.00 | 1.00 | -0.07 | 2.0 s | 7.8 ms | não |  |
+| 148 | Auto 80–220 | ruído alto (−14 dBFS) | 1.00 | 0.98 | -0.05 | 2.0 s | 7.2 ms | não |  |
 | 148 | Auto 80–220 | volume −20 dB | 1.00 | 1.00 | -0.05 | 2.0 s | 7.0 ms | não |  |
-| 148 | Auto 80–220 | cold start (2 s de silêncio) | 1.00 | 0.98 | +0.03 | 3.7 s | 7.9 ms | não |  |
-| 160 | Auto 80–220 | limpo | 1.00 | 0.89 | -0.02 | 2.3 s | 4.3 ms | não |  |
-| 160 | Auto 80–220 | baixo rolante | 1.00 | 1.00 | +0.00 | 2.3 s | 7.7 ms | não |  |
+| 148 | Auto 80–220 | cold start (2 s de silêncio) | 1.00 | 0.98 | +0.03 | 3.3 s | 7.9 ms | não |  |
+| 160 | Auto 80–220 | limpo | 1.00 | 1.00 | -0.02 | 1.9 s | 4.0 ms | não |  |
+| 160 | Auto 80–220 | baixo rolante | 1.00 | 1.00 | +0.00 | 1.9 s | 7.7 ms | não |  |
 | 160 | Auto 80–220 | breakdown 10–18 s | 1.00 | 1.00 | +0.00 | 1.9 s | 7.7 ms | não |  |
-| 160 | Auto 80–220 | ruído alto (−14 dBFS) | 0.98 | 0.87 | -0.09 | 2.6 s | 8.0 ms | não |  |
+| 160 | Auto 80–220 | ruído alto (−14 dBFS) | 0.99 | 0.99 | -0.08 | 2.3 s | 7.7 ms | não |  |
 | 160 | Auto 80–220 | volume −20 dB | 1.00 | 1.00 | +0.00 | 2.3 s | 7.7 ms | não |  |
 | 160 | Auto 80–220 | cold start (2 s de silêncio) | 1.00 | 0.97 | +0.01 | 3.0 s | 7.3 ms | não |  |
-| 175 | Auto 80–220 | limpo | 1.00 | 1.00 | -0.01 | 2.1 s | 4.9 ms | não |  |
-| 175 | Auto 80–220 | baixo rolante | 1.00 | 0.96 | +0.00 | 5.5 s | 7.9 ms | não |  |
-| 175 | Auto 80–220 | breakdown 10–18 s | 1.00 | 1.00 | +0.00 | 2.8 s | 7.9 ms | não |  |
-| 175 | Auto 80–220 | ruído alto (−14 dBFS) | 1.00 | 0.78 | +0.01 | 3.1 s | 8.7 ms | não |  |
+| 175 | Auto 80–220 | limpo | 1.00 | 1.00 | -0.01 | 1.7 s | 4.9 ms | não |  |
+| 175 | Auto 80–220 | baixo rolante | 1.00 | 1.00 | +0.00 | 2.8 s | 7.9 ms | não |  |
+| 175 | Auto 80–220 | breakdown 10–18 s | 1.00 | 1.00 | +0.00 | 2.4 s | 7.9 ms | não |  |
+| 175 | Auto 80–220 | ruído alto (−14 dBFS) | 1.00 | 0.99 | +0.00 | 1.7 s | 7.9 ms | não |  |
 | 175 | Auto 80–220 | volume −20 dB | 1.00 | 0.99 | +0.00 | 4.1 s | 7.9 ms | não |  |
 | 175 | Auto 80–220 | cold start (2 s de silêncio) | 1.00 | 0.96 | +0.00 | 3.1 s | 8.4 ms | não |  |
-| 200 | Auto 80–220 | limpo | 1.00 | 1.00 | -0.01 | 2.7 s | 11.3 ms | não |  |
-| 200 | Auto 80–220 | baixo rolante | 1.00 | 1.00 | -0.01 | 2.1 s | 11.3 ms | não |  |
+| 200 | Auto 80–220 | limpo | 1.00 | 1.00 | -0.01 | 2.1 s | 11.3 ms | não |  |
+| 200 | Auto 80–220 | baixo rolante | 1.00 | 1.00 | -0.01 | 1.8 s | 11.3 ms | não |  |
 | 200 | Auto 80–220 | breakdown 10–18 s | 1.00 | 1.00 | -0.01 | 2.4 s | 11.3 ms | não |  |
-| 200 | Auto 80–220 | ruído alto (−14 dBFS) | 1.00 | 0.83 | -0.01 | 2.4 s | 10.0 ms | não |  |
+| 200 | Auto 80–220 | ruído alto (−14 dBFS) | 1.00 | 0.99 | -0.01 | 2.1 s | 11.3 ms | não |  |
 | 200 | Auto 80–220 | volume −20 dB | 1.00 | 1.00 | -0.01 | 2.1 s | 11.3 ms | não |  |
 | 200 | Auto 80–220 | cold start (2 s de silêncio) | 1.00 | 0.98 | -0.01 | 3.0 s | 10.7 ms | não |  |
 | 220 | Auto 80–220 | limpo | 1.00 | 1.00 | -0.00 | 3.6 s | 6.2 ms | não |  |
 | 220 | Auto 80–220 | baixo rolante | 1.00 | 1.00 | -0.02 | 1.4 s | 4.3 ms | não |  |
-| 220 | Auto 80–220 | breakdown 10–18 s | 1.00 | 0.99 | -0.02 | 1.4 s | 4.3 ms | não |  |
-| 220 | Auto 80–220 | ruído alto (−14 dBFS) | 1.00 | 0.77 | -0.01 | 1.9 s | 4.3 ms | não |  |
+| 220 | Auto 80–220 | breakdown 10–18 s | 1.00 | 1.00 | -0.02 | 1.4 s | 4.3 ms | não |  |
+| 220 | Auto 80–220 | ruído alto (−14 dBFS) | 1.00 | 0.99 | -0.01 | 1.9 s | 4.1 ms | não |  |
 | 220 | Auto 80–220 | volume −20 dB | 1.00 | 1.00 | -0.02 | 1.4 s | 4.3 ms | não |  |
 | 220 | Auto 80–220 | cold start (2 s de silêncio) | 1.00 | 1.00 | +0.02 | 1.4 s | 4.1 ms | não |  |
 
 ### Casos fora da meta (precisão/recall < 0,95, |erro| > 0,5 BPM, sem trava ou ½/×2)
 
-- 135 BPM · Psy · limpo: precisão 1.00, recall 0.85, erro -0.01 BPM, ½/×2 não
-- 135 BPM · Psy · ruído alto (−14 dBFS): precisão 1.00, recall 0.73, erro +0.00 BPM, ½/×2 não
-- 140 BPM · Psy · limpo: precisão 1.00, recall 0.84, erro +0.02 BPM, ½/×2 não
-- 140 BPM · Psy · ruído alto (−14 dBFS): precisão 1.00, recall 0.66, erro -0.02 BPM, ½/×2 não
-- 148 BPM · Psy · limpo: precisão 1.00, recall 0.91, erro +0.03 BPM, ½/×2 não
-- 148 BPM · Psy · ruído alto (−14 dBFS): precisão 1.00, recall 0.69, erro -0.05 BPM, ½/×2 não
-- 160 BPM · Dark · limpo: precisão 1.00, recall 0.89, erro -0.02 BPM, ½/×2 não
-- 160 BPM · Dark · ruído alto (−14 dBFS): precisão 0.98, recall 0.87, erro -0.09 BPM, ½/×2 não
-- 175 BPM · Dark · ruído alto (−14 dBFS): precisão 1.00, recall 0.78, erro +0.01 BPM, ½/×2 não
-- 200 BPM · Hi-tech · ruído alto (−14 dBFS): precisão 1.00, recall 0.83, erro -0.01 BPM, ½/×2 não
-- 220 BPM · Hi-tech · ruído alto (−14 dBFS): precisão 1.00, recall 0.77, erro -0.01 BPM, ½/×2 não
-- 135 BPM · Auto · limpo: precisão 1.00, recall 0.85, erro -0.01 BPM, ½/×2 não
-- 135 BPM · Auto · ruído alto (−14 dBFS): precisão 1.00, recall 0.73, erro +0.00 BPM, ½/×2 não
-- 140 BPM · Auto · limpo: precisão 1.00, recall 0.84, erro +0.02 BPM, ½/×2 não
-- 140 BPM · Auto · ruído alto (−14 dBFS): precisão 1.00, recall 0.66, erro -0.02 BPM, ½/×2 não
-- 148 BPM · Auto · limpo: precisão 1.00, recall 0.91, erro +0.03 BPM, ½/×2 não
-- 148 BPM · Auto · ruído alto (−14 dBFS): precisão 1.00, recall 0.69, erro -0.05 BPM, ½/×2 não
-- 160 BPM · Auto · limpo: precisão 1.00, recall 0.89, erro -0.02 BPM, ½/×2 não
-- 160 BPM · Auto · ruído alto (−14 dBFS): precisão 0.98, recall 0.87, erro -0.09 BPM, ½/×2 não
-- 175 BPM · Auto · ruído alto (−14 dBFS): precisão 1.00, recall 0.78, erro +0.01 BPM, ½/×2 não
-- 200 BPM · Auto · ruído alto (−14 dBFS): precisão 1.00, recall 0.83, erro -0.01 BPM, ½/×2 não
-- 220 BPM · Auto · ruído alto (−14 dBFS): precisão 1.00, recall 0.77, erro -0.01 BPM, ½/×2 não
+Nenhum.
+
+### Estresse: 10 sementes × 7 BPM por cenário (faixa do gênero)
+
+| Cenário | Precisão | Recall | Quedas de trava | Grade no contratempo | Pior erro BPM | Faixas com problema (BPM/semente) |
+|---|---:|---:|---:|---:|---:|---|
+| limpo | 1.000 | 1.000 | 0 | 0 | 0.03 | — |
+| baixo rolante | 1.000 | 1.000 | 0 | 0 | 0.08 | — |
+| breakdown 10–18 s | 0.998 | 0.997 | 2 | 0 | 0.17 | 140/s8 140/s10 |
+| ruído alto (−14 dBFS) | 0.999 | 0.982 | 0 | 0 | 0.16 | 160/s7 175/s5 |
+| chimbal no contratempo | 0.984 | 0.982 | 0 | 1 | 0.10 | 175/s2 175/s3 |
+| chimbal + breakdown | 0.962 | 0.957 | 7 | 2 | 0.08 | 140/s4 140/s7 140/s8 140/s9 175/s1 175/s2 175/s3 175/s6 |
 
 ## 4. Leitura dos resultados e casos degradados
 
-Resumo (após P3/P4): **precisão é 1,00 em 82 das 84 combinações** (0,98 nas outras duas) — o baixo rolante e o pad do breakdown não geram kicks falsos. O erro de BPM fica **≤ 0,09 BPM em todas as 84**, sem nenhum ½/×2, e a trava **não cai mais** em nenhuma. A trava chega em **1,4–3,8 s** depois do primeiro kick (5,5 s num caso Auto). O atraso algorítmico mediano é **3–11 ms** (seção 5). O que resta é **recall** em ruído alto e sem baixo rolante (4.1, 4.2). Cada caso abaixo foi conferido hop a hop com um exemplo descartável que imprimia `flux`, `thr`, bandas e estado da trava.
+Resumo (após P1–P4): na tabela principal, **nenhum caso fora da meta**. Precisão 1,00 em 82 das 84 combinações (0,99 nas outras duas), recall ≥ 0,96 em todas, erro de BPM ≤ 0,08, nenhum ½/×2, nenhuma queda de trava. A trava chega em **1,4–4,1 s** depois do primeiro kick. O atraso algorítmico mediano é **3–11 ms** (seção 5). O que resta aparece no **estresse** com 10 sementes: grade no contratempo com chimbal (4.7) e quedas de trava residuais (4.8). Cada caso abaixo foi conferido hop a hop com um exemplo descartável que imprimia `flux`, `thr`, bandas e estado da trava.
 
-### 4.1. Ruído alto: recall 0,66–0,87 em todos os BPM (pior em 135–148)
+### 4.1. Ruído alto: recall 0,66–0,87 em todos os BPM (pior em 135–148) — **resolvido em DK-009 (P1)**
 
 Com ruído de −14 dBFS, (a) o piso da banda de sub sobe e a subida logarítmica do kick cai de ≈ 11 para ≈ 4–5; (b) o click do kick se perde no ruído da banda de 2–6 kHz, então `click_ok` falha. Na grade o candidato só passa com `click_ok || strong`, e `strong` exige `ds > 2 × ts` (o limiar **não** abaixado), que o kick ruidoso não atinge. Resultado: um em cada três kicks é descartado mesmo estando exatamente no beat previsto. A precisão continua 1,00 porque as notas do baixo (fora da grade) continuam exigindo `click && strong`.
 
-### 4.2. "Limpo" (sem baixo rolante): recall 0,84–0,91 em 135–160 BPM
+**Traço (DK-009):** o limiar do click fica no piso (`MIN_RISE` = 0,70) e a subida do click do kick no ruído fica em 0,6–1,0; ex.: 8,624 s, click 0,66 e sub 5,53 no hop seguinte, bem acima do limiar da grade mas abaixo do "forte" (2 × 3,45 = 6,9).
+
+**Correção (P1):** só no beat previsto, vale um "click suave" acima de 0,75 × o limiar do click. Fora da grade e antes de travar nada muda. A opção "forte a 1,5× na grade" foi descartada: ganhava pouco (140 BPM: 0,66 → 0,79) e criava até 5 falsos no breakdown.
+
+### 4.2. "Limpo" (sem baixo rolante): recall 0,84–0,91 em 135–160 BPM — **resolvido em DK-009 (P2)**
 
 Contraintuitivo: sem o baixo, o detector perde mais kicks do que com ele. Mecanismo visto no traço (140 BPM, kick real em 8,193 s): no hop que termina em 8,192 s o `flux` da banda de sub oscila para 2,94, um pouco acima do limiar abaixado da grade (2,56), **sem** click ainda → candidato recusado, mas `sub_over` fica travado em verdadeiro; no hop seguinte (8,197 s) chega o kick de verdade, `flux` 12,08 e click presente, mas `rising` é falso porque `sub_over` já era verdadeiro → kick perdido. Ou seja: o disparo por borda em `sub_over` deixa um pré-candidato fraco "engolir" o kick real. Com o baixo rolante o piso de sub antes do kick é a cauda suave da nota, não ruído, e a oscilação não acontece. Acima de 175 BPM o kick anterior (200 ms de decaimento) ainda ocupa a banda, o piso não é ruído e o recall é 1,00.
+
+**Correção (P2):** um cruzamento recusado só por falta de click fica pendente; se o click chegar enquanto o sub ainda está acima do limiar, vale como borda. A variante "só armar `sub_over` com click ou acima do limiar cheio" foi descartada: criava falsos no breakdown, onde a subida log do sub quase em silêncio oscila (2,92 recusado, 6,21 no hop seguinte passava como "forte" na grade, sem click).
 
 ### 4.3. Breakdown: a trava caía 1× ao voltar o drop, em **todas** as 14 combinações — **resolvido em DK-009 (P3)**
 
@@ -196,9 +196,22 @@ Sequência no traço: 2 s de silêncio deixam o limiar baixo; o 1º kick sobe 12
 - **Cold start nas faixas do gênero:** trava em 1,4–3,7 s após o 1º kick, recall ≥ 0,96; o problema é só na faixa Auto.
 - **Drift de relógio:** em 30 s o erro fica ≤ 0,09 BPM; o bench não mede horas de set. Para drift real é preciso música real (seção 6).
 
-### 4.6. Troca de música sem breakdown: re-trava em ~7,3 s (achado em DK-009, não corrigido)
+### 4.6. Troca de música sem breakdown: re-trava em ~7,3 s (achado em DK-009; P6 medido, não entrou)
 
-Teste `troca_de_musica_148_175` (148 → 175 BPM emendados, sem pausa). Com a grade de 148 travada, os kicks de 175 fora dela precisam de `click && strong` e muitos são recusados; a janela de 8 s só esvazia dos kicks velhos depois de ~7 s, e aí a trava cai e re-trava em 175. Medido: **7,26 s** em Dark e em Auto (Auto era 8,29 s antes de P4). Nesse intervalo o visual pulsa pela fase prevista de 148 sobre música a 175. É o comportamento do `main`, não regressão; o teste fixa o limite em 9 s para não piorar. Proposta P6.
+Teste `troca_de_musica_148_175` (148 → 175 BPM emendados, sem pausa). Com a grade de 148 travada, os kicks de 175 fora dela são recusados mesmo com click (traço: só 1 a cada ~2 s cai na grade velha e é aceito); a janela de 8 s fica só com kicks que concordam com 148 e só esvazia depois de ~7 s. Medido: **7,26 s** em Dark e em Auto (Auto era 8,29 s antes de P4). Nesse intervalo o visual pulsa pela fase prevista de 148 sobre música a 175. É o comportamento do `main`; o teste fixa 9 s como teto.
+
+**P6 medido:** soltar a trava (e esquecer os kicks da janela) quando, nos últimos 2 s, os candidatos **com click** recusados fora da grade forem ≥ 4 e mais que 2× os aceitos. Re-trava em **4,51 s** (Dark e Auto); bench principal e estresse idênticos (91 linhas). **Não entrou:** a guarda supõe que, com chimbal no contratempo, o kick continua aceito a cada beat (razão ~1); isso falha justamente quando a grade trava no contratempo (4.7), e num estresse avulso com chimbal mais alto + ruído + breakdown a P6 somou 1 queda de trava e 22 falsos (sobre 2 110). Implementar depois de P7.
+
+### 4.7. Chimbal no contratempo: grade trava meio beat fora (achado em DK-009, não corrigido) — **prioridade**
+
+Cenário novo do synth (`hats`: ruído agudo de 30 ms no contratempo, coincidindo com a 2ª nota do baixo rolante). No estresse, 175 BPM semente 3: a grade trava no andamento certo (175,00) mas **meio beat fora** — o contratempo vira kick (77 falsos na fase 0,52–0,55) e os kicks reais ficam fora da grade (traço: kick real em 4,859 s com `grid Some(false)`; contratempo em 4,688 e 5,029 s com `grid Some(true)`, aceitos). Semente 2: trava só em 12,1 s. Mecanismo: antes de travar basta click para aceitar, e chimbal + nota do baixo têm click **e** subida de sub; se a âncora cai num contratempo, os kicks reais passam a exigir `click && strong` e o contratempo ganha o limiar abaixado da grade — se realimenta. No telão: a logo pulsa no contratempo a música inteira. Já existia antes de DK-009 (estresse com o detector do DK-008: 2 faixas no contratempo com chimbal; agora 1). Uma semente só não pega: a semente 1 sai limpa. Proposta P7.
+
+### 4.8. Resíduos do estresse com 10 sementes
+
+- **Breakdown:** 2 quedas de trava em 70 faixas (140 BPM, sementes 8 e 10), eram 70 antes de P3. Não investigado.
+- **Ruído alto:** 160/s7 e 175/s5 com recall < 0,95. Não investigado.
+- **Chimbal + breakdown:** 7 quedas, 2 grades no contratempo, precisão 0,962 — soma de 4.7 com os resíduos acima.
+- **Breakdown com o detector original:** com 10 sementes já havia falsos no breakdown (precisão 0,998); a semente 1 do bench mostrava 0.
 
 ## 5. Latência captura → evento (conta analítica)
 
@@ -220,23 +233,24 @@ Soma do que é conhecido ou estimado por software: **≈ 14–28 ms** entre o ki
 ## 6. Limitações deste benchmark
 
 1. **Sintético, não música real.** O kick e o baixo são idealizados (sem compressão, sem reverb, sem hats/lead/vocal, sem masterização). Os números são um teto, não uma medida de show; os itens "detecção com música real", "offset no projetor" e "drift em set longo" seguem **NÃO VERIFICADOS** (BASELINE.md §12).
-2. Uma única semente por cenário; "limpo" e "ruído" mostram sensibilidade a ruído, então rodar com outras sementes mudaria os decimais (não as conclusões — os mecanismos estão nos traços).
+2. A tabela principal usa uma semente por cenário; desde DK-009 o estresse roda 10 sementes por cenário e mostrou casos que a semente 1 esconde (4.7, 4.8). Ainda são 70 faixas por cenário, não uma distribuição.
 3. 30 s por faixa: não cobre drift de relógio, nem breakdown > 30 s (quando `HOLD` solta a trava de propósito).
 4. Métrica após 3 s; nada é dito sobre os 3 primeiros segundos além do tempo até travar.
 5. O atraso é medido contra o instante em que o kick **começa** na faixa; com música real o "início" do kick é ambíguo em alguns ms.
 
-## 7. Propostas (cada uma precisa rodar este bench antes/depois)
+## 7. Propostas (cada uma precisa rodar este bench antes/depois, incluindo o estresse)
 
 | # | Caso | Proposta | Risco |
 |---|---|---|---|
-| P1 | 4.1 ruído | Na grade, aceitar candidato sem click se `ds` passar o limiar abaixado com folga (por exemplo `ds > 1,3 × thr`), em vez de `strong` usar o limiar cheio | mais falsos se o baixo rolante cair na grade; o cenário "baixo rolante" é a guarda |
-| P2 | 4.2 limpo | Não travar `sub_over` quando o candidato é **recusado**, ou manter o candidato pendente por 2 hops esperando o click (janela de click simétrica, ±17 ms, em vez de "click antes") | kick duplo se o click vier 2 hops depois; o refratário de 0,6 beat já cobre |
+| P1 | 4.1 ruído | **Feito em DK-009** (seção 8): click suave (0,75 × limiar) vale no beat previsto | música real com algo agudo em todo beat (chimbal no tempo) pode virar kick na grade; já travado, só afeta o beat previsto |
+| P2 | 4.2 limpo | **Feito em DK-009** (seção 8): cruzamento recusado só por falta de click fica pendente até o click | kick duplo se o click vier depois do refratário (0,6 beat); não visto no estresse |
 | P3 | 4.3 breakdown | **Feito em DK-009** (seção 8): mantém a trava com janela limpa e mesma grade | se a música mudar **durante** o breakdown para um andamento a ±3 % do anterior, a grade velha segue até o desvio passar de 3,5 % |
 | P4 | 4.4 ½ Auto | **Feito em DK-009** (seção 8): testa p/2 quando cabe na faixa e fica com ela se explicar mais kicks | em Auto, música real a 80–110 BPM com falsos no contratempo poderia dobrar; o teste cobre 90 e 100 BPM limpos |
-| P6 | 4.6 troca de música | Quando kicks fortes com click chegam fora da grade de forma consistente (vários seguidos, intervalo estável), testar `median_ioi` dos últimos kicks antes de manter o período atual | trocar de grade por causa de um fill/rolo de kick; exigir ≥ 4 consecutivos |
+| P6 | 4.6 troca de música | **Medido, não entrou** (4.6): soltar a trava quando, em 2 s, recusados com click ≥ 4 e > 2× aceitos; re-trava 7,26 → 4,51 s, bench idêntico | depende de P7: com a grade no contratempo a razão aceitos/recusados engana |
+| P7 | 4.7 contratempo | Ao escolher a âncora (`fit` parte do último kick), comparar as duas fases candidatas (a e a + p/2) pela força média dos kicks em cada uma — o kick tem subida de sub maior que chimbal + baixo — e ficar com a mais forte; ou, antes de travar, exigir `strong` além do click quando houver candidatos nas duas fases | psy com kick fraco e baixo forte; precisa do estresse com chimbal como guarda |
 | P5 | drift/real | Gravar 3–4 trechos reais (line-in e mic) rotulados no Rekordbox e acrescentar ao bench como fixtures opcionais (`examples/analyze` já lê mp3/wav) | tamanho do repo; licença das faixas (DEC-01) |
 
-**Limites de regressão propostos** a partir destes dados (para o CI, quando o bench entrar como teste): precisão ≥ 0,98 em tudo; recall ≥ 0,95 em "baixo rolante", "breakdown", "−20 dB" e "cold start" (gênero **e** Auto, após P4); erro de BPM ≤ 0,2; zero ½/×2 e zero "perdeu a trava" nas 84 combinações (após P3/P4). "Limpo" e "ruído" ficam como **conhecidos** até P1/P2.
+**Limites de regressão propostos** a partir destes dados (para o CI, quando o bench entrar como teste): precisão ≥ 0,98 em tudo; recall ≥ 0,95 em "baixo rolante", "breakdown", "−20 dB" e "cold start" (gênero **e** Auto, após P4); erro de BPM ≤ 0,2; zero ½/×2 e zero "perdeu a trava" nas 84 combinações; nenhum caso fora da meta na tabela principal (após P1–P4). No estresse: precisão ≥ 0,998 e recall ≥ 0,98 em limpo, baixo rolante, breakdown e ruído; "grade no contratempo" e as quedas em chimbal + breakdown ficam como **conhecidos** até P7.
 
 ## 8. Antes/depois das correções (DK-009)
 
@@ -267,6 +281,42 @@ Teste novo `troca_de_musica_148_175`: re-trava em 7,26 s (Dark) e 8,29 s (Auto),
 
 De carona: `troca_de_musica_148_175` em Auto passou de 8,29 s para 7,26 s. Teste novo `auto_sem_meio_tempo` (falha sem P4 com 87,51).
 
-### P1 e P2
+### P2 — kick sem baixo perdia a borda (`e3c0028`)
 
-Não resolvidos de carona: as linhas "ruído alto" e "limpo" têm o mesmo recall de antes (0,66–0,87 e 0,84–0,91). Seguem como propostas na seção 7.
+36 de 84 linhas mudam, nenhuma piora (precisão igual em todas).
+
+| BPM | Faixa | Cenário | Recall antes → depois | Trava antes → depois |
+|---:|---|---|---|---|
+| 135 / 140 / 148 / 160 | gênero e Auto | limpo | 0,85 / 0,84 / 0,91 / 0,89 → **1,00** | igual ou até −0,4 s |
+| 175 | Dark | baixo rolante | 0,97 → **1,00** | 3,8 → 2,8 s |
+| 175 | Auto | baixo rolante | 0,96 → **1,00** | 5,5 → 2,8 s |
+| 220 | Hi-tech e Auto | breakdown | 0,99 → **1,00** | igual |
+| 26 outras | — | — | igual | trava chega antes (até −1,4 s): kicks do aquecimento que se perdiam agora entram |
+
+Teste novo `limpo_sem_baixo` (falha sem P2: 160 BPM → 0,87).
+
+### P1 — ruído alto mascarava o click (`e4612f2`)
+
+14 de 84 linhas mudam (todas "ruído alto"), nenhuma piora; as outras 70 idênticas.
+
+| BPM | 135 | 140 | 148 | 160 | 175 | 200 | 220 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Recall antes | 0,73 | 0,66 | 0,69 | 0,87 | 0,78 | 0,83 | 0,77 |
+| Recall depois | 0,97 | 0,97 | 0,98 | 0,99 | 0,99 | 0,99 | 0,99 |
+
+Gênero e Auto iguais; 160 BPM: precisão 0,98 → 0,99. Atraso mediano no ruído até +1,3 ms (kick fraco recuperado dispara 1 hop depois). Estresse avulso com 280 faixas (breakdown × ruído baixo/alto × com/sem baixo): falsos 33 → 31, recall 0,903 → 0,983. Teste novo `ruido_alto` (falha sem P1: 140 BPM → 0,82).
+
+### Estresse (10 sementes × 7 BPM), detector do DK-008 → atual
+
+| Cenário | Precisão | Recall | Quedas de trava | Grade no contratempo |
+|---|---|---|---|---|
+| limpo | 1,000 → 1,000 | 0,942 → **1,000** | 0 → 0 | 0 → 0 |
+| baixo rolante | 1,000 → 1,000 | 0,998 → **1,000** | 0 → 0 | 0 → 0 |
+| breakdown | 0,998 → 0,998 | 0,977 → **0,997** | 70 → **2** | 0 → 0 |
+| ruído alto | 0,999 → 0,999 | 0,764 → **0,982** | 2 → **0** | 0 → 0 |
+| chimbal no contratempo | 0,947 → **0,984** | 0,946 → **0,982** | 0 → 0 | 2 → **1** |
+| chimbal + breakdown | 0,939 → **0,962** | 0,913 → **0,957** | 66 → **7** | 2 → 2 |
+
+### P6 — medido, não entrou
+
+Re-trava na troca 148 → 175: 7,26 → 4,51 s; bench principal e estresse idênticos. Motivo e riscos em 4.6.
