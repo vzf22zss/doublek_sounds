@@ -16,4 +16,4 @@ export const SAFE_FLASH_MAX = 0.5;  // teto do flash de tela com safeFlash
 export const SAFE_STROBE_MAX = 0.7; // teto da intensidade do strobe com safeFlash
 
 /** PÂNICO: o que volta ao neutro na hora (só chaves de cena; blackout/logoOnly/react são tratados à parte). */
-export const SAFE_LOOK = { strobe: 0, fxFlash: 0.2, fxShake: 0, chroma: 0, trail: 0, fxGrain: 0, fxScan: 0, bgFlash: 0.1 } as const;
+export const SAFE_LOOK = { strobe: 0, fxFlash: 0.2, fxShake: 0, chroma: 0, trail: 0, fxGrain: 0, fxScan: 0, bgFlash: 0.1, kaleido: 0, tunnel: 0, mandala: 0, glitch: 0 } as const;

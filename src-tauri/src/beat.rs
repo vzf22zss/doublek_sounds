@@ -37,12 +37,28 @@ impl Beat {
         // primeiro tenta manter o andamento atual; se a música mudou, recomeça pela mediana
         let tries = [(self.period > 0.0).then_some(self.period), median_ioi(ks, lo, hi)];
         for p0 in tries.into_iter().flatten() {
-            let Some((p, a, n, sd)) = fit(ks, p0, None, freeze) else { continue };
+            let Some((mut p, mut a, mut n, mut sd)) = fit(ks, p0, None, freeze) else { continue };
+            // ½ errado: kick perdido só alonga intervalos, então a mediana pode cair em 2 beats. Se a
+            // metade do período cabe na faixa (só em faixas largas, como Auto) e a grade com ela
+            // explica mais kicks (os do contratempo), é ela. Sem isso o ½ se realimenta: depois de
+            // travar, os kicks fora da grade são recusados.
+            if !freeze && 120.0 / p <= hi * 1.03 {
+                if let Some(h) = fit(ks, p / 2.0, Some(a), false).filter(|h| h.2 > n) {
+                    (p, a, n, sd) = h;
+                }
+            }
             let bpm = 60.0 / p;
             let in_range = freeze || (bpm >= lo * 0.97 && bpm <= hi * 1.03);
             if in_range && n * 10 >= ks.len() * 6 {
+                // volta do drop: a janela tem poucos kicks (o breakdown esvaziou), mas todos caem na
+                // grade que já estava travada → mantém a trava em vez de esperar o 6º kick. Só com a
+                // janela limpa (n == todos): numa troca de música há kicks fora da grade velha.
+                let same = self.locked && n == ks.len() && sd < 0.035 * p && (p - self.period).abs() < 0.03 * self.period && {
+                    let x = (a - self.anchor) / self.period;
+                    (x - x.round()).abs() < TOL
+                };
                 self.rebase(a, p);
-                self.locked = n >= 6 && sd < 0.035 * p;
+                self.locked = same || (n >= 6 && sd < 0.035 * p);
                 return;
             }
         }
