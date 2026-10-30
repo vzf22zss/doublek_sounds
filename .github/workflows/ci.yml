@@ -1,0 +1,27 @@
+# CI em push/PR (DK-002/DK-004): tipos, regras TS, build do front e testes Rust. Não publica nada.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run check
+      - run: npm run build
+      - run: cargo test --release
+        working-directory: src-tauri

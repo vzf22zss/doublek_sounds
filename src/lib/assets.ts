@@ -1,6 +1,7 @@
 // Logo e foto de fundo ficam no IndexedDB (as duas janelas têm a mesma origem, então compartilham).
 // O processamento pesado (tirar o branco, borrar o glow, borrar o fundo) roda uma vez por troca, não por quadro.
 import type { Visual } from './settings';
+import { isObj, load, save } from './store.ts';
 
 const DEFAULT_LOGO =
   'data:image/svg+xml;utf8,' +
@@ -155,22 +156,26 @@ export async function imageColors(kind: 'logo' | 'bg') {
 // ---------- vídeos de fundo ----------
 // O arquivo fica no IndexedDB ("video:<id>"); a lista (id + nome) no localStorage, que as duas janelas leem.
 export type VideoInfo = { id: string; name: string };
-const VKEY = 'doublek.videos';
+
+export function validVideos(raw: unknown): VideoInfo[] {
+  if (!Array.isArray(raw)) throw new Error('vídeos: precisa ser lista');
+  return raw.filter((x): x is VideoInfo => isObj(x) && typeof x.id === 'string' && !!x.id && typeof x.name === 'string');
+}
 
 export function listVideos(): VideoInfo[] {
-  try { return JSON.parse(localStorage.getItem(VKEY) ?? '[]'); } catch { return []; }
+  return load('doublek.videos', validVideos, () => []);
 }
 
 export async function addVideo(f: File) {
   const id = Math.random().toString(36).slice(2, 10);
   await setAsset(`video:${id}`, f);
-  localStorage.setItem(VKEY, JSON.stringify([...listVideos(), { id, name: f.name.replace(/\.[^.]+$/, '') }]));
+  save('doublek.videos', [...listVideos(), { id, name: f.name.replace(/\.[^.]+$/, '') }]);
   return id;
 }
 
 export async function removeVideo(id: string) {
   await setAsset(`video:${id}`, null);
-  localStorage.setItem(VKEY, JSON.stringify(listVideos().filter((x) => x.id !== id)));
+  save('doublek.videos', listVideos().filter((x) => x.id !== id));
 }
 
 // um <video> por id, reaproveitado: trocar de vídeo (cena/roteiro) é instantâneo; só o atual fica tocando

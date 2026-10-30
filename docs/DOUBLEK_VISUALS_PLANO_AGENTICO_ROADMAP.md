@@ -119,7 +119,7 @@ Uma tarefa só pode ficar **DONE** se satisfizer todos os critérios relevantes:
 2. A modelagem existente de cenas considera comprimento **fixo de 8**. Aumentar a quantidade requer migração, persistência e mudanças na interface.
 3. O renderer examinado usa um pipeline **cena → feedback → pós-processamento**, sem compositor geral com múltiplas camadas independentes (o vídeo de fundo é uma textura a mais no passe de cena).
 4. Não foram identificadas implementações de edição livre de shaders, gravação de performance, OSC, Spout, Ableton Link, MIDI Clock externo e controle pelo celular. O vídeo de fundo **existe**, mas sem detecção de codec, início/fim, fallback para imagem nem pacote portátil (ver DK-060).
-5. O repositório público **não tem licença declarada, Release publicada, descrição/topics nem CI em push/PR**. Existe só o workflow de **release** (push em `prod`), que depende do secret `TAURI_SIGNING_PRIVATE_KEY`, **ainda não cadastrado** (DEC-10).
+5. O repositório público **não tem licença declarada, Release publicada nem descrição/topics**. Workflows: **release** (push em `prod`) e, desde DK-002, **ci** (push/PR). O secret `TAURI_SIGNING_PRIVATE_KEY` foi cadastrado em 2026-10-30; falta autorizar a 1ª Release (DEC-10).
 6. A configuração inclui `csp: null`: requer revisão antes da importação de conteúdo e de serviços remotos.
 7. Não há testes automatizados de UI nem de render; as capturas da documentação foram feitas com um mock do Tauri no Edge headless, fora do repositório.
 
@@ -490,6 +490,8 @@ A **música** do roteiro é **opt-in** no pacote (direitos autorais e tamanho; D
 
 **Aceite:** migração validada, roundtrips básicos, testes no CI.
 
+**Feito (2026-10-30):** todas as 7 chaves `doublek.*` passam por `src/lib/store.ts` (`load`/`save` com `SCHEMA` por chave e `MIGRATIONS` numeradas; dado da v0.3.1 = v0). Validadores: `validVisual`, `validScenes`, `validRoteiros` (mantém ids), `validMidiMap`, `validVideos`, `shaped` (ajustes de áudio). Inválido ou de versão futura → padrão, bruto guardado em `<chave>.bak`. Testes em `store.check.ts`; CI em `ci.yml`. Fixtures de áudio **reais** continuam pendentes (DK-008).
+
 ### DK-003 — Telemetria local e hardening do show — P0
 
 - Coletar frametime (mediana/p95/p99), FPS, event loop lag, carga estimada, erros de shader, memória aproximada quando disponível.
@@ -505,7 +507,7 @@ A **música** do roteiro é **opt-in** no pacote (direitos autorais e tamanho; D
 
 **Falta:**
 
-- Criar workflow de **CI em push/PR** para `npm ci`, `typecheck`, `check`, `cargo test` e build (executor Windows).
+- ~~Criar workflow de CI em push/PR~~ **feito em DK-002**: `.github/workflows/ci.yml` (`npm ci`, `typecheck`, `check`, build, `cargo test --release`, executor Windows).
 - Cadastrar o secret `TAURI_SIGNING_PRIVATE_KEY` e autorizar a **primeira Release** (DEC-10); até lá, o atualizador no app não encontra nada.
 - Release notes e **beta instalável**; nunca publicar artefato sem aprovação.
 - Adicionar descrição, tópicos, capturas e GIF de demo ao GitHub.
@@ -637,7 +639,7 @@ Audio Engine (Rust) ──► Music Features ──► Show Engine / Dispatcher
 ### Marco M0 — Base confiável e beta (semanas 1–2)
 
 - [x] **DK-001** Auditar a baseline, rodar projeto e criar `BASELINE.md`. — 2026-10-30, branch `docs/dk-001-baseline`: [`docs/quality/BASELINE.md`](quality/BASELINE.md), ADRs [0001](adr/0001-persistencia-e-importacao.md), [0002](adr/0002-renderer.md), [0003](adr/0003-protocolo-de-comandos.md). Testes: `cargo test --release` 9/9, `npm run check`, `typecheck`, `build` ok. Hardware: NÃO VERIFICADO (lista em BASELINE §12).
-- [ ] **DK-002** Introduzir contratos/migrações e testes JS/TS.
+- [x] **DK-002** Introduzir contratos/migrações e testes JS/TS. — 2026-10-30, branch `feat/dk-002-schemas`: `src/lib/store.ts` (envelope `{v, data}` por chave `doublek.*`, migrações v0→v1, validadores, `.bak` para dado inválido/versão futura), `src/lib/store.check.ts` (migração, inválidos, roundtrip), `.github/workflows/ci.yml`. `typecheck` 0 erros · `npm run check` ok · build ok. Nenhum dado existente é perdido: o formato da v0.3.1 é lido como v0 e migrado.
 - [ ] **DK-003** Criar telemetria local, health indicators e teste longo inicial.
 - [ ] **DK-004** Configurar CI, versionamento, licença pendente e plano de Release.
 - [ ] **DK-005** Revisar CSP, permissões e regras de arquivo.
@@ -734,10 +736,10 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 |---|---|
 | Última revisão do planejamento | 2026-10-30 (alinhado à v0.3.1) |
 | Commit/branch baseline validado | `main` @ `09a7677` (v0.3.1) — ver `docs/quality/BASELINE.md` |
-| Tarefa ativa | DK-002 / DK-141 (próximas READY) |
+| Tarefa ativa | DK-141 (validação real, exige o mantenedor) · DK-003 (próxima READY para o agente) |
 | Marco ativo | M0 |
-| Tarefas do roadmap marcadas | 1 (DK-001) |
-| Tarefas concluídas | 1 |
+| Tarefas do roadmap marcadas | 2 (DK-001, DK-002) |
+| Tarefas concluídas | 2 |
 | Bloqueios conhecidos | Licença (DEC-01); hardware de referência (DEC-02); secret de assinatura e 1ª release (DEC-10); SDK para Spout/Link/gravação |
 | Release alvo | **0.4.0** ao fechar o M0 (decisão do mantenedor, 2026-10-30) |
 
@@ -772,6 +774,7 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 | 2026-10-30 | PLANO | PROPOSTO | — | Análise do código/documentação existente; implementação não iniciada | Começar DK-001 |
 | 2026-10-30 | PLANO | ALINHADO | `docs/dk-001-baseline` @ `e011daf` | Roadmap corrigido para a v0.3.1 (drop, vídeo, roteiro, updater/release já existem); DK-140 criado; DEC-09/10/11 | DK-001 |
 | 2026-10-30 | DK-001 | DONE | `docs/dk-001-baseline` (commit seguinte) | `cargo test --release` 9/9 · `npm run check` 43 asserts · typecheck 0 erros · build ok · `npm audit` 0 em prod · licenças: 527 crates, sem GPL; 6 com `AND` permissivo · BASELINE.md + 3 ADRs | **DK-141** (validar roteiro com áudio real, exige o mantenedor) e **DK-002** (schemas/migrações) em paralelo; DEC-10 destrava a 1ª release |
+| 2026-10-30 | DK-002 | DONE | `feat/dk-002-schemas` | `store.ts` + `store.check.ts` (migração v0→v1, inválidos → padrão + `.bak`, versão futura, roundtrip de cenas/roteiros, ids mantidos) · `npm run check` ok · typecheck 0 erros · build ok · Rust inalterado (9/9 hoje) · `ci.yml` criado | **DK-003** (telemetria/saúde/fail-safe) para o agente; **DK-141** com o mantenedor; CI só prova que funciona no 1º push para `main` |
 
 ### 8.4. Bloqueios e decisões pendentes
 
@@ -786,7 +789,7 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 | DEC-07 | Limites de flashes e padrões de segurança | Mantenedor + agente | PENDENTE | Especificação de política operacional clara |
 | DEC-08 | Modelo de distribuição (open source, freeware, comercial) | Mantenedor | PENDENTE | Decisão explícita antes de publicar |
 | DEC-09 | Música do roteiro dentro do Show Pack (direitos autorais, tamanho, opt-in) | Mantenedor + agente | PENDENTE | Política escrita antes de DK-142 |
-| DEC-10 | Cadastrar `TAURI_SIGNING_PRIVATE_KEY` no GitHub e autorizar a 1ª Release (push em `prod`) | Mantenedor | PENDENTE | Secret cadastrado; a chave privada em `%USERPROFILE%\.tauri\doublek.key` tem cópia segura |
+| DEC-10 | Cadastrar `TAURI_SIGNING_PRIVATE_KEY` no GitHub e autorizar a 1ª Release (push em `prod`) | Mantenedor | PARCIAL (secret cadastrado 2026-10-30) | Secret cadastrado; a chave privada em `%USERPROFILE%\.tauri\doublek.key` tem cópia segura |
 | DEC-11 | Numeração de versões | Mantenedor | **RESOLVIDA 2026-10-30** | Segue de 0.3.x: M0 = 0.4.0, cada marco sobe o número do meio |
 
 ---

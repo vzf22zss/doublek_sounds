@@ -1,6 +1,7 @@
 <script lang="ts">
   // Barra de performance: knobs dos efeitos mais mexidos ao vivo + 8 cenas com crossfade no beat.
   import Knob from './Knob.svelte';
+  import { load as storeLoad, save as storeSave } from '../lib/store';
   import { learnable } from './midi.svelte';
   import { blend, loadScenes, lookOf, saveScenes, sanitizeLook, VISUAL, type Look, type Scene, type Visual } from '../lib/settings';
 
@@ -14,12 +15,11 @@
   let active = $state(-1);
   let fade = $state(0);
   let editing = $state(-1);
-  let trans = $state(4);
-  try { trans = +(localStorage.getItem('doublek.trans') ?? 4); } catch {}
+  let trans = $state(storeLoad('doublek.trans', (r) => { if (![0, 1, 2, 4, 8].includes(r as number)) throw new Error('transição'); return r as number; }, () => 4));
   let token = 0;
 
   $effect(() => saveScenes($state.snapshot(scenes)));
-  $effect(() => { try { localStorage.setItem('doublek.trans', String(trans)); } catch {} });
+  $effect(() => storeSave('doublek.trans', trans));
 
   /** Chama a cena i: começa no próximo beat e dura `fade` beats. O roteiro já dispara no beat (`now`). */
   export function recall(i: number, fade = trans, now = false) {

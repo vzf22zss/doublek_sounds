@@ -1,6 +1,6 @@
 # ADR 0001 — Persistência local e importação de shows
 
-**Status:** aceita (estado atual) + proposta (direção) · **Data:** 2026-10-30 · **Tarefa:** DK-001
+**Status:** aceita (itens 1 e 3 em vigor desde DK-002; 2, 4 e 5 propostos para DK-010) · **Data:** 2026-10-30 · **Tarefa:** DK-001
 
 ## Contexto
 
@@ -12,7 +12,7 @@ Isso é rápido e simples para uma máquina só, mas **não transporta um show**
 
 1. **Manter** `localStorage` + IndexedDB como **cache de sessão** e fonte de verdade em execução. Não migrar para arquivos JSON soltos agora.
 2. **Criar o Show Pack** (`.doublekshow`, ZIP) como forma de transporte e backup (DK-010): `manifest.json` versionado + JSONs de estado + `assets/` com hash. Importação em **staging**: validar tudo, só então aplicar; backup automático do estado anterior.
-3. **Introduzir `schemaVersion`** em `Visual`, `Scene[]` e `Roteiro` (DK-002) com funções de migração explícitas; `loadVisual` continua fazendo merge com defaults como última defesa.
+3. **Introduzido em DK-002** (`src/lib/store.ts`): cada chave `doublek.*` tem envelope `{ v, data }`, migrações numeradas por chave (v0 = formato cru da v0.3.1) e um validador. Inválido ou de versão futura cai no padrão e o bruto vai para `<chave>.bak`; nada é apagado.
 4. **Música do roteiro é opt-in** no pacote (DEC-09).
 5. Qualquer caminho vindo de arquivo é validado (sem `..`, sem absoluto, lista de extensões, tamanho máximo).
 

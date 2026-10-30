@@ -69,7 +69,7 @@ Renderer (WebGL2, 1 classe, telão e preview) ──► passe 1 cena: fundo (cor
 - Vídeo: textura própria, `texImage2D` só quando `requestVideoFrameCallback` avisa quadro novo; desfoque por viés de mipmap.
 - Preview roda a 30 fps com `renderScale 0.5`; telão a 60 com `renderScale` do usuário.
 
-## 6. Persistência (tudo local, nada versionado por schema)
+## 6. Persistência (tudo local; desde DK-002 cada chave `doublek.*` tem envelope `{ v, data }` versionado via `src/lib/store.ts`)
 
 | Dado | Onde | Chave |
 |---|---|---|
@@ -84,7 +84,7 @@ Renderer (WebGL2, 1 classe, telão e preview) ──► passe 1 cena: fundo (cor
 | Músicas dos roteiros | disco | `%APPDATA%\com.doublek.visuals\tracks\<id>.<ext>` |
 | Chave do updater (pública) | `tauri.conf.json` | `plugins.updater.pubkey` |
 
-Exportações existentes: preset JSON (visual + 8 cenas, sem mídia) e roteiro JSON (sem música). `loadVisual` faz merge com defaults (migração implícita, sem versão). `sanitizeLook`/`sanitizeRoteiro` validam importações.
+Exportações existentes: preset JSON (visual + 8 cenas, sem mídia) e roteiro JSON (sem música). Carregamento passa por `store.load` (migra v0→v1; valida com `validVisual`/`validScenes`/`validRoteiros`/`validMidiMap`/`validVideos`/`shaped`; inválido ou versão futura → padrão e o bruto vai para `<chave>.bak`). `sanitizeLook`/`sanitizeRoteiro` validam importações de arquivo.
 
 ## 7. Comandos Tauri e eventos
 
@@ -99,11 +99,11 @@ Exportações existentes: preset JSON (visual + 8 cenas, sem mídia) e roteiro J
 | Camada | O que cobre | O que não cobre |
 |---|---|---|
 | Rust (`cargo test`) | detecção de kick/BPM em faixa sintética (5 BPMs), drop/breakdown, parse MIDI, grade da faixa inteira, decodificação WAV + reamostragem | áudio real, cpal, reprodução, reconexão |
-| TS (`npm run check`) | blend/crossfade, sanitize de presets, `drop`, `pickColors`, regras do roteiro (due/stateAt/ramp/snap/sanitize) | UI, renderer, IPC |
+| TS (`npm run check`) | blend/crossfade, sanitize de presets, `drop`, `pickColors`, regras do roteiro (due/stateAt/ramp/snap/sanitize); **store** (migração v0→v1, inválidos, versão futura, roundtrip, ids de roteiro) | UI, renderer, IPC |
 | Tipos | `svelte-check` sobre tudo | — |
 | Manual/mock | capturas da documentação via mock do Tauri em Edge headless (fora do repo) | app real |
 
-Não há CI em push/PR; só o workflow de release.
+CI em push/PR: `.github/workflows/ci.yml` (desde DK-002); release: `release.yml`.
 
 ## 9. Licenças
 
@@ -130,8 +130,8 @@ Tudo isso foi corrigido no roadmap em `e011daf`.
 
 1. **Roteiro nunca rodou com áudio real** (DK-141).
 2. **Nenhuma Release publicada; secret de assinatura não cadastrado** → updater inerte (DEC-10).
-3. **Sem CI**; regressão só é pega localmente.
-4. **Sem schema versionado**: mudar `Visual`/`Scene` depende do merge com defaults.
+3. ~~Sem CI~~ **resolvido em DK-002** (`ci.yml`; comprovação só no 1º push para `main`).
+4. ~~Sem schema versionado~~ **resolvido em DK-002** (`src/lib/store.ts`: envelope `{v, data}`, migrações por chave, validadores, `.bak`).
 5. **CSP null**; comandos nativos sem limite de tamanho (`add_track` aceita qualquer arquivo).
 6. **Vídeo decodificado duas vezes** (telão + preview) e sem detecção de codec.
 7. **Cenas fixas em 8**; `Performance.svelte` e `settings.ts` assumem o tamanho.

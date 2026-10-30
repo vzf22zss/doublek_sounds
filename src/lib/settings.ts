@@ -1,4 +1,5 @@
 // Ajustes visuais: a janela de controle é a dona; a saída lê na abertura e recebe o evento 'visual'.
+import { isObj, load, save, shaped } from './store.ts';
 
 // De onde cada efeito tira o movimento. "Auto" = kick quando há kick, a onda quando não há.
 export const SOURCES = {
@@ -37,19 +38,21 @@ export const VISUAL = {
 };
 export type Visual = typeof VISUAL;
 
-const KEY = 'doublek.visual';
+/** Visual salvo → completo, com os tipos certos e só valores conhecidos; estados de operação voltam ao neutro. */
+export function validVisual(raw: unknown): Visual {
+  const v = shaped(raw, VISUAL);
+  for (const k of Object.keys(v.mod) as ModTarget[]) if (!(v.mod[k] in SOURCES)) v.mod[k] = VISUAL.mod[k];
+  if (v.bgFit !== 'cover' && v.bgFit !== 'contain') v.bgFit = VISUAL.bgFit;
+  if (![1, 2, 4].includes(v.strobeDiv)) v.strobeDiv = VISUAL.strobeDiv;
+  return { ...v, blackout: false, logoOnly: false, react: true };
+}
 
 export function loadVisual(): Visual {
-  try {
-    const s = JSON.parse(localStorage.getItem(KEY) ?? '{}');
-    return { ...VISUAL, ...s, mod: { ...VISUAL.mod, ...s.mod }, drop: { ...VISUAL.drop, ...s.drop }, blackout: false, logoOnly: false, react: true };
-  } catch {
-    return { ...VISUAL };
-  }
+  return load('doublek.visual', validVisual, () => ({ ...VISUAL }));
 }
 
 export function saveVisual(v: Visual) {
-  try { localStorage.setItem(KEY, JSON.stringify(v)); } catch {}
+  save('doublek.visual', v);
 }
 
 // ---------- cenas ----------
@@ -79,18 +82,19 @@ const DEFAULT_SCENES: Scene[] = [
   null, null, null, null,
 ];
 
-const SKEY = 'doublek.scenes';
+/** 8 posições; cada cena com nome e look completo (o que vier errado cai no padrão), ou null. */
+export function validScenes(raw: unknown): Scene[] {
+  if (!Array.isArray(raw) || raw.length !== 8) throw new Error('cenas: precisa de 8 posições');
+  return raw.map((s, i): Scene =>
+    isObj(s) ? { name: String(s.name ?? `Cena ${i + 1}`).slice(0, 24), look: { ...base, ...sanitizeLook(s.look) } as Look } : null);
+}
 
 export function loadScenes(): Scene[] {
-  try {
-    const s = JSON.parse(localStorage.getItem(SKEY) ?? 'null');
-    if (Array.isArray(s) && s.length === 8) return s;
-  } catch {}
-  return structuredClone(DEFAULT_SCENES);
+  return load('doublek.scenes', validScenes, () => structuredClone(DEFAULT_SCENES));
 }
 
 export function saveScenes(s: Scene[]) {
-  try { localStorage.setItem(SKEY, JSON.stringify(s)); } catch {}
+  save('doublek.scenes', s);
 }
 
 const lerpHex = (a: string, b: string, t: number) => {

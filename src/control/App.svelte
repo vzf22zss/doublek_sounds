@@ -12,6 +12,7 @@
   import { Renderer } from '../render/renderer';
   import { VISUAL, loadVisual, saveVisual } from '../lib/settings';
   import { addVideo, assetSync, imageColors, listVideos, removeVideo, setAsset, videoColors } from '../lib/assets';
+  import { load as storeLoad, save as storeSave, shaped } from '../lib/store';
   import type { Frame, Msg } from '../lib/types';
   import { check, type Update } from '@tauri-apps/plugin-updater';
   import { relaunch } from '@tauri-apps/plugin-process';
@@ -23,12 +24,9 @@
     Auto: [80, 220],
   };
   const DEFAULTS = { device: '', channel: 0, gain: 1, gate: 0.003, sens: 1.4, range: 'Psy', lock: false, needClick: true, monitor: 1, dropThr: 0.35 };
-  const KEY = 'doublek.settings';
   const TABS = ['Áudio', 'Logo', 'Fundo', 'Efeitos', 'Saída', 'Roteiro'] as const;
 
-  function load() {
-    try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') }; } catch { return { ...DEFAULTS }; }
-  }
+  const load = () => storeLoad('doublek.settings', (r) => shaped(r, DEFAULTS), () => ({ ...DEFAULTS }));
 
   let s = $state(load());
   let vs = $state(loadVisual());
@@ -75,7 +73,7 @@
   // ajustes de áudio → motor (e salvos)
   $effect(() => {
     const v = $state.snapshot(s);
-    try { localStorage.setItem(KEY, JSON.stringify(v)); } catch {}
+    storeSave('doublek.settings', v);
     const [bpmMin, bpmMax] = RANGES[v.range] ?? RANGES.Auto;
     invoke('set_params', {
       params: { gain: v.gain, gate: v.gate, sens: v.sens, bpmMin, bpmMax, lock: v.lock, needClick: v.needClick, dropThr: v.dropThr },

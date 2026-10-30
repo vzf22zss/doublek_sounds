@@ -1,24 +1,33 @@
 // MIDI learn: liga o modo, clica num controle da tela (fica "armado") e mexe no knob/pad do controlador.
 // Mapeamento: "cc:canal:número" ou "note:canal:número" → alvo. Alvos: v:<ajuste visual>, a:<ação>, c:<cena>.
 
+import { isObj, load, save as storeSave } from '../lib/store';
+
 export type Target = { id: string; label: string; min?: number; max?: number; step?: number };
 export type MidiMsg = { kind: 'cc' | 'note'; ch: number; num: number; val: number };
 
-const KEY = 'doublek.midi';
-
-function load(): Record<string, Target> {
-  try { return JSON.parse(localStorage.getItem(KEY) ?? '{}'); } catch { return {}; }
+/** Mapa salvo → só entradas "cc|note:canal:número" → alvo com id e label; min/max/step se forem números. */
+export function validMidiMap(raw: unknown): Record<string, Target> {
+  if (!isObj(raw)) throw new Error('midi: precisa ser objeto');
+  const out: Record<string, Target> = {};
+  for (const [k, t] of Object.entries(raw)) {
+    if (!/^(cc|note):\d+:\d+$/.test(k) || !isObj(t) || typeof t.id !== 'string' || typeof t.label !== 'string') continue;
+    const o: Target = { id: t.id, label: t.label };
+    for (const f of ['min', 'max', 'step'] as const) if (typeof t[f] === 'number' && Number.isFinite(t[f])) o[f] = t[f] as number;
+    out[k] = o;
+  }
+  return out;
 }
 
 export const midi = $state({
   learning: false,
   armed: null as Target | null,
-  map: load(),
+  map: load<Record<string, Target>>('doublek.midi', validMidiMap, () => ({})),
   devices: [] as string[],
   activity: 0,
 });
 
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(midi.map)); } catch {} };
+const save = () => storeSave('doublek.midi', midi.map);
 
 export const keyOf = (m: MidiMsg) => `${m.kind}:${m.ch}:${m.num}`;
 

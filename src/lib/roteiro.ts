@@ -1,5 +1,6 @@
 // Roteiro: pontos marcados numa música, em BEATS (não em segundos). Assim o mesmo roteiro serve
 // quando o app toca o arquivo (grade exata) e quando o DJ toca nos decks com o pitch mexido (GO).
+import { load, save } from './store.ts';
 
 export type CueKind = 'scene' | 'fx' | 'video' | 'knob';
 export type FxKind = 'strobe' | 'flash' | 'blackout' | 'logoOnly';
@@ -39,12 +40,16 @@ export const KNOBS: Record<string, [string, number, number]> = {
   bgDim: ['Brilho da foto/vídeo', 0, 150], bgHue: ['Girar matiz', -180, 180], videoSpeed: ['Velocidade do vídeo', 0.25, 2],
 };
 
-const KEY = 'doublek.roteiros';
+/** Lista salva → só roteiros válidos, mantendo os ids (os pontos e o roteiro atual apontam para eles). */
+export function validRoteiros(raw: unknown): Roteiro[] {
+  if (!Array.isArray(raw)) throw new Error('roteiros: precisa ser lista');
+  return raw.map((x) => sanitizeRoteiro(x, true)).filter((r): r is Roteiro => !!r);
+}
 export function loadRoteiros(): Roteiro[] {
-  try { return JSON.parse(localStorage.getItem(KEY) ?? '[]'); } catch { return []; }
+  return load('doublek.roteiros', validRoteiros, () => []);
 }
 export function saveRoteiros(r: Roteiro[]) {
-  try { localStorage.setItem(KEY, JSON.stringify(r)); } catch {}
+  save('doublek.roteiros', r);
 }
 
 export const uid = () => Math.random().toString(36).slice(2, 10);
@@ -94,19 +99,20 @@ export function cueLabel(c: Cue, scenes: ({ name: string } | null)[], videos: { 
   return `${KNOBS[c.key ?? '']?.[0] ?? c.key} → ${+(c.to ?? 0).toFixed(2)}`;
 }
 
-/** Roteiro vindo de arquivo: só campos conhecidos com o tipo certo. */
-export function sanitizeRoteiro(x: any): Roteiro | null {
+/** Roteiro vindo de arquivo (ids novos) ou do armazenamento (`keepIds`): só campos conhecidos com o tipo certo. */
+export function sanitizeRoteiro(x: any, keepIds = false): Roteiro | null {
   if (!x || typeof x !== 'object' || typeof x.name !== 'string' || !Array.isArray(x.cues)) return null;
   const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
   const str = (v: unknown, d: string) => (typeof v === 'string' ? v.slice(0, 80) : d);
+  const id = (v: unknown) => (keepIds && typeof v === 'string' && v ? v : uid());
   const kinds = Object.keys(KIND_NAMES), fxs = Object.keys(FX_NAMES);
   return {
-    id: uid(), name: str(x.name, 'Roteiro'), track: str(x.track, ''), trackName: str(x.trackName, ''),
+    id: id(x.id), name: str(x.name, 'Roteiro'), track: str(x.track, ''), trackName: str(x.trackName, ''),
     bpm: num(x.bpm, 0), anchor: num(x.anchor, 0), barShift: num(x.barShift, 0) & 3, goBeat: num(x.goBeat, 0),
     cues: x.cues
       .filter((c: any) => c && kinds.includes(c.kind) && Number.isFinite(c.beat))
       .map((c: any): Cue => ({
-        id: uid(), beat: c.beat, kind: c.kind,
+        id: id(c.id), beat: c.beat, kind: c.kind,
         scene: num(c.scene, 0), fade: num(c.fade, 4),
         fx: fxs.includes(c.fx) ? c.fx : 'strobe', beats: num(c.beats, 4), div: num(c.div, 1),
         video: str(c.video, ''), key: str(c.key, 'trail'), to: num(c.to, 0), ramp: num(c.ramp, 0),
