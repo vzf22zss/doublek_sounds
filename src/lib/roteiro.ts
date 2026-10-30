@@ -1,6 +1,7 @@
 // Roteiro: pontos marcados numa música, em BEATS (não em segundos). Assim o mesmo roteiro serve
 // quando o app toca o arquivo (grade exata) e quando o DJ toca nos decks com o pitch mexido (GO).
 import { load, save } from './store.ts';
+import { MAX_BANKS } from './banks.ts';
 
 export type CueKind = 'scene' | 'fx' | 'video' | 'knob';
 export type FxKind = 'strobe' | 'flash' | 'blackout' | 'logoOnly';
@@ -10,6 +11,7 @@ export type Cue = {
   beat: number;
   kind: CueKind;
   scene?: number; fade?: number;              // cena i, crossfade em beats
+  bank?: number;                              // banco da cena (0–3); ausente = o banco aberto na hora (DK-143)
   fx?: FxKind; beats?: number; div?: number;  // efeito pontual por N beats (strobe em 1/div)
   video?: string;                             // id do vídeo ('' = sem vídeo)
   key?: string; to?: number; ramp?: number;   // ajuste visual até `to` em `ramp` beats
@@ -93,7 +95,7 @@ export function rampAt(c: Cue, from: number, beat: number) {
 }
 
 export function cueLabel(c: Cue, scenes: ({ name: string } | null)[], videos: { id: string; name: string }[]) {
-  if (c.kind === 'scene') return scenes[c.scene ?? 0]?.name ?? `Cena ${(c.scene ?? 0) + 1}`;
+  if (c.kind === 'scene') return (c.bank !== undefined ? `B${c.bank + 1}·` : '') + (scenes[c.scene ?? 0]?.name ?? `Cena ${(c.scene ?? 0) + 1}`);
   if (c.kind === 'fx') return `${FX_NAMES[c.fx ?? 'strobe']} ${c.beats ?? 1}b`;
   if (c.kind === 'video') return c.video ? videos.find((v) => v.id === c.video)?.name ?? 'vídeo' : 'sem vídeo';
   return `${KNOBS[c.key ?? '']?.[0] ?? c.key} → ${+(c.to ?? 0).toFixed(2)}`;
@@ -114,6 +116,7 @@ export function sanitizeRoteiro(x: any, keepIds = false): Roteiro | null {
       .map((c: any): Cue => ({
         id: id(c.id), beat: c.beat, kind: c.kind,
         scene: num(c.scene, 0), fade: num(c.fade, 4),
+        ...(Number.isInteger(c.bank) && c.bank >= 0 && c.bank < MAX_BANKS ? { bank: c.bank } : {}),
         fx: fxs.includes(c.fx) ? c.fx : 'strobe', beats: num(c.beats, 4), div: num(c.div, 1),
         video: str(c.video, ''), key: str(c.key, 'trail'), to: num(c.to, 0), ramp: num(c.ramp, 0),
       })),

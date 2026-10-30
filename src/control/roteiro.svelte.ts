@@ -8,6 +8,8 @@ import { checkFile, ext } from '../lib/limits';
 import { lookOf, type Look, type Visual } from '../lib/settings';
 import type { Frame } from '../lib/types';
 import { beatAt, due, loadRoteiros, newCue, rampAt, sanitizeRoteiro, stateAt, timeAt, uid, type Cue, type CueKind, type Roteiro } from '../lib/roteiro';
+import type { ShowCommand } from '../lib/commands';
+import { clear as clearFx, EMPTY, startBurst, startRamp, step as stepFx, type FxKind, type Running, type Values } from '../lib/roteiro-fx';
 
 export type TrackInfo = { duration: number; bpm: number; anchor: number; peaks: number[]; lows: number[] };
 
@@ -32,7 +34,8 @@ export const selectedCue = () => current()?.cues.find((c) => c.id === rt.selecte
 
 type Ctx = {
   vs(): Visual;
-  recall(i: number, fade: number, now: boolean): void;
+  /** Tudo o que o roteiro faz no visual passa pelo dispatcher, com fonte 'roteiro' (DK-143). */
+  cmd(c: ShowCommand): void;
   status(s: string): void;
   listen(): void;                 // volta para a entrada ao vivo (para o arquivo)
   range(): [number, number];
@@ -152,48 +155,60 @@ export function deleteCue(id = rt.selected) {
 let last = -Infinity;
 let goAt: { live: number; beat: number } | null = null;
 let lastFrame: Frame | null = null, lastFrameAt = 0;
-let active: { end: number; undo: () => void }[] = [];
-let ramps: { cue: Cue; from: number }[] = [];
+// efeitos com duração e rampas em andamento (lib/roteiro-fx); `firing` = beat do ponto que está disparando
+let fx: Running = EMPTY;
+let firing: number | null = null;
 
 const liveBeat = (f: Frame, at: number) => f.beat + f.beatPhase + ((performance.now() - at) / 1000) * (f.bpm / 60);
+const write = (set: Values) => { if (Object.keys(set).length) Object.assign(ctx.vs(), set); };
+const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
 
+/** Ponto do roteiro → comando. Valores fora do que o editor permite são trazidos para dentro (nunca recusa no show). */
 function fire(c: Cue) {
-  const vs = ctx.vs() as any;
-  if (c.kind === 'scene') ctx.recall(c.scene ?? 0, c.fade ?? 0, true);
-  else if (c.kind === 'video') vs.bgVideo = c.video ?? '';
-  else if (c.kind === 'knob') {
-    if (!c.key || typeof vs[c.key] !== 'number') return;
-    ramps = ramps.filter((x) => x.cue.key !== c.key);
-    ramps.push({ cue: c, from: vs[c.key] });
-  } else {
-    const end = c.beat + (c.fx === 'flash' ? 1 : c.beats ?? 1);
-    if (c.fx === 'strobe' || c.fx === 'flash') {
-      const prev = { strobe: vs.strobe, strobeDiv: vs.strobeDiv };
-      Object.assign(vs, { strobe: 1, strobeDiv: c.fx === 'flash' ? 1 : c.div ?? 1 });
-      active.push({ end, undo: () => Object.assign(vs, prev) });
-    } else {
-      const k = c.fx as 'blackout' | 'logoOnly';
-      vs[k] = true;
-      active.push({ end, undo: () => (vs[k] = false) });
-    }
+  firing = c.beat;
+  try {
+    if (c.kind === 'scene') ctx.cmd({ type: 'SCENE_RECALL', index: c.scene ?? 0, fade: clamp(c.fade ?? 0, 0, 32), now: true, ...(c.bank !== undefined ? { bank: c.bank } : {}) });
+    else if (c.kind === 'video') ctx.cmd({ type: 'VIDEO_SET', id: c.video ?? '' });
+    else if (c.kind === 'knob') { if (c.key) ctx.cmd({ type: 'PARAM_RAMP', key: c.key, to: c.to ?? 0, beats: clamp(c.ramp ?? 0, 0, 64) }); }
+    else ctx.cmd({ type: 'FX_BURST', fx: c.fx ?? 'strobe', beats: clamp(c.beats ?? 1, 1, 64), div: [1, 2, 4].includes(c.div ?? 1) ? c.div ?? 1 : 1 });
+  } finally {
+    firing = null;
   }
 }
 
-function undoAll() {
-  active.forEach((a) => a.undo());
-  active = [];
-  ramps = [];
+/** FX_BURST (handler no App): liga o efeito agora e desfaz sozinho depois de `beats` beats do roteiro. */
+export function burst(kind: FxKind, beats: number, div?: number) {
+  if (!rt.running) throw new Error('efeito com duração só com o roteiro tocando');
+  const r = startBurst(fx, ctx.vs() as unknown as Values, kind, firing ?? rt.cursor, beats, div);
+  fx = r.run;
+  write(r.set);
+}
+
+/** PARAM_RAMP (handler no App): leva `key` até `to` em `beats` beats do roteiro (0 = salto). */
+export function ramp(key: string, to: number, beats: number) {
+  if (!rt.running) throw new Error('rampa só com o roteiro tocando');
+  fx = startRamp(fx, ctx.vs() as unknown as Values, key, to, firing ?? rt.cursor, beats);
+  write(stepFx(fx, firing ?? rt.cursor).set);
+}
+
+/** Desfaz os efeitos em andamento e abandona as rampas (pausa, Só o som, pulo, PÂNICO, RESET). */
+export function cancelFx() {
+  const r = clearFx(fx);
+  fx = r.run;
+  write(r.set);
 }
 
 /** Começo ou pulo no meio: aplica o que já devia estar valendo, sem disparar tudo de novo. */
 function chase(r: Roteiro, beat: number) {
-  undoAll();
+  cancelFx();
   const st = stateAt(r.cues, beat), vs = ctx.vs() as any;
-  if (st.scene) ctx.recall(st.scene.scene ?? 0, 0, true);
-  if (st.video) vs.bgVideo = st.video.video ?? '';
+  if (st.scene) ctx.cmd({ type: 'SCENE_RECALL', index: st.scene.scene ?? 0, fade: 0, now: true, ...(st.scene.bank !== undefined ? { bank: st.scene.bank } : {}) });
+  if (st.video) ctx.cmd({ type: 'VIDEO_SET', id: st.video.video ?? '' });
+  const knobs: Record<string, number> = {};
   r.cues.filter((c) => c.kind === 'knob' && c.beat <= beat && c.key && typeof vs[c.key] === 'number')
     .sort((a, b) => a.beat - b.beat)
-    .forEach((c) => (vs[c.key!] = rampAt(c, vs[c.key!], beat)));
+    .forEach((c) => (knobs[c.key!] = rampAt(c, knobs[c.key!] ?? vs[c.key!], beat)));
+  for (const [key, value] of Object.entries(knobs)) ctx.cmd({ type: 'SET_PARAMETER', key, value });
 }
 
 /** Chamado a cada quadro pela janela de controle. */
@@ -216,11 +231,9 @@ export function tick(f: Frame | null, frameAt: number) {
   }
   last = cur;
   rt.cursor = cur;
-  active = active.filter((a) => (cur >= a.end ? (a.undo(), false) : true));
-  ramps = ramps.filter(({ cue, from }) => {
-    (ctx.vs() as any)[cue.key!] = rampAt(cue, from, cur);
-    return cur < cue.beat + (cue.ramp ?? 0);
-  });
+  const r2 = stepFx(fx, cur);
+  fx = r2.run;
+  write(r2.set);
 }
 
 function begin(r: Roteiro, at: number) {
@@ -245,7 +258,7 @@ export function setMode(m: typeof rt.mode) {
   const vs = ctx.vs();
   vs.react = m !== 'only';
   if (m === 'sound') {
-    undoAll();
+    cancelFx();
     if (base) Object.assign(vs, base);
   } else if (prev === 'sound') chase(current()!, rt.cursor);
 }
@@ -283,7 +296,7 @@ export function pause() {
   if (!rt.running) return;
   rt.running = false;
   goAt = null;
-  undoAll();
+  cancelFx();
   ctx.vs().react = true;
   if (rt.source === 'app') ctx.listen();
 }

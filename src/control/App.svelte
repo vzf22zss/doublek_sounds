@@ -7,7 +7,7 @@
   import Performance from './Performance.svelte';
   import Timeline from './Timeline.svelte';
   import RoteiroPanel from './RoteiroPanel.svelte';
-  import { rt, toggleSound, attach as attachRoteiro, tick as roteiroTick, play as roteiroPlay, stop as roteiroStop, pause as roteiroPause, nudge as roteiroNudge } from './roteiro.svelte';
+  import { rt, toggleSound, attach as attachRoteiro, tick as roteiroTick, play as roteiroPlay, stop as roteiroStop, pause as roteiroPause, nudge as roteiroNudge, burst as roteiroBurst, ramp as roteiroRamp, cancelFx as roteiroCancelFx } from './roteiro.svelte';
   import { saveRoteiros } from '../lib/roteiro';
   import { midi, keyOf, bindArmed, clearArmed, keyLabel, learnable, type MidiMsg } from './midi.svelte';
   import { Renderer } from '../render/renderer';
@@ -174,14 +174,22 @@
     LOGO_ONLY: (c) => (vs.logoOnly = c.on ?? !vs.logoOnly),
     // PÂNICO: para o roteiro e as macros e volta a um visual calmo na hora; separado do BLACKOUT, que só apaga
     PANIC: () => {
-      stopMacro();
+      cancelRunning();
       roteiroStop();
       perf.clearPreview();
       Object.assign(vs, SAFE_LOOK, { blackout: false, logoOnly: false, react: true, safeFlash: true });
       status = 'PÂNICO: roteiro parado, strobe/flash/tremor/aberração/rastro zerados.';
       log('warn', status);
     },
-    SCENE_RECALL: (c) => { stopMacro(); perf.recall(c.index, c.fade, c.now); },
+    SCENE_RECALL: (c) => {
+      stopMacro();
+      // DK-143: ponto do roteiro com banco abre o banco dele (o operador vê no pad o que está no telão)
+      if (c.bank !== undefined && c.bank !== perf.activeBank()) {
+        if (c.bank >= perf.bankNames().length) throw new Error(`não existe o banco ${c.bank + 1}`);
+        perf.setBank(c.bank);
+      }
+      perf.recall(c.index, c.fade, c.now);
+    },
     SCENE_SAVE: (c) => perf.saveScene(c.index),
     SCENE_PREVIEW: (c) => (status = perf.previewScene(c.bank, c.index)), // pad vazio lança: vira recusa com motivo
     SCENE_TAKE: (c) => {
@@ -202,9 +210,27 @@
     ROTEIRO_NUDGE: (c) => roteiroNudge(c.beats),
     ROTEIRO_AB: () => toggleSound(),
     MACRO: (c) => runMacro(c.id),
+    // DK-143: o roteiro desfaz o efeito e avança a rampa no tick; aqui só começa (e o histórico registra)
+    FX_BURST: (c) => roteiroBurst(c.fx, c.beats, c.div),
+    VIDEO_SET: (c) => (vs.bgVideo = c.id),
+    PARAM_RAMP: (c) => roteiroRamp(c.key, c.to, c.beats),
     // AUTOMATION_MODE: sem handler até existir automação (DK-030/040); o dispatcher responde "sem efeito"
   };
-  const commands = createDispatcher(handlers);
+  const commands = createDispatcher(handlers, { roteiroRunning: () => rt.running });
+
+  /** Tudo o que está "em andamento" (macro, efeitos com duração e rampas do roteiro). PÂNICO e RESET chamam isto. */
+  function cancelRunning() {
+    stopMacro();
+    roteiroCancelFx();
+  }
+
+  // knobs e sliders da tela escrevem no `vs` direto (bind), sem comando; contam como mexida manual para a automação
+  $effect(() => {
+    const manual = (e: Event) => { if ((e.target as Element | null)?.closest?.('.knob, input, select, textarea')) commands.markManual(); };
+    const evs = ['input', 'pointerdown', 'wheel'] as const;
+    evs.forEach((ev) => window.addEventListener(ev, manual, { capture: true, passive: true }));
+    return () => evs.forEach((ev) => window.removeEventListener(ev, manual, { capture: true }));
+  });
   /** Entrada única de comandos. Recusa de quem está operando vai para a linha de status; do roteiro, para o diário. */
   function dispatch(c: ShowCommand, source: Source) {
     const r = commands.dispatch(c, source);
@@ -225,12 +251,13 @@
     macroId = null;
   }
   function runMacro(id: MacroId) {
-    stopMacro();
-    if (id === 'RESET') { // = PÂNICO sem parar o roteiro
+    if (id === 'RESET') { // = PÂNICO sem parar o roteiro: também desfaz os efeitos/rampas do roteiro em andamento
+      cancelRunning();
       Object.assign(vs, SAFE_LOOK, { blackout: false, logoOnly: false, safeFlash: true });
       status = 'RESET: strobe/flash/tremor/aberração/rastro zerados; o roteiro continua.';
       return;
     }
+    stopMacro();
     macroRun = startMacro(id, $state.snapshot(vs) as unknown as Record<string, number>, vs.safeFlash);
     macroId = id;
     macroT0 = performance.now();
@@ -248,8 +275,8 @@
   // ---------- roteiro ----------
   attachRoteiro({
     vs: () => vs,
-    // cenas do roteiro passam pelo dispatcher (fonte 'roteiro'); efeitos, vídeo e knobs ainda escrevem em `vs` direto
-    recall: (i, fade, now) => void dispatch({ type: 'SCENE_RECALL', index: i, fade: Math.min(32, Math.max(0, fade)), now }, 'roteiro'),
+    // cenas, efeitos, vídeo e knobs do roteiro passam pelo dispatcher (fonte 'roteiro'), DK-143
+    cmd: (c) => void dispatch(c, 'roteiro'),
     status: (m) => (status = m),
     listen: () => listen(),
     range: () => RANGES[s.range] ?? RANGES.Auto,
@@ -522,7 +549,7 @@
     </div>
     <div class="panel analyzer">
       {#if tab === 'Roteiro'}
-        <Timeline sceneNames={() => perf?.sceneNames() ?? []} />
+        <Timeline sceneNames={(bank?: number) => perf?.sceneNames(bank) ?? []} />
       {:else}
         <Analyzer {frame} {kickAt} />
       {/if}
@@ -661,7 +688,7 @@
         <Slider label="Tremor" bind:value={vs.fxShake} learn="fxShake" bind:mod={vs.mod.fxShake} bind:drop={vs.drop.fxShake} min={0} max={30} step={1} def={0} fmt={(v) => v + ' px'} />
 
       {:else if tab === 'Roteiro'}
-        <RoteiroPanel sceneNames={() => perf?.sceneNames() ?? []} />
+        <RoteiroPanel sceneNames={(bank?: number) => perf?.sceneNames(bank) ?? []} bankNames={() => perf?.bankNames() ?? []} />
       {:else}
         <h2>Telão</h2>
         <select class="wide" bind:value={s.monitor}>

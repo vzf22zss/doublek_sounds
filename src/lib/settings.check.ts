@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { blend, lookOf, sanitizeLook, VISUAL, type Visual } from './settings.ts';
 import { pickColors } from './assets.ts';
-import { barLabel, beatAt, due, newCue, rampAt, sanitizeRoteiro, snap, stateAt, timeAt, type Roteiro } from './roteiro.ts';
+import { barLabel, beatAt, cueLabel, due, newCue, rampAt, sanitizeRoteiro, snap, stateAt, timeAt, type Roteiro } from './roteiro.ts';
 
 const from: Visual = { ...VISUAL, amount: 0, color: '#000000', bgGrad: false, strobeDiv: 1, blackout: true };
 const to = { ...lookOf(VISUAL), amount: 1, color: '#ffffff', bgGrad: true, strobeDiv: 4, mod: { ...VISUAL.mod, glow: 'bass' as const } };
@@ -73,5 +73,18 @@ const imp = sanitizeRoteiro({ name: 'x', bpm: 148, cues: [{ kind: 'fx', beat: 4,
 assert.equal(imp.cues.length, 1);
 assert.equal(imp.cues[0].fx, 'strobe');
 assert.equal(sanitizeRoteiro({ cues: 'x' }), null);
+
+// cue.bank (DK-143): opcional; só inteiro 0–3 entra; ausente continua ausente (roteiro antigo igual)
+{
+  const r = sanitizeRoteiro({ name: 'b', cues: [
+    { kind: 'scene', beat: 0, scene: 2, bank: 1 }, { kind: 'scene', beat: 4, scene: 2 }, { kind: 'scene', beat: 8, bank: 4 },
+    { kind: 'scene', beat: 12, bank: -1 }, { kind: 'scene', beat: 16, bank: 1.5 }, { kind: 'scene', beat: 20, bank: '2' },
+  ] }, true)!;
+  assert.deepEqual(r.cues.map((c) => c.bank), [1, undefined, undefined, undefined, undefined, undefined]);
+  assert.ok(!('bank' in r.cues[1]), 'sem bank no arquivo = sem a chave (JSON igual ao de antes)');
+  const names = [{ name: 'Azul' }, null, { name: 'Drop' }];
+  assert.equal(cueLabel(r.cues[0], names, []), 'B2·Drop');
+  assert.equal(cueLabel(r.cues[1], names, []), 'Drop');
+}
 
 console.log('settings: ok');

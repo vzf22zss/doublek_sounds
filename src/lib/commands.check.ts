@@ -218,4 +218,44 @@ const reason = (r: { ok: boolean; reason?: string }) => (r.ok ? '' : (r as any).
   assert.equal(k('KeyF'), null, 'F (projetar) não é comando de show');
 }
 
+// --- DK-143: efeitos do roteiro como comandos; roteiro > automação; knobs da tela marcam override ---
+{
+  for (const c of [{ type: 'FX_BURST', fx: 'strobe', beats: 4, div: 2 }, { type: 'FX_BURST', fx: 'blackout', beats: 1 }, { type: 'VIDEO_SET', id: '' },
+    { type: 'VIDEO_SET', id: 'k3j2h1g0' }, { type: 'PARAM_RAMP', key: 'trail', to: 0.8, beats: 8 }, { type: 'PARAM_RAMP', key: 'glow', to: 1, beats: 0 },
+    { type: 'SCENE_RECALL', index: 2, bank: 3, now: true }] as ShowCommand[]) assert.equal(validate(c), null, JSON.stringify(c));
+  const bad: [unknown, RegExp][] = [
+    [{ type: 'FX_BURST', fx: 'laser', beats: 4 }, /efeito desconhecido \(laser\)/], [{ type: 'FX_BURST', fx: 'strobe', beats: 0 }, /beats/],
+    [{ type: 'FX_BURST', fx: 'strobe', beats: 4, div: 3 }, /div/], [{ type: 'VIDEO_SET', id: '../x' }, /id de vídeo/], [{ type: 'VIDEO_SET' }, /id de vídeo/],
+    [{ type: 'PARAM_RAMP', key: 'color', to: 1, beats: 4 }, /não numérico \(color\)/], [{ type: 'PARAM_RAMP', key: 'trail', to: NaN, beats: 4 }, /alvo/],
+    [{ type: 'PARAM_RAMP', key: 'trail', to: 1, beats: 99 }, /beats de 0 a 64/], [{ type: 'SCENE_RECALL', index: 0, bank: 4 }, /banco de 0 a 3/],
+  ];
+  for (const [c, re] of bad) assert.match(validate(c)!, re);
+
+  // roteiro tocando: a automação não troca cena/banco/vídeo (mesmo sem override manual); ajustes passam; o roteiro passa
+  t = 100000;
+  let running = true;
+  log.length = 0;
+  const d = createDispatcher(all(), { now: () => t, roteiroRunning: () => running });
+  for (const c of [{ type: 'SCENE_RECALL', index: 1 }, { type: 'SCENE_TAKE' }, { type: 'BANK_STEP', delta: 1 }, { type: 'BANK_SET', index: 0 }, { type: 'VIDEO_SET', id: 'v1' }] as ShowCommand[])
+    assert.match(reason(d.dispatch(c, 'automation')), /roteiro em andamento/, c.type);
+  assert.ok(d.dispatch({ type: 'SET_PARAMETER', key: 'trail', value: 0.5 }, 'automation').ok, 'ajuste passa');
+  assert.ok(d.dispatch({ type: 'PARAM_RAMP', key: 'glow', to: 1, beats: 4 }, 'automation').ok);
+  assert.ok(d.dispatch({ type: 'BLACKOUT', on: true }, 'automation').ok, 'segurança passa');
+  assert.ok(d.dispatch({ type: 'SCENE_RECALL', index: 1 }, 'roteiro').ok, 'o próprio roteiro passa');
+  assert.ok(d.dispatch({ type: 'VIDEO_SET', id: 'v2' }, 'roteiro').ok);
+  running = false;
+  assert.ok(d.dispatch({ type: 'SCENE_RECALL', index: 1 }, 'automation').ok, 'roteiro parado: automação volta a trocar cena');
+  assert.deepEqual(log, ['SET_PARAMETER@automation', 'PARAM_RAMP@automation', 'BLACKOUT@automation', 'SCENE_RECALL@roteiro', 'VIDEO_SET@roteiro', 'SCENE_RECALL@automation']);
+  // o histórico mostra o que o roteiro fez
+  assert.deepEqual(d.history().filter((h) => h.source === 'roteiro').map((h) => h.cmd.type), ['SCENE_RECALL', 'VIDEO_SET']);
+
+  // knob/slider da tela: markManual renova o override sem passar comando
+  assert.equal(d.manualLeft(), 0);
+  d.markManual();
+  assert.equal(d.manualLeft(), 8000);
+  assert.match(reason(d.dispatch({ type: 'SET_PARAMETER', key: 'trail', value: 0.1 }, 'automation')), /override manual/);
+  t += 8000;
+  assert.ok(d.dispatch({ type: 'SET_PARAMETER', key: 'trail', value: 0.1 }, 'automation').ok);
+}
+
 console.log('commands: ok');
