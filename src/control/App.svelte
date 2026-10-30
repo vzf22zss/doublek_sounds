@@ -37,7 +37,10 @@
   let tab = $state<(typeof TABS)[number]>('Áudio');
   let devices = $state<string[]>([]);
   let monitors = $state<{ name: string; width: number; height: number }[]>([]);
-  let status = $state('Escolha a entrada de áudio e clique em Ouvir.');
+  // resultado de "Abrir show" (DK-014): a janela recarrega depois de importar; a mensagem atravessa o reload
+  let carried: string | null = null;
+  try { carried = sessionStorage.getItem('doublek.status'); sessionStorage.removeItem('doublek.status'); } catch {}
+  let status = $state(carried ?? 'Escolha a entrada de áudio e clique em Ouvir.');
   let frame = $state.raw<Frame | null>(null);
   let frameAt = 0;
   let kickAt = $state(-1e9);
@@ -136,7 +139,8 @@
   const ch = new Channel<Msg>();
   ch.onmessage = (m) => {
     if (m.t === 'frame') { audioLost = false; return onFrame(m.v); }
-    status = m.v;
+    status = carried ? `${m.v} · ${carried}` : m.v; // o 1º status do motor não apaga o resultado do "Abrir show"
+    carried = null;
     const lost = /perdida|não encontrada|Nenhuma (entrada|saída)|não suportado/i.test(m.v);
     audioLost = lost;
     log(lost ? 'warn' : 'info', 'motor: ' + m.v);

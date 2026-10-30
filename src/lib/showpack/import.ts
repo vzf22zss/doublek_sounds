@@ -125,7 +125,8 @@ export type ApplyDeps = {
   /** Texto cru da chave no localStorage (envelope), para desfazer. */
   getText(key: Key): string | null;
   setText(key: Key, text: string | null): void;
-  addTrack?(id: string, bytes: Uint8Array): Promise<void>;
+  /** Grava a música com esse id. `false` = já existia e não foi tocada (o rollback não a apaga). */
+  addTrack?(id: string, bytes: Uint8Array): Promise<boolean | void>;
   removeTrack?(id: string): Promise<void>;
   /** Navegador: confere que a imagem decodifica (createImageBitmap). Em Node não existe e é pulado. */
   checkImage?(bytes: Uint8Array, mime: string, path: string): Promise<void>;
@@ -184,8 +185,7 @@ export async function applyShowPack(plan: Plan, mode: ApplyMode, deps: ApplyDeps
     for (const a of plan.assets) if (a.entry.kind === 'video') await putAsset(`video:${map(a.entry.refId)}`, file(a));
     for (const a of tracks) {
       const id = map(a.entry.refId);
-      await deps.addTrack!(id, a.bytes);
-      undo.push(() => deps.removeTrack?.(id));
+      if ((await deps.addTrack!(id, a.bytes)) !== false) undo.push(() => deps.removeTrack?.(id));
     }
 
     putText('doublek.visual', visual);

@@ -64,6 +64,67 @@ fn remove_track(app: AppHandle, id: String) -> Result<(), String> {
     std::fs::remove_file(track_path(&app, &id)?).map_err(|e| e.to_string())
 }
 
+/// Música vinda de um Show Pack, com id já definido (DK-014): `replace` mantém o id do pacote, `new` usa o gerado
+/// na importação. Corpo = bytes; cabeçalho `x-id` = id (`<nome>.<ext>`). Nunca sobrescreve: se o id já existe,
+/// não grava e devolve `false` (o importador então não apaga esse arquivo num rollback).
+#[tauri::command]
+fn put_track(app: AppHandle, request: tauri::ipc::Request<'_>) -> Result<bool, String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else { return Err("Envie o arquivo como bytes".into()) };
+    let id = request.headers().get("x-id").and_then(|v| v.to_str().ok()).unwrap_or("");
+    let path = track_path(&app, id)?; // valida o id (track::check_id)
+    track::check_upload(id.rsplit('.').next().unwrap_or(""), bytes.len())?;
+    use std::io::Write;
+    match std::fs::OpenOptions::new().write(true).create_new(true).open(&path) {
+        Ok(mut f) => {
+            if let Err(e) = f.write_all(bytes) {
+                drop(f);
+                let _ = std::fs::remove_file(&path);
+                return Err(e.to_string());
+            }
+            Ok(true)
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Ok(false),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+const BACKUPS_KEPT: usize = 5;
+const MAX_BACKUP: usize = (2 << 30) + (64 << 20); // 2 GiB de assets (limite do manifesto) + folga para os JSONs
+
+/// Nome de arquivo seguro para o backup: só [A-Za-z0-9_-], até 60 caracteres, sem a extensão.
+fn backup_name(raw: &str) -> String {
+    let base = raw.strip_suffix(".doublekshow").unwrap_or(raw);
+    let s: String = base.chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '-' }).take(60).collect();
+    let s = s.trim_matches('-');
+    if s.is_empty() { "backup".into() } else { s.into() }
+}
+
+/// Backup do show atual antes de importar outro (DK-014). Corpo = bytes do `.doublekshow`; cabeçalho `x-name` =
+/// nome sugerido. Grava em `app_data/backups/`, nunca por cima de outro, mantém os 5 mais recentes e devolve o caminho.
+#[tauri::command]
+fn save_backup(app: AppHandle, request: tauri::ipc::Request<'_>) -> Result<String, String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else { return Err("Envie o backup como bytes".into()) };
+    if bytes.is_empty() || bytes.len() > MAX_BACKUP { return Err("Backup vazio ou grande demais".into()) }
+    let name = backup_name(request.headers().get("x-name").and_then(|v| v.to_str().ok()).unwrap_or(""));
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?.join("backups");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let mut path = dir.join(format!("{name}.doublekshow"));
+    for n in 2.. {
+        if !path.exists() { break }
+        path = dir.join(format!("{name}-{n}.doublekshow"));
+    }
+    std::fs::write(&path, bytes).map_err(|e| e.to_string())?;
+    // rotação: só os mais recentes (por data de modificação); falha ao apagar um antigo não derruba o backup novo
+    let mut old: Vec<_> = std::fs::read_dir(&dir).map_err(|e| e.to_string())?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().is_some_and(|x| x == "doublekshow"))
+        .filter_map(|e| Some((e.metadata().ok()?.modified().ok()?, e.path())))
+        .collect();
+    old.sort_by(|a, b| b.cmp(a));
+    for (_, p) in old.into_iter().skip(BACKUPS_KEPT) { let _ = std::fs::remove_file(p); }
+    Ok(path.display().to_string())
+}
+
 /// Decodifica, reamostra para a saída escolhida e analisa (BPM, 1º beat, forma de onda).
 #[tauri::command]
 async fn load_track(engine: State<'_, Engine>, app: AppHandle, id: String, lo: f32, hi: f32, output: Option<String>) -> Result<track::Info, String> {
@@ -198,6 +259,8 @@ fn main() {
             start_input,
             add_track,
             remove_track,
+            put_track,
+            save_backup,
             load_track,
             play_track,
             list_outputs,

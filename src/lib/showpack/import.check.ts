@@ -190,6 +190,10 @@ await bad(tamper(pack, (e) => editJson(e, 'manifest.json', (o) => (o.includeTrac
   m3.deps.setText = () => { throw new Error('localStorage cheio'); };
   await assert.rejects(applyShowPack(p, 'replace', { ...m3.deps, addTrack: async (id) => { added.push(id); }, removeTrack: async (id) => { removed.push(id); } }), /desfeita: localStorage cheio/);
   assert.deepEqual(removed, ['abc.mp3']);
+  // música que já existia (put_track devolve false): o rollback não a apaga
+  removed.length = 0;
+  await assert.rejects(applyShowPack(p, 'replace', { ...m3.deps, addTrack: async () => false, removeTrack: async (id) => { removed.push(id); } }), /desfeita/);
+  assert.deepEqual(removed, []);
 }
 
 console.log('showpack/import: ok');

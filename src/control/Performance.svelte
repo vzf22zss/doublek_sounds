@@ -3,7 +3,13 @@
   import Knob from './Knob.svelte';
   import { load as storeLoad, save as storeSave } from '../lib/store';
   import { checkFile } from '../lib/limits';
-  import { learnable } from './midi.svelte';
+  import { learnable, midi } from './midi.svelte';
+  import { getVersion } from '@tauri-apps/api/app';
+  import { emitTo } from '@tauri-apps/api/event';
+  import { fmtMB } from '../lib/limits';
+  import { collectShowPack, downloadShowPack, importDeps } from '../lib/showpack/collect';
+  import { showPackFileName } from '../lib/showpack/export';
+  import { applyShowPack, inspectShowPack, type ApplyMode } from '../lib/showpack/import';
   import { blend, loadScenes, lookOf, saveScenes, sanitizeLook, VISUAL, type Look, type Scene, type Visual } from '../lib/settings';
   import { FACTORY_PRESETS, presetLook, presetsByStyle, STYLES } from '../lib/presets';
 
@@ -90,6 +96,62 @@
     }
   }
 
+  // Show Pack (DK-014): um arquivo .doublekshow com visual, cenas, roteiros, logo, foto, vídeos e (opcional) MIDI.
+  let busy = $state(false);
+  const appVersion = async () => (await getVersion().catch(() => null)) || 'desconhecida';
+  const err = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+  async function saveShow() {
+    const name = prompt('Nome do show:', `Show ${new Date().toLocaleDateString('pt-BR')}`)?.trim();
+    if (!name) return;
+    const withMidi = Object.keys(midi.map).length > 0 && confirm('Incluir o mapeamento MIDI no arquivo?');
+    busy = true;
+    onstatus('Salvando o show…');
+    try {
+      const { bytes, manifest } = await collectShowPack({ name, appVersion: await appVersion(), midi: withMidi ? $state.snapshot(midi.map) : null });
+      downloadShowPack(bytes, name);
+      onstatus(`Show salvo: ${showPackFileName(name)} (${manifest.assets.length} arquivo(s) de mídia, ${bytes.length < 1 << 20 ? Math.ceil(bytes.length / 1024) + ' KB' : fmtMB(bytes.length) + ' MB'}). Músicas dos roteiros não vão no arquivo.`);
+    } catch (e) {
+      onstatus('Não consegui salvar o show: ' + err(e));
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function openShow(f: File | undefined) {
+    if (!f) return;
+    if (!/\.doublekshow$/i.test(f.name)) return onstatus(`"${f.name}" não é um show do DoubleK (.doublekshow).`);
+    busy = true;
+    onstatus('Conferindo o show…');
+    try {
+      const r = await inspectShowPack(new Uint8Array(await f.arrayBuffer()));
+      if (!r.ok) return onstatus('Show não aberto: ' + r.error);
+      const plan = r.plan, m = plan.manifest;
+      const warn = plan.warnings.length ? '\n\nAvisos:\n• ' + plan.warnings.join('\n• ') : '';
+      const head = `Abrir "${m.name}" (${m.assets.length} arquivo(s) de mídia, salvo no DoubleK ${m.appVersion}).${warn}`;
+      let mode: ApplyMode;
+      if (confirm(`${head}\n\nOK = SUBSTITUIR o show atual (um backup dele é salvo antes).\nCancelar = outras opções.`)) mode = 'replace';
+      else if (confirm(`Importar "${m.name}" como NOVO?\n\nVídeos e roteiros do arquivo são somados aos atuais. Visual, transição e as 8 cenas são trocados (o atual vai para o backup).\n\nCancelar = não abrir.`)) mode = 'new';
+      else return onstatus('Abertura cancelada; nada mudou.');
+      if (mode === 'new' && plan.assets.some((a) => a.entry.kind === 'logo' || a.entry.kind === 'bg')) plan.replaceLogoBg = confirm('Trocar a logo e a foto de fundo atuais pelas do arquivo?');
+      if (plan.midi) plan.applyMidi = confirm('Aplicar o mapeamento MIDI do arquivo? Os controladores desta máquina podem ser diferentes.');
+
+      let backup = '';
+      const rep = await applyShowPack(plan, mode, importDeps({ name: '', appVersion: await appVersion(), midi: $state.snapshot(midi.map), onBackup: (p) => (backup = p) }));
+      const text = `Show "${m.name}" aberto (${mode === 'replace' ? 'substituiu o anterior' : 'importado como novo'}: ${rep.videos} vídeo(s), ${rep.roteiros} roteiro(s)).`
+        + (backup ? ` Backup do anterior: ${backup}.` : '') + (rep.warnings.length ? ' Avisos: ' + rep.warnings.join(' · ') : '');
+      // O estado do controle (cenas, roteiros, vídeos, MIDI) foi carregado na abertura da janela: recarregar é o
+      // jeito seguro de pegar tudo. O telão recarrega a logo/foto agora; o visual novo ele recebe quando o controle volta.
+      try { sessionStorage.setItem('doublek.status', text); } catch {}
+      await emitTo('output', 'assets').catch(() => {});
+      location.reload();
+    } catch (e) {
+      onstatus('Show não aberto: ' + err(e)); // applyShowPack já desfez o que tinha gravado ("importação desfeita: …")
+    } finally {
+      busy = false;
+    }
+  }
+
   // Catálogo de fábrica (DK-131): nunca edita o preset; grava uma cópia num pad ou aplica no visual.
   let catalog = $state(false);
   let pick = $state(FACTORY_PRESETS[0].id);
@@ -164,6 +226,8 @@
       <button onclick={exportFile} title="Salva visual e cenas num arquivo">Exportar</button>
       <label class="btn" title="Carrega visual e cenas de um arquivo">Importar<input type="file" accept=".json,application/json" onchange={(e) => { importFile(e.currentTarget.files?.[0]); e.currentTarget.value = ''; }} /></label>
       <button class:on={catalog} onclick={() => (catalog = !catalog)} title="Presets de fábrica por estilo">Catálogo</button>
+      <button onclick={saveShow} disabled={busy} title="Salva o show inteiro num arquivo .doublekshow: visual, cenas, roteiros, logo, foto, vídeos e, se quiser, o MIDI">Salvar show</button>
+      <label class="btn" class:disabled={busy} title="Abre um .doublekshow: confere tudo antes e faz backup do show atual">Abrir show<input type="file" accept=".doublekshow" disabled={busy} onchange={(e) => { openShow(e.currentTarget.files?.[0]); e.currentTarget.value = ''; }} /></label>
     </div>
     {#if catalog}
       <div class="row">
@@ -202,6 +266,7 @@
   .seg button, .row > button, .btn { padding: 4px 9px; font-size: 12px; }
   .btn { background: rgba(255,255,255,.06); border: 1px solid var(--line); border-radius: 10px; cursor: pointer; color: var(--text); }
   .btn input { display: none; }
+  .btn.disabled { opacity: .5; pointer-events: none; }
   .row select { padding: 4px 8px; font-size: 12px; }
   .desc { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 </style>

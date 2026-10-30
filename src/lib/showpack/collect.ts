@@ -1,5 +1,6 @@
 // Ponte com o app (DK-012): junta o estado real (localStorage + IndexedDB) e monta o Show Pack.
 // Só roda no navegador; a lógica testável fica em export.ts. Sem músicas nesta versão (DEC-09 pendente).
+import { invoke } from '@tauri-apps/api/core';
 import { getAsset, listVideos, setAsset, type VideoInfo } from '../assets.ts';
 import { loadRoteiros } from '../roteiro.ts';
 import { loadScenes, loadVisual } from '../settings.ts';
@@ -53,16 +54,21 @@ export async function collectShowPack(o: CollectOpts) {
 }
 
 /**
- * Dependências reais de applyShowPack (DK-013). O backup é um .doublekshow do estado atual entregue a
- * `saveBackup`; o destino (pasta app_data/backups via Rust ou download) é decisão da DK-014.
+ * Dependências reais de applyShowPack. O backup é um .doublekshow do estado atual (com o MIDI atual) gravado pelo
+ * comando Rust `save_backup` em app_data/backups (5 mais recentes). Músicas: `put_track` (id já definido, nunca
+ * sobrescreve) e `remove_track`. `onBackup` recebe o caminho gravado, para a linha de status.
  */
-export function importDeps(o: CollectOpts & { saveBackup(name: string, bytes: Uint8Array): Promise<void> }): ApplyDeps {
+export function importDeps(o: CollectOpts & { onBackup?(path: string): void }): ApplyDeps {
   return {
     backup: async () => {
       const name = `backup ${new Date().toISOString().slice(0, 19)}`;
       const { bytes } = await collectShowPack({ ...o, name });
-      await o.saveBackup(showPackFileName(name), bytes);
+      try {
+        o.onBackup?.(await invoke<string>('save_backup', bytes, { headers: { 'x-name': showPackFileName(name) } }));
+      } catch (e) { throw new Error(`não consegui fazer o backup do show atual (${e})`); }
     },
+    addTrack: (id, bytes) => invoke<boolean>('put_track', bytes, { headers: { 'x-id': id } }),
+    removeTrack: (id) => invoke('remove_track', { id }),
     getAsset: (k) => getAsset(k),
     setAsset: (k, v) => setAsset(k, v),
     listVideoIds: () => listVideos().map((v) => v.id),
