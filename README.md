@@ -25,6 +25,25 @@ Requer Rust (rustup) e Visual Studio Build Tools com C++.
 
 Knobs: arrastar (Shift = fino), roda do mouse, duplo clique = padrão.
 
+## MIDI
+
+1. Clique em **MIDI** na barra de cima (o LED pisca quando chega mensagem).
+2. Clique num controle da tela: knob, slider, cena, TAP, ½, ×2, ◀ ▶, BLACKOUT ou Só logo.
+3. Mexa no knob ou aperte o pad do controlador. Pronto: o controle mostra o CC/nota.
+4. **Concluir** ou Esc para sair.
+
+O controlador pode ser plugado com o app aberto. No Windows a entrada MIDI costuma ser
+exclusiva: se o Rekordbox/Serato já estiver usando o controlador, ele aparece como
+"(ocupado)" — use um controlador separado para o visual.
+
+## Instalador
+
+```
+npm run tauri build
+```
+
+Gera `src-tauri/target/release/bundle/msi/DoubleK Visuals_<versão>_x64_pt-BR.msi`.
+
 ## Checagens
 
 ```
