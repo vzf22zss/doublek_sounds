@@ -13,6 +13,8 @@
   import { VISUAL, loadVisual, saveVisual } from '../lib/settings';
   import { addVideo, assetSync, imageColors, listVideos, removeVideo, setAsset, videoColors } from '../lib/assets';
   import { load as storeLoad, save as storeSave, shaped } from '../lib/store';
+  import { getVersion } from '@tauri-apps/api/app';
+  import { captureErrors, log, logEntries, NO_TELEMETRY, type Telemetry } from '../lib/telemetry';
   import type { Frame, Msg } from '../lib/types';
   import { check, type Update } from '@tauri-apps/plugin-updater';
   import { relaunch } from '@tauri-apps/plugin-process';
@@ -42,6 +44,13 @@
   let calMax = 0;
   let fps = $state(0);
   let fpsAt = 0;
+  // saúde do show (DK-003): o que o operador precisa ver sem abrir nada
+  let tel = $state<Telemetry>(NO_TELEMETRY);
+  let audioLost = $state(false); // o motor avisou que a entrada/saída caiu
+  let audioOk = $state(false);   // frames chegando há menos de 1,5 s (recalculado a cada quadro)
+  let uiGap = 0;                 // maior intervalo entre quadros da janela de controle no último segundo (ms)
+  let uiGapMax = 0, uiGapAt = 0;
+  captureErrors();
   let previewCanvas: HTMLCanvasElement;
   let preview: Renderer | null = null;
   let sync: ReturnType<typeof assetSync> | null = null;
@@ -124,8 +133,11 @@
 
   const ch = new Channel<Msg>();
   ch.onmessage = (m) => {
-    if (m.t === 'frame') return onFrame(m.v);
+    if (m.t === 'frame') { audioLost = false; return onFrame(m.v); }
     status = m.v;
+    const lost = /perdida|não encontrada|Nenhuma (entrada|saída)|não suportado/i.test(m.v);
+    audioLost = lost;
+    log(lost ? 'warn' : 'info', 'motor: ' + m.v);
     if (m.v === 'Fim da faixa') roteiroPause();
   };
   invoke('subscribe', { onMsg: ch });
@@ -193,6 +205,7 @@
   onEvent<string[]>('midi-devices', (e) => {
     midi.devices = e.payload;
     status = e.payload.length ? 'MIDI: ' + e.payload.join(' · ') : 'Nenhum controlador MIDI conectado.';
+    log('info', status);
   });
   onEvent<MidiMsg>('midi', (e) => onMidi(e.payload));
 
@@ -209,7 +222,39 @@
     monitors = m;
     if (s.monitor >= m.length) s.monitor = m.length - 1;
   });
-  onEvent<number>('fps', (e) => { fps = e.payload; fpsAt = performance.now(); });
+  onEvent<Telemetry>('telemetry', (e) => {
+    tel = e.payload;
+    fps = e.payload.fps;
+    fpsAt = performance.now();
+    if (e.payload.lost) log('warn', 'telão: sem contexto WebGL');
+    else if (e.payload.p95 > 25 && fpsAt - lastPerfWarn > 30000) { // no máximo 1 aviso a cada 30 s, senão o diário vira só isso
+      lastPerfWarn = fpsAt;
+      log('warn', `telão: p95 ${e.payload.p95} ms, ${e.payload.drops} quadros perdidos`);
+    }
+  });
+  let lastPerfWarn = -1e9;
+  onEvent<{ level: 'warn' | 'error'; msg: string }>('output-log', (e) => { log(e.payload.level, e.payload.msg); if (e.payload.level === 'error') status = e.payload.msg; });
+
+  /** JSON com versões, ajustes, estatísticas e os últimos eventos. Sem áudio, sem arquivos. */
+  async function diagnostics() {
+    const mem = (performance as any).memory;
+    const data = {
+      app: await getVersion().catch(() => '?'), when: new Date().toISOString(), userAgent: navigator.userAgent,
+      screen: { w: screen.width, h: screen.height, dpr: devicePixelRatio }, monitors,
+      audio: { ...$state.snapshot(s), lost: audioLost, lastFrameAgeMs: frame ? Math.round(performance.now() - frameAt) : null, bpm: frame?.bpm, locked: frame?.locked },
+      midi: { devices: $state.snapshot(midi.devices), mapped: Object.keys(midi.map).length },
+      output: { ...$state.snapshot(tel), open: fps > 0 },
+      control: { maxFrameGapMs: Math.round(uiGap), jsHeapMB: mem ? Math.round(mem.usedJSHeapSize / 1048576) : null },
+      visual: $state.snapshot(vs), roteiro: rt.cur ? { name: rt.list.find((r) => r.id === rt.cur)?.name, running: rt.running, mode: rt.mode, source: rt.source } : null,
+      log: logEntries(),
+    };
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+    a.download = `doublek-diagnostico-${data.when.slice(0, 19).replace(/[:T]/g, '-')}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    status = 'Diagnóstico salvo (sem áudio).';
+  }
 
   async function project() {
     try { await invoke('open_output', { monitor: +s.monitor }); status = 'Projetando no ' + (monitors[s.monitor]?.name || 'monitor ' + (s.monitor + 1)); }
@@ -264,7 +309,13 @@
     let raf = 0;
     const loop = () => {
       raf = requestAnimationFrame(loop);
-      if (fps && performance.now() - fpsAt > 2500) fps = 0;
+      const nowMs = performance.now();
+      if (fps && nowMs - fpsAt > 2500) { fps = 0; tel = NO_TELEMETRY; }
+      audioOk = !!frame && !audioLost && nowMs - frameAt < 1500;
+      // engasgo da própria janela de controle (event loop): maior intervalo por segundo
+      if (uiGapAt) uiGapMax = Math.max(uiGapMax, nowMs - uiGapAt);
+      uiGapAt = nowMs;
+      if (nowMs - fpsAt > 1000 && uiGapMax) { uiGap = uiGapMax; uiGapMax = 0; }
       midiLit = performance.now() - midi.activity < 120;
       const f = frame;
       roteiroTick(f, frameAt);
@@ -358,7 +409,15 @@
     </div>
 
     <div class="group">
-      <span class="fps" class:live={fps > 0}>{fps ? `TELÃO ${fps} fps` : 'telão fechado'}</span>
+      <div class="health" title="Saúde do show: áudio · BPM · MIDI · telão. Clique para salvar um diagnóstico (JSON, sem áudio).">
+        <button onclick={diagnostics} aria-label="Saúde do show e diagnóstico">
+          <i title="Áudio" class:ok={audioOk} class:bad={audioLost}></i>
+          <i title="BPM" class:ok={frame?.locked} class:warn={!!frame?.bpm && !frame.locked}></i>
+          <i title="MIDI" class:ok={midi.devices.length > 0}></i>
+          <i title="Telão" class:ok={fps > 0 && tel.p95 < 25 && !tel.lost} class:warn={fps > 0 && tel.p95 >= 25} class:bad={tel.lost}></i>
+          <b>{fps || '—'}</b>
+        </button>
+      </div>
       <button class="midiBtn" class:on={midi.learning} onclick={toggleLearn} title="MIDI learn: mapear controles do controlador">
         <i class:lit={midiLit}></i>MIDI
       </button>
@@ -563,14 +622,20 @@
     gap: 12px;
     padding: 12px;
   }
-  .bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 10px 14px; flex-wrap: wrap; }
+  .bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding: 10px 14px; flex-wrap: wrap; }
   .brand { font-weight: 800; letter-spacing: 0.18em; font-size: 14px; }
   .group { display: flex; gap: 6px; align-items: center; }
   .group select:first-child { max-width: 130px; }
   .primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink, #fff); font-weight: 600; }
   .black { font-weight: 700; letter-spacing: .06em; }
   .black.on { background: var(--clip); border-color: var(--clip); }
-  .fps { font-size: 11px; color: var(--muted); }
+  .health button { display: flex; align-items: center; gap: 4px; padding: 4px 7px; font-size: 10px; color: var(--muted); min-width: 0; }
+  .health i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.15); transition: background .2s; flex: none; }
+  .health b { margin-left: 2px; min-width: 14px; text-align: right; }
+  .health i.ok { background: var(--ok); box-shadow: 0 0 5px var(--ok); }
+  .health i.warn { background: #ffb84d; box-shadow: 0 0 5px #ffb84d; }
+  .health i.bad { background: var(--clip); box-shadow: 0 0 6px var(--clip); animation: armed .7s ease-in-out infinite alternate; }
+  .health b { font-weight: 600; letter-spacing: .04em; }
   .midiBtn { display: flex; align-items: center; gap: 6px; font-weight: 600; }
   .midiBtn i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.15); transition: background 60ms; }
   .midiBtn i.lit { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
@@ -581,7 +646,6 @@
     box-shadow: 0 10px 40px rgba(0,0,0,.5); backdrop-filter: blur(20px);
   }
   .learnBar small { color: var(--muted); }
-  .fps.live { color: var(--ok); }
 
   .meter { position: relative; width: 110px; height: 26px; border-radius: 8px; background: rgba(255,255,255,.06); overflow: hidden; }
   .meter .fill { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, var(--ok), #c6f24e); transition: width 60ms linear; }

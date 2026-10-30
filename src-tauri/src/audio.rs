@@ -141,6 +141,9 @@ pub fn play(
             }
         }
     }
+    if failed.load(Relaxed) {
+        emit(Msg::Status("Saída de áudio perdida — a faixa parou".into()));
+    }
     drop(stream);
 }
 

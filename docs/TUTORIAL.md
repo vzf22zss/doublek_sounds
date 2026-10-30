@@ -118,12 +118,25 @@ Funciona no improviso: pode ser o microfone do notebook ou um microfone USB pert
 | 2 | **Medidor** | Nível do sinal. Verde é bom; **CLIP** vermelho quer dizer que está alto demais. |
 | 3 | **BPM** + bolinhas | O andamento detectado e o estado (*procurando / ajustando / travado / segurando*). As 4 bolinhas andam no compasso; a pílula **DROP** acende quando há grave (seção 12). |
 | 4 | **TAP ½ ×2 ◀ ▶** | Ajuste manual do andamento (seção 7). |
-| 5 | **MIDI** e **BLACKOUT** | Liga o modo de mapear o controlador (seção 17) e apaga o telão na hora. Ao lado aparece o fps do telão. |
+| 5 | **MIDI** e **BLACKOUT** | Liga o modo de mapear o controlador (seção 17) e apaga o telão na hora. Ao lado ficam as **4 bolinhas de saúde** (áudio · BPM · MIDI · telão) e o fps do telão; clicar nelas salva um **diagnóstico**. |
 | 6 | **Preview** | O mesmo visual que está no telão, em tamanho pequeno. |
 | 7 | **Analisador** | Mostra o que o app está ouvindo e cada kick que ele aceitou (seção 6). |
 | 8 | **Abas de ajuste** | Áudio, Logo, Fundo, Efeitos, Saída e **Roteiro** (seção 16). |
 | 9 | **Knobs de performance** | Os 10 efeitos mais usados ao vivo, sempre à mão. |
 | 10 | **Cenas** | 8 visuais prontos para trocar com crossfade no beat (seção 15). |
+
+**As 4 bolinhas de saúde** (passe o mouse para ver o nome de cada uma):
+
+| Bolinha | Verde | Laranja | Vermelha |
+|---|---|---|---|
+| **Áudio** | som chegando | nada chega há mais de 1,5 s | o app avisou que a entrada ou a saída caiu |
+| **BPM** | travado | achou, mas ainda ajustando | — |
+| **MIDI** | controlador conectado | — | — |
+| **Telão** | aberto e fluido | aberto, mas engasgando (p95 acima de 25 ms) | perdeu a placa de vídeo (ele se recupera sozinho quando ela volta) |
+
+O número ao lado é o fps do telão. **Clicar nas bolinhas salva um diagnóstico**: um arquivo `.json`
+com versão, ajustes, estatísticas do telão e os últimos 200 eventos, **sem nenhum áudio**. É o que
+mandar quando algo der errado.
 
 ![A janela de controle funcionando](img/controle.gif)
 
@@ -632,6 +645,8 @@ DoubleK. Para o visual, use um **controlador separado** (um pequeno e barato já
 | Roteiro no modo DJ escorregando | O BPM ao vivo não estava travado no GO. Espere travar (ou dê TAP), e corrija com **‹ ›** / **« »**. |
 | Roteiro: pontos adiantados ou atrasados em relação à música | Alinhe a grade com **−5ms / +5ms**; se for um beat inteiro, **1º tempo − / +**. |
 | "A saída está em … Hz" ao tocar o roteiro | A saída de áudio mudou: escolha a saída de novo na aba Roteiro (a música é preparada de novo). |
+| Telão ficou preto e a bolinha do telão está vermelha | A placa de vídeo "sumiu" por um instante (driver, monitor trocado). O app recria o telão sozinho quando ela volta; se não voltar em alguns segundos, **F** duas vezes (fecha e reabre). |
+| Quer relatar um problema | Clique nas **4 bolinhas** no topo: salva um `.json` de diagnóstico sem áudio. Mande esse arquivo junto com o que aconteceu. |
 | Controlador aparece como "(ocupado)" | Outro programa está com ele (Rekordbox, Serato…). Use outro controlador ou feche o programa. |
 | O controlador não aparece | Desplugue e plugue de novo. O app reconecta em até 2 s. |
 

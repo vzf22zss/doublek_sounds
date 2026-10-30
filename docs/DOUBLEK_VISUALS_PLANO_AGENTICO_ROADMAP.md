@@ -501,6 +501,8 @@ A **música** do roteiro é **opt-in** no pacote (direitos autorais e tamanho; D
 
 **Aceite:** operador vê degradacão; falha recuperável; logs ajudam a diagnosticar sem expor dados sensíveis.
 
+**Feito (2026-10-30), parte de software:** `telemetry.ts` (`FrameStats`, `percentile` por posto, diário com dedupe e teto de 200), evento `telemetry` do telão (`fps`, `p50/p95/p99`, `drops`, `lost`), evento `output-log`; telão recria o renderer em `webglcontextrestored` e isola erro de shader/render (tela preta + aviso, nunca crash); controle: bolinhas de saúde, `captureErrors()` (erros não tratados viram diário), aviso de p95 limitado a 1/30 s, botão Diagnóstico (versão, ajustes, telemetria, heap JS, monitores, MIDI, roteiro, diário). Rust: status "Saída de áudio perdida". **Pendente com hardware:** sessão de 2 h, matriz de máquinas (DEC-02), GPU reset real.
+
 ### DK-004 — CI, releases e governança — P0 — **PARCIAL na v0.3.1**
 
 **Já existe:** `.github/workflows/release.yml` (push em `prod` → compila, assina e publica a Release `v<versão>` com `.msi` e `latest.json`; falha se a versão já existe), atualizador no app (`tauri-plugin-updater`), versão única no `package.json`.
@@ -640,7 +642,7 @@ Audio Engine (Rust) ──► Music Features ──► Show Engine / Dispatcher
 
 - [x] **DK-001** Auditar a baseline, rodar projeto e criar `BASELINE.md`. — 2026-10-30, branch `docs/dk-001-baseline`: [`docs/quality/BASELINE.md`](quality/BASELINE.md), ADRs [0001](adr/0001-persistencia-e-importacao.md), [0002](adr/0002-renderer.md), [0003](adr/0003-protocolo-de-comandos.md). Testes: `cargo test --release` 9/9, `npm run check`, `typecheck`, `build` ok. Hardware: NÃO VERIFICADO (lista em BASELINE §12).
 - [x] **DK-002** Introduzir contratos/migrações e testes JS/TS. — 2026-10-30, branch `feat/dk-002-schemas`: `src/lib/store.ts` (envelope `{v, data}` por chave `doublek.*`, migrações v0→v1, validadores, `.bak` para dado inválido/versão futura), `src/lib/store.check.ts` (migração, inválidos, roundtrip), `.github/workflows/ci.yml`. `typecheck` 0 erros · `npm run check` ok · build ok. Nenhum dado existente é perdido: o formato da v0.3.1 é lido como v0 e migrado.
-- [ ] **DK-003** Criar telemetria local, health indicators e teste longo inicial.
+- [x] **DK-003** Criar telemetria local, health indicators e teste longo inicial. — 2026-10-30, branch `feat/dk-003-telemetria`: `src/lib/telemetry.ts` (frametime p50/p95/p99, drops, diário de 200 eventos), telão emite `telemetry` 1×/s e sobrevive a perda/volta do contexto WebGL e a shader que não compila; controle mostra 4 bolinhas de saúde (áudio · BPM · MIDI · telão) e exporta **Diagnóstico** JSON sem áudio; motor avisa saída de áudio perdida. Mock: contexto perdido → bolinha vermelha + log → restaurado e renderer recriado. **Teste de 2 h e matriz de máquinas: NÃO VERIFICADO** (precisam do mantenedor; BASELINE §12).
 - [ ] **DK-004** Configurar CI, versionamento, licença pendente e plano de Release.
 - [ ] **DK-005** Revisar CSP, permissões e regras de arquivo.
 - [ ] **DK-006** Fortalecer blackout e reduzir riscos de strobe.
@@ -736,10 +738,10 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 |---|---|
 | Última revisão do planejamento | 2026-10-30 (alinhado à v0.3.1) |
 | Commit/branch baseline validado | `main` @ `09a7677` (v0.3.1) — ver `docs/quality/BASELINE.md` |
-| Tarefa ativa | DK-141 (validação real, exige o mantenedor) · DK-003 (próxima READY para o agente) |
+| Tarefa ativa | DK-141 (validação real, exige o mantenedor) · DK-005 (segurança: CSP/limites, próxima READY para o agente) |
 | Marco ativo | M0 |
-| Tarefas do roadmap marcadas | 2 (DK-001, DK-002) |
-| Tarefas concluídas | 2 |
+| Tarefas do roadmap marcadas | 3 (DK-001, DK-002, DK-003) |
+| Tarefas concluídas | 3 |
 | Bloqueios conhecidos | Licença (DEC-01); hardware de referência (DEC-02); secret de assinatura e 1ª release (DEC-10); SDK para Spout/Link/gravação |
 | Release alvo | **0.4.0** ao fechar o M0 (decisão do mantenedor, 2026-10-30) |
 
@@ -774,7 +776,8 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 | 2026-10-30 | PLANO | PROPOSTO | — | Análise do código/documentação existente; implementação não iniciada | Começar DK-001 |
 | 2026-10-30 | PLANO | ALINHADO | `docs/dk-001-baseline` @ `e011daf` | Roadmap corrigido para a v0.3.1 (drop, vídeo, roteiro, updater/release já existem); DK-140 criado; DEC-09/10/11 | DK-001 |
 | 2026-10-30 | DK-001 | DONE | `docs/dk-001-baseline` (commit seguinte) | `cargo test --release` 9/9 · `npm run check` 43 asserts · typecheck 0 erros · build ok · `npm audit` 0 em prod · licenças: 527 crates, sem GPL; 6 com `AND` permissivo · BASELINE.md + 3 ADRs | **DK-141** (validar roteiro com áudio real, exige o mantenedor) e **DK-002** (schemas/migrações) em paralelo; DEC-10 destrava a 1ª release |
-| 2026-10-30 | DK-002 | DONE | `feat/dk-002-schemas` | `store.ts` + `store.check.ts` (migração v0→v1, inválidos → padrão + `.bak`, versão futura, roundtrip de cenas/roteiros, ids mantidos) · `npm run check` ok · typecheck 0 erros · build ok · Rust inalterado (9/9 hoje) · `ci.yml` criado | **DK-003** (telemetria/saúde/fail-safe) para o agente; **DK-141** com o mantenedor; CI só prova que funciona no 1º push para `main` |
+| 2026-10-30 | DK-002 | DONE | `feat/dk-002-schemas` | `store.ts` + `store.check.ts` (migração v0→v1, inválidos → padrão + `.bak`, versão futura, roundtrip de cenas/roteiros, ids mantidos) · `npm run check` ok · typecheck 0 erros · build ok · Rust inalterado (9/9 hoje) · `ci.yml` criado | **DK-003** (telemetria/saúde/fail-safe) para o agente; **DK-141** com o mantenedor; CI **verde** no 1º push para `main` (run 41108914633) |
+| 2026-10-30 | DK-003 | DONE (software) | `feat/dk-003-telemetria` | `telemetry.check.ts` ok · typecheck 0 · build ok · `cargo test` 9/9 · mock Edge headless: header cabe em 1280, telemetria chega, `WEBGL_lose_context` → bolinha vermelha + "contexto perdido" no diário → `restoreContext` → renderer recriado; Diagnóstico JSON com 12 seções | **DK-005** (CSP, limites de arquivo em `add_track`, capabilities); teste de 2 h e matriz de máquinas com o mantenedor (NÃO VERIFICADO) |
 
 ### 8.4. Bloqueios e decisões pendentes
 

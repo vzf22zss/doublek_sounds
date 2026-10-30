@@ -90,7 +90,7 @@ Exportações existentes: preset JSON (visual + 8 cenas, sem mídia) e roteiro J
 
 **Comandos** (`main.rs`): `list_inputs`, `list_outputs`, `subscribe`, `start_input`, `set_params`, `beat`, `list_monitors`, `open_output`, `close_output`, `midi_devices`, `add_track` (corpo binário + header `x-ext`), `remove_track`, `load_track`, `play_track`.
 
-**Eventos:** control → output: `visual`, `assets`, `preload`; output → control: `fps`; Rust → control: `midi`, `midi-devices`.
+**Eventos:** control → output: `visual`, `assets`, `preload`; output → control: `telemetry` (fps, p50/p95/p99, drops, lost; substituiu `fps` em DK-003), `output-log`; Rust → control: `midi`, `midi-devices`.
 
 **Capabilities:** `core:default`, `updater:default`, `process:allow-restart` para as janelas `control` e `output`. **CSP: `null`** (lacuna, DK-005).
 
@@ -99,7 +99,7 @@ Exportações existentes: preset JSON (visual + 8 cenas, sem mídia) e roteiro J
 | Camada | O que cobre | O que não cobre |
 |---|---|---|
 | Rust (`cargo test`) | detecção de kick/BPM em faixa sintética (5 BPMs), drop/breakdown, parse MIDI, grade da faixa inteira, decodificação WAV + reamostragem | áudio real, cpal, reprodução, reconexão |
-| TS (`npm run check`) | blend/crossfade, sanitize de presets, `drop`, `pickColors`, regras do roteiro (due/stateAt/ramp/snap/sanitize); **store** (migração v0→v1, inválidos, versão futura, roundtrip, ids de roteiro) | UI, renderer, IPC |
+| TS (`npm run check`) | blend/crossfade, sanitize de presets, `drop`, `pickColors`, regras do roteiro (due/stateAt/ramp/snap/sanitize); **store** (migração v0→v1, inválidos, versão futura, roundtrip, ids de roteiro); **telemetry** (percentis, resumo por segundo, diário) | UI, renderer, IPC |
 | Tipos | `svelte-check` sobre tudo | — |
 | Manual/mock | capturas da documentação via mock do Tauri em Edge headless (fora do repo) | app real |
 
@@ -130,7 +130,7 @@ Tudo isso foi corrigido no roadmap em `e011daf`.
 
 1. **Roteiro nunca rodou com áudio real** (DK-141).
 2. **Nenhuma Release publicada; secret de assinatura não cadastrado** → updater inerte (DEC-10).
-3. ~~Sem CI~~ **resolvido em DK-002** (`ci.yml`; comprovação só no 1º push para `main`).
+3. ~~Sem CI~~ **resolvido em DK-002** (`ci.yml`; 1ª execução verde: run 41108914633, 2026-10-30).
 4. ~~Sem schema versionado~~ **resolvido em DK-002** (`src/lib/store.ts`: envelope `{v, data}`, migrações por chave, validadores, `.bak`).
 5. **CSP null**; comandos nativos sem limite de tamanho (`add_track` aceita qualquer arquivo).
 6. **Vídeo decodificado duas vezes** (telão + preview) e sem detecção de codec.
@@ -146,10 +146,10 @@ Tudo isso foi corrigido no roadmap em `e011daf`.
 | Offset visual no projetor | vídeo de metrônomo, ajustar até colar | DK-008 |
 | Roteiro: BPM/1º beat de mp3 real, pontos no tempo, saída de áudio, GO | ver DK-141 | DK-141 |
 | Controlador MIDI físico (learn, "(ocupado)", reconexão) | plugar nanoKONTROL/LPD8 | DK-003 |
-| FPS no telão 1080p, p95 frametime, GPU usada | 30 min cena de stress | DK-003 |
-| Sessão de 2 h sem vazamento | Gerenciador de Tarefas | DK-003 |
+| FPS no telão 1080p, p95 frametime, GPU usada | 30 min cena de stress; o **Diagnóstico** (bolinhas) já exporta fps/p50/p95/p99/drops | DK-003 (ferramenta pronta) → medir em DK-141/DEC-02 |
+| Sessão de 2 h sem vazamento | Gerenciador de Tarefas + `control.jsHeapMB` do Diagnóstico | DK-003 (NÃO VERIFICADO) |
 | Instalação MSI em PC limpo (sem Rust/Node) | outro PC/perfil | DK-004 |
-| Perda de contexto WebGL, GPU reset | forçar via driver/ferramenta | DK-003 |
+| Perda de contexto WebGL, GPU reset | **simulado no mock** com `WEBGL_lose_context` (bolinha vermelha, diário, renderer recriado ao restaurar); GPU real: forçar via driver | DK-003 (software ✓; hardware NÃO VERIFICADO) |
 | Wake lock no Windows (tela não apaga) | deixar 15 min | DK-003 |
 
 ## 13. Modelo da matriz de máquinas (DEC-02, a preencher)

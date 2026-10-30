@@ -1,22 +1,55 @@
 // Janela do telão: só desenha. Recebe features do motor e ajustes da janela de controle.
+// Fail-safe (DK-003): perda do contexto WebGL recria o renderer; shader que não compila deixa a tela
+// preta e avisa o controle em vez de derrubar a janela. Telemetria (frametime) vai para o controle 1×/s.
 import { Channel, invoke } from '@tauri-apps/api/core';
 import { emitTo, listen } from '@tauri-apps/api/event';
 import { Renderer } from '../render/renderer';
 import { loadVisual, type Visual } from '../lib/settings';
 import { assetSync, getVideo } from '../lib/assets';
-import type { Msg } from '../lib/types';
+import { FrameStats, type Telemetry } from '../lib/telemetry';
+import type { Frame, Msg } from '../lib/types';
 
+const canvas = document.querySelector('canvas')!;
 let v = loadVisual();
-const r = new Renderer(document.querySelector('canvas')!, v);
-const sync = assetSync(r);
-sync(v, true);
+let r: Renderer | null = null;
+let sync: ReturnType<typeof assetSync> | null = null;
+let lastFrame: Frame | null = null;
+let lost = false;
 
-listen<Visual>('visual', (e) => { v = e.payload; r.setVisual(v); sync(v); });
-listen('assets', () => sync(v, true));
+const report = (level: 'warn' | 'error', msg: string) => emitTo('control', 'output-log', { level, msg });
+
+function start() {
+  try {
+    r = new Renderer(canvas, v);
+    sync = assetSync(r);
+    sync(v, true);
+    if (lastFrame) r.setFrame(lastFrame);
+  } catch (e) {
+    r = null;
+    report('error', 'Telão sem WebGL: ' + (e as Error).message);
+  }
+}
+start();
+
+// contexto perdido (driver, GPU dormindo, troca de monitor): segura, e recria quando voltar
+canvas.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault();
+  lost = true;
+  r = null;
+  report('warn', 'Telão: contexto WebGL perdido, aguardando voltar…');
+});
+canvas.addEventListener('webglcontextrestored', () => {
+  lost = false;
+  start();
+  report('warn', 'Telão: contexto WebGL restaurado');
+});
+
+listen<Visual>('visual', (e) => { v = e.payload; r?.setVisual(v); sync?.(v); });
+listen('assets', () => sync?.(v, true));
 listen<string[]>('preload', (e) => e.payload.forEach(getVideo)); // vídeos do roteiro: troca instantânea
 
 const ch = new Channel<Msg>();
-ch.onmessage = (m) => { if (m.t === 'frame') r.setFrame(m.v); };
+ch.onmessage = (m) => { if (m.t === 'frame') { lastFrame = m.v; r?.setFrame(m.v); } };
 invoke('subscribe', { onMsg: ch });
 
 // não deixar o Windows apagar a tela durante o set
@@ -26,14 +59,20 @@ document.addEventListener('visibilitychange', () => document.visibilityState ===
 
 addEventListener('keydown', (e) => { if (e.key === 'Escape') invoke('close_output'); });
 
-let frames = 0, last = performance.now();
+const stats = new FrameStats();
+let prev = performance.now(), last = prev;
 const loop = (now: number) => {
   requestAnimationFrame(loop);
-  r.render(now);
-  frames++;
+  stats.push(now - prev);
+  prev = now;
+  if (r) {
+    try { r.render(now); } catch (e) { r = null; report('error', 'Telão: erro ao desenhar: ' + (e as Error).message); }
+  }
   if (now - last >= 1000) {
-    emitTo('control', 'fps', Math.round((frames * 1000) / (now - last)));
-    frames = 0; last = now;
+    const t: Telemetry = stats.flush(now - last, lost || !r);
+    if (t.lost) t.fps = 0; // sem renderer, o rAF gira à toa: não é quadro desenhado
+    emitTo('control', 'telemetry', t);
+    last = now;
   }
 };
 requestAnimationFrame(loop);

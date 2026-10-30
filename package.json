@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "tauri": "tauri",
-    "check": "node src/lib/settings.check.ts && node src/lib/store.check.ts",
+    "check": "node src/lib/settings.check.ts && node src/lib/store.check.ts && node src/lib/telemetry.check.ts",
     "typecheck": "svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {
