@@ -458,6 +458,17 @@ controlador para trocar de banco pelo MIDI. Os pads 1–8, as teclas 1–8, os b
 aprendidos e os pontos de cena do roteiro agem sempre no **banco que está aberto**. Quem já
 tinha cenas encontra todas no banco 1, "Principal".
 
+### Macros
+
+Na barra de performance, a linha **Macros** tem 4 botões que mexem em vários efeitos de uma vez,
+no tempo da música: **Build-up** sobe rastro, anéis e zoom do fundo aos poucos por 16 beats
+(para a subida antes do drop); **Drop** dá flash + strobe por 2 beats com anéis no máximo e
+depois volta ao que estava (com o limite de flashes ligado, o strobe e o flash respeitam o
+teto); **Caos** sorteia aberração, tremor e giro do rastro a cada beat por 4 beats e volta;
+**Reset** zera strobe, flash, tremor, aberração e rastro sem parar o roteiro (o **PÂNICO** para
+o roteiro também). Cada macro pode ser aprendida no MIDI learn como qualquer botão. Chamar uma
+cena, o PÂNICO ou outra macro interrompe a que estiver rodando.
+
 ### Salvar e abrir um show (`.doublekshow`)
 
 Um **show** é um arquivo só com tudo o que você montou: visual, as 8 cenas, transição,
