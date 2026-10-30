@@ -357,8 +357,12 @@ mover com ▲▼. Os modos: **Normal** (a camada cobre o que está embaixo, cust
 **Multiplicar** (escurece: o túnel a 60 % em Multiplicar vira uma textura escura sobre a logo).
 Qualquer modo diferente de Normal, ou opacidade abaixo de 100 %, gasta um passe a mais de GPU
 por camada; a aba Efeitos mostra o custo. Fundo, foto, vídeo, logo e pós (vinheta, strobe,
-blackout) não são camadas: ficam sempre no lugar de sempre. Por enquanto as camadas valem
-para o visual inteiro e não entram nas cenas; isso muda na próxima versão.
+blackout) não são camadas: ficam sempre no lugar de sempre. As camadas fazem parte da cena:
+salvar um pad guarda ordem, modos e opacidades, e chamar a cena troca tudo de uma vez no meio
+do crossfade. **S** deixa só aquela camada desenhando (solo) sem mexer no liga/desliga das
+outras, com um aviso em laranja enquanto estiver ativo. Para reordenar, arraste pelo nome ou
+use ▲▼. No MIDI learn, a opacidade e o liga/desliga de cada camada aprendem como qualquer
+knob ou botão.
 
 ![Seção Camadas da aba Efeitos: mandala em Somar a 70 %](img/camadas.png)
 
@@ -734,6 +738,24 @@ DoubleK. Para o visual, use um **controlador separado** (um pequeno e barato já
 > posição dos da tela.
 
 ---
+
+### Controlar pela rede (OSC)
+
+Programas como TouchOSC, Pure Data, Max ou qualquer coisa que fale **OSC** podem mandar
+comandos para o app. Na aba **Saída**, seção **OSC (rede)**: escolha a porta (padrão 9000) e
+clique em **Ligar OSC**. Por padrão o app só escuta o próprio computador (`127.0.0.1`); para um
+tablet na mesma rede, marque **Abrir para a rede local** antes de ligar e leia o aviso: **não
+há senha** — quem estiver no mesmo Wi-Fi controla o show. Use só em rede sua, e desligue
+quando não precisar. O Windows pode perguntar sobre o firewall na primeira vez.
+
+Os endereços seguem `/doublek/v1/...` e cobrem tudo o que o teclado e o MIDI fazem: cenas
+(`/doublek/v1/scene/3`), bancos, macros, blackout, "só logo", PÂNICO, TAP, nudge, qualquer
+knob (`/doublek/v1/parameter/trail 0.5`) e o roteiro (go, stop). A lista completa, com tipos e
+faixas, está em [docs/OSC.md](OSC.md). Com o servidor ligado, a seção mostra **recebidas ·
+descartadas · recusadas** (descartadas = acima de 200 por segundo; recusadas = endereço ou
+valor inválido, que também aparecem no diário do Diagnóstico). Comando por OSC não pausa a
+automação do Intelligent Show (é tratado como outro programa, não como a sua mão); PÂNICO e
+BLACKOUT por OSC têm a mesma prioridade de sempre.
 
 ## 18. Atalhos do teclado
 
