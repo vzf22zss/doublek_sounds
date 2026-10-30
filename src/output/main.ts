@@ -24,6 +24,7 @@ function start() {
     r = new Renderer(canvas, v);
     sync = assetSync(r);
     sync(v, true);
+    r.onBudget = (i) => emitTo('control', 'psy-budget', i); // orçamento do Psy Engine só no telão (o preview roda a 30 fps)
     if (lastFrame) r.setFrame(lastFrame);
   } catch (e) {
     r = null;
@@ -75,6 +76,7 @@ const loop = (now: number) => {
     const t: Telemetry = stats.flush(now - last, lost || !r);
     if (t.lost) t.fps = 0; // sem renderer, o rAF gira à toa: não é quadro desenhado
     emitTo('control', 'telemetry', t);
+    if (r) emitTo('control', 'psy-costs', r.costs()); // custo por módulo (ms), 1×/s, para a aba Efeitos
     last = now;
   }
 };
