@@ -448,6 +448,33 @@ backup, levar para outro notebook ou ter um arquivo para cada tipo de festa.
 > O que **não** entra na cena: offset, resolução, recorte da logo, blackout e só logo.
 > São ajustes do lugar e da operação, não do visual.
 
+### Salvar e abrir um show (`.doublekshow`)
+
+Um **show** é um arquivo só com tudo o que você montou: visual, as 8 cenas, transição,
+roteiros, logo, foto de fundo, vídeos da biblioteca e, se quiser, o mapeamento MIDI. Serve
+para levar o show do seu PC para o notebook da festa, ou para guardar uma cópia.
+
+**Salvar:** na barra de performance, clique em **Salvar show**, dê um nome e escolha se quer
+incluir o MIDI. O arquivo `.doublekshow` vai para a pasta de downloads. As **músicas dos
+roteiros não vão no arquivo** (direitos autorais e tamanho): no outro computador, o roteiro
+abre e pede **Trocar música**. Os ajustes de áudio (entrada, ganho, ruído) também não vão,
+porque são da máquina.
+
+**Abrir:** clique em **Abrir show** e escolha o arquivo. O app confere tudo antes de mexer em
+qualquer coisa: se o arquivo estiver corrompido, incompleto ou for de uma versão mais nova do
+DoubleK, ele avisa na linha de baixo e o seu show atual continua intacto. Depois pergunta:
+
+- **Substituir o show atual** (OK): troca tudo pelo do arquivo.
+- **Importar como novo** (Cancelar e depois OK): soma os vídeos e roteiros do arquivo aos
+  seus; o visual, a transição e as 8 cenas vêm do arquivo. Pergunta se troca a logo e a foto.
+- Se o arquivo tiver MIDI, pergunta se aplica. O controlador de outra máquina pode estar
+  mapeado diferente.
+
+Antes de aplicar, o app **sempre salva um backup** do show atual em
+`%APPDATA%\com.doublek.visuals\backups` (ficam os 5 mais recentes). Para voltar atrás, use
+**Abrir show** com o backup. Depois de abrir, a janela de controle recarrega sozinha e a
+linha de baixo mostra o resultado e onde ficou o backup.
+
 ---
 
 ## 16. Roteiro: efeitos marcados numa música
