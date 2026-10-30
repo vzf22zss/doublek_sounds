@@ -1,8 +1,20 @@
-# OSC — controle por rede (DK-091)
+# OSC — controle por rede (DK-091/092)
 
 O DoubleK Visuals tem um servidor **OSC 1.0** (UDP) para receber comandos de TouchOSC, controladores de rede e outros programas de performance. Cada mensagem vira um comando do **mesmo dispatcher** que teclado, MIDI, botões e roteiro usam (ADR 0003): mesma validação, mesmo BLACKOUT/PÂNICO na frente, mesmo histórico.
 
-> **Estado em DK-091:** o servidor e o mapeamento existem e estão testados, mas **a interface ainda não liga o OSC** e o dispatcher continua recusando a fonte `osc` ("OSC desligado"). Ligar pela tela, liberar a fonte e responder status ficam para DK-092.
+## Ligar na tela
+
+Aba **Saída** → **OSC (rede)**:
+
+1. **Porta** (padrão 9000) e, se precisar, **Abrir para a rede local** (aparece o aviso: *sem autenticação: qualquer um na rede controla o show*). Os dois ficam travados enquanto o OSC está ligado.
+2. **Ligar OSC**. O botão vira "Desligar OSC (127.0.0.1:9000)" e a linha "Recebidas · descartadas · recusadas" atualiza 1× por segundo. Erro (porta em uso, porta reservada) aparece logo abaixo do botão.
+3. No cliente (TouchOSC, Pure Data, `oscsend`...), mande para o IP desta máquina e a porta escolhida. Mesma máquina: `127.0.0.1`.
+
+- O dispatcher só aceita a fonte `osc` enquanto o servidor está ligado; desligou, volta a recusar.
+- Endereço que não mapeia (ex.: `/doublek/v1/scene/9`) e comando recusado entram no **diário** (Diagnóstico), não na linha de status; o mesmo erro repetido entra no máximo 1× a cada 2 s. Os comandos aceitos aparecem no histórico do Diagnóstico com `source: "osc"`.
+- OSC não conta como "mão do DJ" para o override manual da automação (é tratado como programa externo).
+- Porta, rede local e ligado/desligado ficam salvos em `doublek.settings`. Ao abrir o app, o OSC **religa sozinho só se estava ligado e só em `127.0.0.1`**; com rede local, é preciso clicar de novo.
+- **Firewall do Windows:** na primeira vez que o OSC abre para a rede local, o Windows pode mostrar "Permitir acesso" para o DoubleK Visuals. Sem liberar (rede privada), os pacotes de outros aparelhos não chegam — o servidor parece ligado, mas o contador "Recebidas" não sobe. Em `127.0.0.1` não há aviso.
 
 ## Como funciona
 
@@ -77,9 +89,7 @@ bundle com o /tap acima (timetag 1 = "agora")
 - **Parser estrito:** pacote malformado (cortado, sem padding, tamanho mentiroso, tipo desconhecido, bundle fundo demais) é recusado inteiro e contado em `rejected`, sem pânico; o servidor continua ouvindo.
 - O servidor roda numa thread própria e só emite eventos: não toca a thread de áudio e não bloqueia o BLACKOUT.
 
-## Fica para DK-092
+## Futuro
 
-- Interface para ligar/desligar o OSC, escolher porta e "abrir para a rede" (com o aviso acima) e mostrar `osc_status`.
-- Escutar o evento `osc` na janela de controle, passar por `oscToCommand` e liberar a fonte `osc` no dispatcher só com o servidor ligado; erros no Diagnóstico.
-- Status de volta para o cliente (`/doublek/v1/status`: BPM, cena, banco, blackout).
-- Teste com cliente OSC real (TouchOSC, `oscsend`, Pure Data) — **NÃO VERIFICADO** em DK-091.
+- Status de volta para o cliente (`/doublek/v1/status`: BPM, cena, banco, blackout) — fora por enquanto (YAGNI).
+- Teste com TouchOSC num celular/tablet pela rede local — **NÃO VERIFICADO** (o teste do DK-092 mandou pacotes UDP do próprio PC para o app real).

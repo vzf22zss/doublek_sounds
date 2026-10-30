@@ -49,6 +49,22 @@ const reason = (r: { ok: boolean; reason?: string }) => (r.ok ? '' : (r as any).
   assert.deepEqual(d.history().map((h) => [h.source, h.ok]), [['osc', false], ['remote', false]]);
 }
 
+// --- OSC liberado só com o servidor ligado (DK-092); o flag é por fonte e por dispatcher ---
+{
+  const d = fresh();
+  d.setNetwork('osc', true);
+  assert.ok(d.dispatch({ type: 'BLACKOUT', on: true }, 'osc').ok);
+  assert.ok(d.dispatch({ type: 'PANIC' }, 'osc').ok);
+  assert.ok(d.dispatch({ type: 'SCENE_RECALL', index: 2 }, 'osc').ok);
+  assert.match(reason(d.dispatch({ type: 'SCENE_RECALL', index: 9 }, 'osc')), /0 a 7/); // validação continua valendo
+  assert.match(reason(d.dispatch({ type: 'TAP' }, 'remote')), /controle remoto desligado/);
+  assert.equal(d.manualLeft(), 0, 'OSC não conta como mão do DJ no override');
+  d.setNetwork('osc', false);
+  assert.match(reason(d.dispatch({ type: 'BLACKOUT' }, 'osc')), /OSC desligado/);
+  assert.deepEqual(log, ['BLACKOUT@osc', 'PANIC@osc', 'SCENE_RECALL@osc']);
+  assert.match(reason(fresh().dispatch({ type: 'TAP' }, 'osc')), /OSC desligado/, 'outro dispatcher começa desligado');
+}
+
 // --- override manual: automação descartada por 8 s; roteiro passa; BLACKOUT/PÂNICO da automação passam ---
 {
   t = 1000;

@@ -19,6 +19,7 @@
   import { getVersion } from '@tauri-apps/api/app';
   import { captureErrors, log, logEntries, NO_TELEMETRY, type Telemetry } from '../lib/telemetry';
   import { checkFile, EXT, ext } from '../lib/limits';
+  import { oscToCommand, type OscArg } from '../lib/osc';
   import type { Frame, Msg } from '../lib/types';
   import { check, type Update } from '@tauri-apps/plugin-updater';
   import { relaunch } from '@tauri-apps/plugin-process';
@@ -29,7 +30,7 @@
     'Hi-tech': [175, 220],
     Auto: [80, 220],
   };
-  const DEFAULTS = { device: '', channel: 0, gain: 1, gate: 0.003, sens: 1.4, range: 'Psy', lock: false, needClick: true, monitor: 1, dropThr: 0.35 };
+  const DEFAULTS = { device: '', channel: 0, gain: 1, gate: 0.003, sens: 1.4, range: 'Psy', lock: false, needClick: true, monitor: 1, dropThr: 0.35, oscOn: false, oscPort: 9000, oscLan: false };
   const TABS = ['Áudio', 'Logo', 'Fundo', 'Efeitos', 'Saída', 'Roteiro'] as const;
 
   const load = () => storeLoad('doublek.settings', (r) => shaped(r, DEFAULTS), () => ({ ...DEFAULTS }));
@@ -205,11 +206,11 @@
     // AUTOMATION_MODE: sem handler até existir automação (DK-030/040); o dispatcher responde "sem efeito"
   };
   const commands = createDispatcher(handlers);
-  /** Entrada única de comandos. Recusa de quem está operando vai para a linha de status; do roteiro, para o diário. */
+  /** Entrada única de comandos. Recusa de quem está operando vai para a linha de status; do roteiro/OSC, para o diário. */
   function dispatch(c: ShowCommand, source: Source) {
     const r = commands.dispatch(c, source);
     if (!r.ok) {
-      if (source === 'roteiro' || source === 'automation') log('warn', `comando ${c.type} (${source}) recusado: ${r.reason}`);
+      if (source === 'roteiro' || source === 'automation' || source === 'osc') log('warn', `comando ${c.type} (${source}) recusado: ${r.reason}`);
       else status = 'Comando recusado: ' + r.reason;
     }
     return r;
@@ -292,6 +293,45 @@
   });
   onEvent<MidiMsg>('midi', (e) => onMidi(e.payload));
 
+  // ---------- OSC (DK-091/092): o servidor é do Rust; aqui liga/desliga, mapeia e libera a fonte 'osc' ----------
+  type OscStatus = { running: boolean; bind: string; received: number; dropped: number; rejected: number };
+  let osc = $state<OscStatus>({ running: false, bind: '', received: 0, dropped: 0, rejected: 0 });
+  let oscErr = $state('');
+  const oscRunning = $derived(osc.running);
+  async function oscRefresh() {
+    osc = await invoke<OscStatus>('osc_status');
+    commands.setNetwork('osc', osc.running);
+  }
+  async function oscToggle(on: boolean) {
+    oscErr = '';
+    try {
+      if (on && !(Number.isInteger(s.oscPort) && s.oscPort >= 1 && s.oscPort <= 65535)) throw 'Porta OSC de 1 a 65535';
+      if (on) await invoke('osc_start', { bind: s.oscLan ? '0.0.0.0' : '127.0.0.1', port: s.oscPort });
+      else await invoke('osc_stop');
+      s.oscOn = on;
+    } catch (e) { oscErr = String(e); s.oscOn = false; }
+    await oscRefresh();
+    log(oscErr ? 'warn' : 'info', oscErr ? 'OSC: ' + oscErr : osc.running ? `OSC ligado em ${osc.bind}` : 'OSC desligado');
+  }
+  // ao abrir (ou ao recarregar a janela com o servidor já rodando): adota o que está ligado; religa sozinho só no
+  // localhost — abrir para a rede local sempre exige o clique
+  oscRefresh().then(() => { if (!osc.running && s.oscOn) { if (s.oscLan) s.oscOn = false; else oscToggle(true); } });
+  $effect(() => {
+    if (!oscRunning) return;
+    const id = setInterval(oscRefresh, 1000);
+    return () => clearInterval(id);
+  });
+  let oscLastErr = '', oscLastErrAt = 0;
+  onEvent<{ addr: string; args: OscArg[] }>('osc', (e) => {
+    const r = oscToCommand(e.payload.addr, e.payload.args);
+    if ('cmd' in r) { dispatch(r.cmd, 'osc'); return; }
+    // ponytail: o mesmo erro repetido entra no diário no máximo 1× a cada 2 s (senão um cliente errado enche os 200)
+    const now = performance.now();
+    if (r.error !== oscLastErr || now - oscLastErrAt > 2000) log('warn', 'OSC: ' + r.error);
+    oscLastErr = r.error;
+    oscLastErrAt = now;
+  });
+
   function toggleLearn() {
     midi.learning = !midi.learning;
     midi.armed = null;
@@ -326,6 +366,7 @@
       screen: { w: screen.width, h: screen.height, dpr: devicePixelRatio }, monitors,
       audio: { ...$state.snapshot(s), lost: audioLost, lastFrameAgeMs: frame ? Math.round(performance.now() - frameAt) : null, bpm: frame?.bpm, locked: frame?.locked },
       midi: { devices: $state.snapshot(midi.devices), mapped: Object.keys(midi.map).length },
+      osc: $state.snapshot(osc),
       output: { ...$state.snapshot(tel), open: fps > 0 },
       control: { maxFrameGapMs: Math.round(uiGap), jsHeapMB: mem ? Math.round(mem.usedJSHeapSize / 1048576) : null },
       visual: $state.snapshot(vs), roteiro: rt.cur ? { name: rt.list.find((r) => r.id === rt.cur)?.name, running: rt.running, mode: rt.mode, source: rt.source } : null,
@@ -688,6 +729,22 @@
         <h2>Desempenho</h2>
         <Slider label="Resolução de render" bind:value={vs.renderScale} learn="renderScale" min={0.4} max={1} step={0.05} def={1} fmt={pct} />
         <p class="keys">Abaixe se o telão cair de 60 fps.</p>
+        <h2>OSC (rede)</h2>
+        <div class="files">
+          <label class="field">Porta <input type="number" min="1" max="65535" bind:value={s.oscPort} disabled={osc.running} /></label>
+          <label class="check inline"><input type="checkbox" bind:checked={s.oscLan} disabled={osc.running} /> Abrir para a rede local</label>
+        </div>
+        {#if s.oscLan}
+          <p class="keys warnTxt">⚠ Sem autenticação: qualquer um na rede controla o show. Use só em rede confiável (o Windows pode pedir para liberar no firewall).</p>
+        {/if}
+        <button class="wide" class:primary={!osc.running} onclick={() => oscToggle(!osc.running)}>
+          {osc.running ? `Desligar OSC (${osc.bind})` : 'Ligar OSC'}
+        </button>
+        {#if oscErr}<p class="keys warnTxt">{oscErr}</p>{/if}
+        {#if osc.running}
+          <p class="keys">Recebidas {osc.received} · descartadas {osc.dropped} · recusadas {osc.rejected}</p>
+        {/if}
+        <p class="keys">TouchOSC e afins: endereços <b>/doublek/v1/…</b> (cena, banco, blackout, tap, parameter…), lista em docs/OSC.md.</p>
       {/if}
     </div>
   </aside>
@@ -789,6 +846,8 @@
   .btn:hover { background: rgba(255,255,255,.1); }
   .btn input { display: none; }
   .color { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+  .field { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+  .field input { width: 76px; }
   .color input { width: 34px; height: 26px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; cursor: pointer; }
   .vids { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
   .vid { display: flex; gap: 4px; }
