@@ -559,6 +559,17 @@ A **música** do roteiro é **opt-in** no pacote (direitos autorais e tamanho; D
 
 **Aceite:** relatório reproduzível e casos degradados documentados.
 
+### DK-009 — Correções de detecção apontadas pelo benchmark — P0
+
+Nascida do DK-008 (`docs/quality/DETECCAO.md` §7). Cada correção entra separada, com a linha do bench antes/depois no commit, sem piorar nenhuma outra linha nem quebrar `cargo test`.
+
+- **P3 (maior impacto no show):** ao voltar o drop depois de um breakdown, `Beat::on_kick` refaz o ajuste com só 4 kicks e grava `locked = n >= 6` → a trava cai por 2–3 beats exatamente no drop, o renderer sai de `predicting()` e o limiar da grade some. Corrigir sem perder a capacidade de soltar a trava quando a música muda de verdade.
+- **P4:** faixa Auto + cold start ≥ 160 BPM → trava em ½ (175 → 87,5) e se realimenta. Nas faixas do gênero não acontece.
+- **P1:** ruído alto (−14 dBFS) mascara o click; recall 0,66–0,87.
+- **P2:** sem baixo rolante, oscilação do sub 1 hop antes do kick cruza o limiar abaixado da grade e "rouba" o `rising` do kick real; recall 0,84–0,91 em 135–160.
+
+**Aceite:** bench regenerado em `DETECCAO.md` com as linhas afetadas melhoradas e as demais iguais (±0,01); testes verdes; limites de regressão do §8 do DETECCAO viram asserts quando o mantenedor aprovar.
+
 ---
 
 ## 6. DECISÕES DE ARQUITETURA RECOMENDADAS
@@ -650,7 +661,8 @@ Audio Engine (Rust) ──► Music Features ──► Show Engine / Dispatcher
 - [ ] **DK-004** Configurar CI, versionamento, licença pendente e plano de Release.
 - [x] **DK-005** Revisar CSP, permissões e regras de arquivo. — 2026-10-30, branch `feat/dk-005-seguranca`: CSP de produção (`default-src 'self'`, `img-src blob: data:`, `media-src blob:`, `connect-src ipc: http://ipc.localhost`, sem inline) + `devCsp`; estilos do telão saíram do HTML para `output.css`; `src/lib/limits.ts` (extensão/tipo/tamanho: imagem 25 MB, vídeo 600 MB, música 300 MB, JSON 2 MB) em todas as entradas de arquivo; Rust `track::check_upload`/`check_id` e teto de 20 min por faixa (antes e durante a decodificação); OSV/RustSec sobre o `Cargo.lock`: 3 avisos, nenhum aplicável ao Windows. Mock com a CSP injetada: nada recusado. **Confirmado no app real** (2026-10-30, WebView2 inspecionado pela porta de depuração): build de produção (`tauri build --no-bundle`) e modo dev (Vite) — IPC, lista de entradas/monitores, telão 1920×1080, telemetria; **nada recusado**. Único ruído era o `favicon.ico` automático (500 no protocolo de assets), silenciado com `<link rel="icon" href="data:,">`.
 - [x] **DK-006** Fortalecer blackout e reduzir riscos de strobe. — 2026-10-30, branch `feat/dk-006-seguranca-visual`: `safeFlash` (ligado por padrão, fora das cenas) limita strobe a ≤ 3 flashes/s pulando pulsos (`src/lib/safety.ts`, provado para 80–220 BPM × 1/1, 1/2, 1/4) e o flash de tela a 50%; BLACKOUT também por CSS no telão (independente do WebGL); botão/tecla **PÂNICO (P)** para o roteiro e zera strobe/flash/tremor/aberração/rastro; aviso de fotossensibilidade na aba Saída e taxa real de flashes na aba Efeitos; etiqueta BLACKOUT no preview. Mock: P zera, B apaga o canvas por CSS e volta. **Com público/hardware: NÃO VERIFICADO.**
-- [ ] **DK-008** Criar suite inicial de áudio e métricas de latência.
+- [x] **DK-008** Criar suite inicial de áudio e métricas de latência. — 2026-10-30, sessão d7, `feat/dk-008-benchmark` (`684b491`, `5fe7743`, `9a06838`): `src-tauri/src/synth.rs` (faixa sintética determinística, usada pelos testes), `examples/bench.rs` (7 BPM × 6 cenários × faixa do gênero + Auto = 84 linhas: precisão/recall, erro de BPM, tempo até travar, ½/×2), [`docs/quality/DETECCAO.md`](quality/DETECCAO.md) com 4 casos degradados explicados hop a hop e propostas P1–P5. `cargo test --release` 11/11. **Hardware/música real: NÃO VERIFICADO** (latência só analítica: ≈ 14–28 ms kick→quadro por software).
+- [ ] **DK-009** Correções de detecção propostas pelo benchmark, com antes/depois: **P3** trava cai 1× ao voltar o drop (todas as 14 combinações) · **P4** ½ em Auto no cold start ≥ 160 BPM · P1 recall 0,66–0,87 com ruído alto · P2 recall 0,84–0,91 sem baixo rolante em 135–160.
 - [ ] **DK-141** Validar o roteiro com música real, saída de som e GO (hoje NÃO VERIFICADO).
 
 **Gate M0:** build repetível, áudio/telão/MIDI preservados, checklist de segurança concluído, sem regressões críticas abertas.
@@ -789,6 +801,7 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 | 2026-10-30 | DK-011 | DONE (contrato) | `feat/dk-011-showpack-schema` @ `fb00d17` (sessão 22) | `manifest.check.ts` + todos os checks ok e typecheck 0, rodados pelo coordenador no worktree; spec `docs/SHOWPACK.md`; decisões de schema registradas em DEC-03 | **DK-012** (exportar ZIP, mesma sessão, em cima desta branch); DK-013 precisa de `store.migrate(key, envelope)` para aplicar sobre texto do ZIP |
 | 2026-10-30 | DK-012 | DONE (biblioteca) | `feat/dk-012-showpack-export` @ `c32a408` (sessão 22) | `export.check.ts` + todos os checks ok e typecheck 0, rodados pelo coordenador; sem dependência nova; `collect.ts`/`downloadShowPack` NÃO VERIFICADOS no app (sem GUI) | **DK-013** (importação com staging/rollback, mesma sessão, com `store.migrate` de `feat/store-migrate`); depois DK-014 (UI) |
 | 2026-10-30 | DK-131 | DONE (software) | `feat/dk-131-presets` @ `204d333` (sessão 29) | `presets.check.ts` + checks ok, typecheck 0, build ok, rodados pelo coordenador; UI do Catálogo fotografada no mock em 1280 px | **DK-021** (renderer modular, mesma sessão); DK-132 depois do Show Pack |
+| 2026-10-30 | DK-008 | DONE (software) | `feat/dk-008-benchmark` @ `9a06838` (sessão d7) | `cargo test --release` 11/11 e bench rodados pelo coordenador no worktree; 84 linhas, 4 casos degradados com mecanismo; latência analítica 14–28 ms; música real NÃO VERIFICADO | **DK-009** P3 e P4 (mesma sessão, antes/depois pelo bench); P1/P2 depois; fixtures reais dependem de DEC-01/mp3 do mantenedor |
 
 ### 8.4. Bloqueios e decisões pendentes
 
