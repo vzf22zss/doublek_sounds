@@ -17,6 +17,7 @@
   import { DEFAULT_RULES, plan, quantizeDelay } from '../lib/show-engine/rules';
   import { busy as fxBusy, clear as clearFx, EMPTY as NO_FX, startBurst, startRamp, step as stepFx, type Running } from '../lib/roteiro-fx';
   import { createDispatcher, fromTarget, keyCommand, routePad, startMacro, type AutomationMode, type Handlers, type MacroId, type MacroRun, type ShowCommand, type Source } from '../lib/commands';
+  import { applyLayerParam } from '../render/layers';
   import { addVideo, assetSync, imageColors, listVideos, removeVideo, setAsset, videoColors } from '../lib/assets';
   import { load as storeLoad, save as storeSave, shaped } from '../lib/store';
   import { getVersion } from '@tauri-apps/api/app';
@@ -237,7 +238,7 @@
     },
     BANK_STEP: (c) => perf.stepBankBy(c.delta), // DK-041: os pads c:0..7 agem no banco ativo
     BANK_SET: (c) => perf.setBank(c.index),
-    SET_PARAMETER: (c) => ((vs as any)[c.key] = c.value),
+    SET_PARAMETER: (c) => { const l = applyLayerParam(vs.layers, c.key, c.value); if (l) vs.layers = l; else (vs as any)[c.key] = c.value; }, // layers.<id>.(opacity|on) mexe na camada; o resto é chave solta do visual
     ROTEIRO_GO: () => (rt.running && rt.source === 'app' ? roteiroPause() : roteiroPlay()),
     ROTEIRO_STOP: () => roteiroStop(),
     ROTEIRO_NUDGE: (c) => roteiroNudge(c.beats),

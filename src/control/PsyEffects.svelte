@@ -5,7 +5,8 @@
   import Slider from './Slider.svelte';
   import { VISUAL, type Visual } from '../lib/settings';
   import type { BudgetInfo, Cost } from '../render/renderer';
-  import { BLEND_NAMES, BLENDS, LAYER_NAMES, moveLayer, sanitizeLayers, setLayer, type Blend, type LayerId } from '../render/layers';
+  import { BLEND_NAMES, BLENDS, LAYER_NAMES, moveLayer, placeLayer, sanitizeLayers, setLayer, type Blend, type LayerId } from '../render/layers';
+  import { learnable } from './midi.svelte';
 
   let { vs = $bindable() }: { vs: Visual } = $props();
   const f2 = (v: number) => v.toFixed(2);
@@ -23,6 +24,18 @@
   // camadas (DK-051): sempre a lista validada; cada mudança grava uma lista nova no visual
   const layers = $derived(sanitizeLayers(vs.layers));
   const name = (id: string) => LAYER_NAMES[id as LayerId] ?? id;
+
+  // arrastar (DK-053) com eventos de ponteiro: o drag-and-drop do HTML5 não chega no WebView2 enquanto o Tauri
+  // estiver com o arrastar de arquivos ligado (padrão no Windows). A linha muda de lugar enquanto você arrasta.
+  let dragging = $state<string | null>(null);
+  let list = $state<HTMLDivElement>();
+  function dragMove(e: PointerEvent) {
+    if (!dragging || !list) return;
+    const rows = [...list.querySelectorAll<HTMLElement>('.layer')];
+    const to = rows.findIndex((r) => e.clientY < r.getBoundingClientRect().bottom);
+    const next = placeLayer(vs.layers, dragging, to < 0 ? rows.length - 1 : to);
+    if (next.some((l, i) => l.id !== layers[i].id)) vs.layers = next;
+  }
 
   /** "GPU 0,42 ms" com timer de GPU; senão só o CPU, que não mostra o peso real do shader. */
   const ms = (id: string) => {
@@ -106,17 +119,23 @@
 {#if budget}<p class="keys" class:warn={budget.action === 'down'}>{budget.msg}</p>{/if}
 
 <h2>Camadas</h2>
-<div class="layers">
+<div class="layers" bind:this={list}>
   {#each layers as l, i (l.id)}
-    <div class="layer" class:off={!l.enabled}>
-      <input type="checkbox" checked={l.enabled} title="Liga/desliga a camada" aria-label="Ligar {name(l.id)}"
+    <div class="layer" class:off={!l.enabled} class:hidden={!!vs.layerSolo && vs.layerSolo !== l.id} class:dragging={dragging === l.id}>
+      <input type="checkbox" checked={l.enabled} title="Liga/desliga a camada (mute)" aria-label="Ligar {name(l.id)}"
+        use:learnable={{ id: `l:${l.id}:on`, label: `Liga ${name(l.id)}` }}
         onchange={(e) => (vs.layers = setLayer(vs.layers, l.id, { enabled: e.currentTarget.checked }))} />
-      <span class="name">{name(l.id)}</span>
+      <span class="name" title="Arraste para mudar a ordem" role="button" tabindex="-1" aria-label="Arrastar {name(l.id)}"
+        onpointerdown={(e) => { dragging = l.id; e.currentTarget.setPointerCapture(e.pointerId); }}
+        onpointermove={dragMove} onpointerup={() => (dragging = null)} onpointercancel={() => (dragging = null)}>{name(l.id)}</span>
+      <button class="solo" class:on={vs.layerSolo === l.id} title="Solo: só esta camada desenha (as outras guardam o liga/desliga)"
+        aria-label="Solo {name(l.id)}" onclick={() => (vs.layerSolo = vs.layerSolo === l.id ? '' : l.id)}>S</button>
       <select value={l.blend} title="Como esta camada se mistura com a de baixo" aria-label="Mistura {name(l.id)}"
         onchange={(e) => (vs.layers = setLayer(vs.layers, l.id, { blend: e.currentTarget.value as Blend }))}>
         {#each BLENDS as b}<option value={b}>{BLEND_NAMES[b]}</option>{/each}
       </select>
       <input class="op" type="range" min="0" max="1" step="0.05" value={l.opacity} title="Opacidade {Math.round(l.opacity * 100)}%"
+        use:learnable={{ id: `v:layers.${l.id}.opacity`, label: `Opacidade ${name(l.id)}`, min: 0, max: 1, step: 0.01 }}
         aria-label="Opacidade {name(l.id)}" oninput={(e) => (vs.layers = setLayer(vs.layers, l.id, { opacity: +e.currentTarget.value }))} />
       <button class="mv" disabled={i === 0} title="Subir (desenha antes)" aria-label="Subir {name(l.id)}"
         onclick={() => (vs.layers = moveLayer(vs.layers, l.id, -1))}>▲</button>
@@ -125,7 +144,8 @@
     </div>
   {/each}
 </div>
-<p class="keys">De cima para baixo = ordem em que desenham. O fundo e a logo vêm sempre antes; vinheta, strobe e blackout sempre por último. Normal a 100% não custa nada a mais; os outros modos gastam 1 passe.</p>
+{#if vs.layerSolo}<p class="keys warn">Solo ligado: só {name(vs.layerSolo)} desenha. Clique no S de novo para voltar.</p>{/if}
+<p class="keys">De cima para baixo = ordem em que desenham; arraste pelo nome ou use ▲▼. O fundo e a logo vêm sempre antes; vinheta, strobe e blackout sempre por último. Normal a 100% não custa nada a mais; os outros modos gastam 1 passe. Com o MIDI ligado, clique no liga/desliga ou na opacidade para mapear.</p>
 
 <style>
   h2 { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 18px 0 2px; font-weight: 600; }
@@ -140,12 +160,17 @@
   .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 6px; }
   .seg button { text-align: center; }
   .layers { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
-  .layer { display: grid; grid-template-columns: 14px 78px 1fr 44px 20px 20px; gap: 4px; align-items: center; font-size: 12px; }
-  .layer .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .layer { display: grid; grid-template-columns: 14px 70px 20px 1fr 40px 18px 18px; gap: 4px; align-items: center; font-size: 12px; border-radius: 6px; }
+  .layer .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: grab; touch-action: none; user-select: none; }
+  .layer.dragging { background: rgba(124, 92, 255, .18); }
+  .layer.dragging .name { cursor: grabbing; }
   .layer.off .name { color: var(--muted); text-decoration: line-through; }
+  .layer.hidden { opacity: .45; }
+  .solo { padding: 1px 0; font-size: 10px; font-weight: 700; }
+  .solo.on { background: var(--kick); border-color: var(--kick); color: #111; }
   .layer input[type='checkbox'] { accent-color: var(--accent); }
   .layer select { font-size: 11px; padding: 1px 3px; width: 100%; min-width: 0; }
-  .layer .op { width: 44px; }
+  .layer .op { width: 40px; }
   .mv { padding: 1px 0; font-size: 10px; }
   .mv:disabled { opacity: .3; }
 </style>

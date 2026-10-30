@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { VISUAL } from './settings.ts';
 import { SAFE_FLASH_MAX, SAFE_STROBE_MAX } from './safety.ts';
 import { createDispatcher, fromTarget, keyCommand, LEGACY_ACTIONS, MACROS, routePad, startMacro, validate, type Handlers, type ShowCommand, type Source } from './commands.ts';
+import { LAYER_IDS } from '../render/layers.ts';
 
 let t = 1000;
 const log: string[] = [];
@@ -142,8 +143,15 @@ const reason = (r: { ok: boolean; reason?: string }) => (r.ok ? '' : (r as any).
   assert.deepEqual(fromTarget({ id: 'a:bank-' }), { type: 'BANK_STEP', delta: -1 });
   for (const m of MACROS) assert.deepEqual(fromTarget({ id: `a:macro:${m}` }), { type: 'MACRO', id: m });
   const novos = ['a:take', 'a:previewMode', 'a:previewClear']; // DK-043
-  assert.equal(Object.keys(LEGACY_ACTIONS).length, ids.length + MACROS.length + novos.length);
+  
   assert.deepEqual(novos.map((id) => fromTarget({ id })), [{ type: 'SCENE_TAKE' }, { type: 'PREVIEW_MODE' }, { type: 'PREVIEW_CLEAR' }]);
+  // DK-053: liga/desliga de camada (l:<id>:on) e opacidade pelo caminho de knob (v:layers.<id>.opacity)
+  for (const id of LAYER_IDS) {
+    assert.deepEqual(fromTarget({ id: `l:${id}:on` }), { type: 'SET_PARAMETER', key: `layers.${id}.on`, value: -1 });
+    assert.equal(validate(fromTarget({ id: `v:layers.${id}.opacity`, min: 0, max: 1, step: 0.01 }, 64)), null, id);
+  }
+  assert.match(validate({ type: 'SET_PARAMETER', key: 'layers.evil.on', value: 1 })!, /desconhecido/);
+  assert.equal(Object.keys(LEGACY_ACTIONS).length, ids.length + MACROS.length + novos.length + LAYER_IDS.length);
   // c:<i>
   for (let i = 0; i < 8; i++) assert.deepEqual(fromTarget({ id: `c:${i}` }), { type: 'SCENE_RECALL', index: i });
   assert.equal(fromTarget({ id: 'c:x' }), null);
