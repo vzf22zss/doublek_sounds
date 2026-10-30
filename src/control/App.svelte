@@ -363,8 +363,9 @@
     else if (e.code === 'Period') ACTIONS['beat+']();
     else if (e.code === 'Semicolon') ACTIONS['bar-']();
     else if (e.code === 'Quote') ACTIONS['bar+']();
-    else if (e.code === 'BracketLeft') ACTIONS['bank-']();
-    else if (e.code === 'BracketRight') ACTIONS['bank+']();
+    // bancos: vale o caractere ([ e ] em qualquer layout, ex. ABNT2) e, se ele não for colchete, a posição física US
+    else if (e.key === '[' || (e.code === 'BracketLeft' && e.key !== ']')) ACTIONS['bank-']();
+    else if (e.key === ']' || (e.code === 'BracketRight' && e.key !== '[')) ACTIONS['bank+']();
   }
 
   function beatInfo() {
