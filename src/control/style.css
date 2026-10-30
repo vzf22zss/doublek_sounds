@@ -1,0 +1,75 @@
+:root {
+  --bg: #07070b;
+  --panel: rgba(255, 255, 255, 0.035);
+  --line: rgba(255, 255, 255, 0.08);
+  --text: #ececf4;
+  --muted: #8b8ba3;
+  --accent: #7c5cff;
+  --kick: #ff4d8d;
+  --ok: #3ddc84;
+  --clip: #ff4d4d;
+  --radius: 14px;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: radial-gradient(1200px 600px at 20% -10%, #1a1235 0%, transparent 60%), var(--bg);
+  color: var(--text);
+  font: 13px/1.4 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  user-select: none;
+}
+
+button, select, input { font: inherit; color: inherit; }
+
+button {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 7px 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.08s;
+}
+button:hover { background: rgba(255, 255, 255, 0.1); }
+button:active { transform: scale(0.96); }
+button.on { background: var(--accent); border-color: var(--accent); }
+
+select {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 6px 8px;
+}
+select option { background: #15151f; }
+
+input[type=range] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 22px;
+  background: transparent;
+  cursor: pointer;
+}
+input[type=range]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--accent) var(--fill, 50%), rgba(255, 255, 255, 0.1) var(--fill, 50%));
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(124, 92, 255, 0.35);
+  transition: box-shadow 0.15s;
+}
+input[type=range]:hover::-webkit-slider-thumb { box-shadow: 0 0 0 6px rgba(124, 92, 255, 0.45); }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
