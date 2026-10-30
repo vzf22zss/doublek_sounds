@@ -131,6 +131,7 @@ pub struct Analyzer {
     sub_over: bool,
     no_click: bool, // o cruzamento atual do sub foi recusado só por falta de click
     last_click: f64,
+    last_soft_click: f64, // click mais fraco, só vale no beat previsto
     last_kick: f64,
     env: [f32; 5],
     env_peak: [f32; 5],
@@ -172,6 +173,7 @@ impl Analyzer {
             sub_over: false,
             no_click: false,
             last_click: -1.0,
+            last_soft_click: -1.0,
             last_kick: -1.0,
             env: [0.0; 5],
             env_peak: [1e-4; 5],
@@ -247,6 +249,9 @@ impl Analyzer {
         if dc > tc {
             self.last_click = t;
         }
+        if dc > 0.75 * tc {
+            self.last_soft_click = t;
+        }
         let (ds, ts) = self.on_sub.step(ms[0], k);
         self.beat.tick(t);
         let grid = self.beat.on_grid(t);
@@ -271,7 +276,8 @@ impl Analyzer {
         let click_ok = !p.need_click || click_now;
         let strong = ds > 2.0 * ts;
         let accept = match grid {
-            Some(true) => click_ok || strong,
+            // no beat previsto aceita click mais fraco: com ruído alto o click do kick fica perto do piso
+            Some(true) => click_ok || strong || (p.need_click && t - self.last_soft_click < 0.017),
             Some(false) => click_ok && strong,
             None => click_ok,
         };
@@ -331,13 +337,12 @@ mod tests {
     }
 
     fn check(bpm: f64, lo: f32, hi: f32) {
-        check_track(bpm, lo, hi, true);
+        check_synth(Synth { bpm, secs: 20.0, ..Default::default() }, lo, hi);
     }
 
-    fn check_track(bpm: f64, lo: f32, hi: f32, rolling: bool) {
-        let sr = 48000.0;
-        let secs = 20.0;
-        let (x, truth) = track(bpm, secs, sr, rolling);
+    fn check_synth(s: Synth, lo: f32, hi: f32) {
+        let (sr, secs, bpm) = (s.sr, s.secs, s.bpm);
+        let (x, truth) = s.render();
         let mut an = Analyzer::new(sr);
         let p = Params { bpm_min: lo, bpm_max: hi, ..Default::default() };
         let (mut det, mut last_beat) = (vec![], i64::MIN);
@@ -447,8 +452,16 @@ mod tests {
     /// travava a borda, perdendo ~15 % dos kicks (DETECCAO.md §4.2).
     #[test]
     fn limpo_sem_baixo() {
-        check_track(140.0, 135.0, 150.0, false);
-        check_track(160.0, 145.0, 185.0, false);
+        check_synth(Synth { bpm: 140.0, secs: 20.0, rolling: false, ..Default::default() }, 135.0, 150.0);
+        check_synth(Synth { bpm: 160.0, secs: 20.0, rolling: false, ..Default::default() }, 145.0, 185.0);
+    }
+
+    /// Ruído branco alto (−14 dBFS) com baixo rolante: o click do kick fica perto do piso do
+    /// limiar e um em cada três kicks se perdia mesmo no beat previsto (DETECCAO.md §4.1).
+    #[test]
+    fn ruido_alto() {
+        check_synth(Synth { bpm: 140.0, secs: 20.0, noise: 0.2, ..Default::default() }, 135.0, 150.0);
+        check_synth(Synth { bpm: 175.0, secs: 20.0, noise: 0.2, ..Default::default() }, 145.0, 185.0);
     }
 
     #[test]
