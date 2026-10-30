@@ -129,7 +129,9 @@ pub struct Analyzer {
     on_sub: Onset,
     on_click: Onset,
     sub_over: bool,
+    no_click: bool, // o cruzamento atual do sub foi recusado só por falta de click
     last_click: f64,
+    last_soft_click: f64, // click mais fraco, só vale no beat previsto
     last_kick: f64,
     env: [f32; 5],
     env_peak: [f32; 5],
@@ -169,7 +171,9 @@ impl Analyzer {
             on_sub: Onset::default(),
             on_click: Onset::default(),
             sub_over: false,
+            no_click: false,
             last_click: -1.0,
+            last_soft_click: -1.0,
             last_kick: -1.0,
             env: [0.0; 5],
             env_peak: [1e-4; 5],
@@ -245,6 +249,9 @@ impl Analyzer {
         if dc > tc {
             self.last_click = t;
         }
+        if dc > 0.75 * tc {
+            self.last_soft_click = t;
+        }
         let (ds, ts) = self.on_sub.step(ms[0], k);
         self.beat.tick(t);
         let grid = self.beat.on_grid(t);
@@ -253,23 +260,32 @@ impl Analyzer {
         self.flux = ds;
         self.thr = thr;
         let over = ds > thr;
-        let rising = over && !self.sub_over;
+        let click_now = t - self.last_click < 0.017;
+        // borda nova, ou o mesmo cruzamento que foi recusado só por falta de click e agora tem click:
+        // a subida do sub às vezes passa o limiar 1 hop antes do click do kick chegar
+        let rising = over && (!self.sub_over || (self.no_click && click_now));
         self.sub_over = over;
+        if !over {
+            self.no_click = false;
+        }
 
         let (lo, hi) = (p.bpm_min.min(p.bpm_max) as f64, p.bpm_min.max(p.bpm_max) as f64);
         if !rising || pk < p.gate || t - self.last_kick < 0.6 * 60.0 / hi {
             return None;
         }
-        let click_ok = !p.need_click || t - self.last_click < 0.017;
+        let click_ok = !p.need_click || click_now;
         let strong = ds > 2.0 * ts;
         let accept = match grid {
-            Some(true) => click_ok || strong,
+            // no beat previsto aceita click mais fraco: com ruído alto o click do kick fica perto do piso
+            Some(true) => click_ok || strong || (p.need_click && t - self.last_soft_click < 0.017),
             Some(false) => click_ok && strong,
             None => click_ok,
         };
         if !accept {
+            self.no_click = !click_ok;
             return None;
         }
+        self.no_click = false;
         self.last_kick = t;
         self.beat.on_kick(t, lo, hi, p.lock);
         Some((0.5 + (ds / thr - 1.0) * 0.5).clamp(0.3, 1.0))
@@ -321,9 +337,12 @@ mod tests {
     }
 
     fn check(bpm: f64, lo: f32, hi: f32) {
-        let sr = 48000.0;
-        let secs = 20.0;
-        let (x, truth) = track(bpm, secs, sr, true);
+        check_synth(Synth { bpm, secs: 20.0, ..Default::default() }, lo, hi);
+    }
+
+    fn check_synth(s: Synth, lo: f32, hi: f32) {
+        let (sr, secs, bpm) = (s.sr, s.secs, s.bpm);
+        let (x, truth) = s.render();
         let mut an = Analyzer::new(sr);
         let p = Params { bpm_min: lo, bpm_max: hi, ..Default::default() };
         let (mut det, mut last_beat) = (vec![], i64::MIN);
@@ -381,6 +400,68 @@ mod tests {
         let dt = first_on_after_drop.expect("o drop não voltou");
         println!("drop voltou {:.0} ms depois do primeiro kick", dt * 1000.0);
         assert!(dt < 60.0 / 148.0, "drop demorou {dt:.2}s");
+    }
+
+    /// Troca de música no meio (148 → 175 BPM, sem breakdown): a trava da faixa velha não pode
+    /// segurar o andamento antigo para sempre. Hoje re-trava em ~7,3 s (a janela de 8 s do
+    /// ajuste precisa esvaziar dos kicks velhos); o limite de 9 s é esse comportamento, não meta.
+    #[test]
+    fn troca_de_musica_148_175() {
+        let sr = 48000.0;
+        let (a, _) = Synth { bpm: 148.0, secs: 15.0, sr, ..Default::default() }.render();
+        let (b, _) = Synth { bpm: 175.0, secs: 15.0, sr, seed: 2, ..Default::default() }.render();
+        let x: Vec<f32> = a.into_iter().chain(b).collect();
+        for (lo, hi) in [(145.0, 185.0), (80.0, 220.0)] {
+            let mut an = Analyzer::new(sr);
+            let p = Params { bpm_min: lo, bpm_max: hi, ..Default::default() };
+            let mut novo = None;
+            for (i, c) in x.chunks_exact(HOP).enumerate() {
+                let t = (i + 1) as f64 * HOP as f64 / sr as f64;
+                an.process(c, &p);
+                if t > 15.0 && novo.is_none() && an.beat.locked && (an.beat.at(t).0 - 175.0).abs() < 0.5 {
+                    novo = Some(t - 15.0);
+                }
+            }
+            let (est, _, _) = an.beat.at(30.0);
+            let dt = novo.unwrap_or_else(|| panic!("{lo}–{hi}: não re-travou em 175 (final {est:.2})"));
+            println!("{lo}–{hi}: re-travou em 175 após {dt:.2} s; final {est:.2}");
+            assert!(an.beat.locked && (est - 175.0).abs() < 0.5, "{lo}–{hi}: final {est}");
+            assert!(dt < 9.0, "{lo}–{hi}: re-trava demorou {dt:.2} s");
+        }
+    }
+
+    /// Auto (80–220) com 2 s de silêncio antes: a mediana dos intervalos caía em 2 beats e
+    /// travava em 87,5 (DETECCAO.md §4.4). E o inverso: 90 BPM de verdade não pode dobrar.
+    #[test]
+    fn auto_sem_meio_tempo() {
+        for (bpm, start) in [(175.0, 2.0), (90.0, 0.05), (100.0, 2.0)] {
+            let s = Synth { bpm, secs: 30.0, start, ..Default::default() };
+            let (x, _) = s.render();
+            let mut an = Analyzer::new(s.sr);
+            let p = Params { bpm_min: 80.0, bpm_max: 220.0, ..Default::default() };
+            for c in x.chunks_exact(HOP) {
+                an.process(c, &p);
+            }
+            let (est, _, _) = an.beat.at(30.0);
+            println!("Auto {bpm} (início {start} s): {est:.2}");
+            assert!(an.beat.locked && (est as f64 - bpm).abs() < 0.5, "Auto {bpm}: estimou {est}");
+        }
+    }
+
+    /// Só kick, sem baixo rolante: a subida do sub passava o limiar 1 hop antes do click e
+    /// travava a borda, perdendo ~15 % dos kicks (DETECCAO.md §4.2).
+    #[test]
+    fn limpo_sem_baixo() {
+        check_synth(Synth { bpm: 140.0, secs: 20.0, rolling: false, ..Default::default() }, 135.0, 150.0);
+        check_synth(Synth { bpm: 160.0, secs: 20.0, rolling: false, ..Default::default() }, 145.0, 185.0);
+    }
+
+    /// Ruído branco alto (−14 dBFS) com baixo rolante: o click do kick fica perto do piso do
+    /// limiar e um em cada três kicks se perdia mesmo no beat previsto (DETECCAO.md §4.1).
+    #[test]
+    fn ruido_alto() {
+        check_synth(Synth { bpm: 140.0, secs: 20.0, noise: 0.2, ..Default::default() }, 135.0, 150.0);
+        check_synth(Synth { bpm: 175.0, secs: 20.0, noise: 0.2, ..Default::default() }, 145.0, 185.0);
     }
 
     #[test]
