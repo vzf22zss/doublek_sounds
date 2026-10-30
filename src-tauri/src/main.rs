@@ -234,6 +234,59 @@ fn close_output(app: AppHandle) {
     }
 }
 
+// ---------- OSC (DK-091): servidor local; a UI liga/desliga em DK-092 ----------
+
+static OSC: Mutex<Option<doublek_lib::osc::Server>> = Mutex::new(None);
+
+#[derive(Serialize)]
+struct OscStatus {
+    running: bool,
+    bind: String,
+    received: u64,
+    dropped: u64,  // limite de taxa
+    rejected: u64, // pacotes malformados
+}
+
+/// Liga o servidor OSC (um por vez). `bind` vazio = 127.0.0.1 (só esta máquina); 0.0.0.0 abre para a rede local.
+/// Cada mensagem vira o evento `osc` `{ addr, args }` na janela de controle. Devolve o endereço em uso.
+#[tauri::command]
+fn osc_start(app: AppHandle, bind: String, port: u16) -> Result<String, String> {
+    let mut cur = OSC.lock().unwrap();
+    if let Some(s) = &*cur {
+        return Err(format!("O OSC já está ligado em {}: desligue antes de trocar a porta", s.addr));
+    }
+    if port == 0 {
+        return Err("Porta OSC de 1 a 65535".into());
+    }
+    let ip: std::net::IpAddr = if bind.trim().is_empty() { [127, 0, 0, 1].into() } else { bind.trim().parse().map_err(|_| format!("Endereço inválido: {bind}"))? };
+    let srv = doublek_lib::osc::serve((ip, port).into(), move |m| { let _ = app.emit_to("control", "osc", m); })?;
+    let addr = srv.addr.to_string();
+    *cur = Some(srv);
+    Ok(addr)
+}
+
+#[tauri::command]
+fn osc_stop() {
+    let srv = OSC.lock().unwrap().take();
+    if let Some(s) = srv {
+        s.stop();
+    }
+}
+
+#[tauri::command]
+fn osc_status() -> OscStatus {
+    match &*OSC.lock().unwrap() {
+        Some(s) => OscStatus {
+            running: true,
+            bind: s.addr.to_string(),
+            received: s.stats.received.load(Relaxed),
+            dropped: s.stats.dropped.load(Relaxed),
+            rejected: s.stats.rejected.load(Relaxed),
+        },
+        None => OscStatus { running: false, bind: String::new(), received: 0, dropped: 0, rejected: 0 },
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -269,7 +322,10 @@ fn main() {
             list_monitors,
             open_output,
             close_output,
-            midi_devices
+            midi_devices,
+            osc_start,
+            osc_stop,
+            osc_status
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar o app");
