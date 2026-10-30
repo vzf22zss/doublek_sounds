@@ -4,6 +4,7 @@
   import Analyzer from './Analyzer.svelte';
   import Slider from './Slider.svelte';
   import Performance from './Performance.svelte';
+  import { midi, keyOf, bindArmed, clearArmed, keyLabel, learnable, type MidiMsg } from './midi.svelte';
   import { Renderer } from '../render/renderer';
   import { VISUAL, loadVisual, saveVisual } from '../lib/settings';
   import { assetSync, setAsset } from '../lib/assets';
@@ -41,6 +42,7 @@
   let preview: Renderer | null = null;
   let sync: ReturnType<typeof assetSync> | null = null;
   let perf: ReturnType<typeof Performance>;
+  let midiLit = $state(false);
 
   // ajustes de áudio → motor (e salvos)
   $effect(() => {
@@ -98,6 +100,57 @@
   const listen = () => invoke('start_input', { device: s.device || null, channel: +s.channel });
   const beat = (cmd: unknown) => invoke('beat', { cmd });
 
+  // ---------- MIDI ----------
+  const ACTIONS: Record<string, () => void> = {
+    tap: () => beat('tap'),
+    half: () => beat('half'),
+    double: () => beat('double'),
+    'nudge-': () => beat({ nudge: -0.005 }),
+    'nudge+': () => beat({ nudge: 0.005 }),
+    blackout: () => (vs.blackout = !vs.blackout),
+    logoOnly: () => (vs.logoOnly = !vs.logoOnly),
+  };
+  const lastVal = new Map<string, number>();
+
+  function onMidi(m: MidiMsg) {
+    const key = keyOf(m), prev = lastVal.get(key) ?? 0;
+    lastVal.set(key, m.val);
+    midi.activity = performance.now();
+    if (midi.learning) {
+      if (midi.armed && m.val > 0) {
+        const t = bindArmed(key);
+        status = `MIDI: ${keyLabel(key)} → ${t?.label}`;
+      }
+      return;
+    }
+    const t = midi.map[key];
+    if (!t) return;
+    const [kind, name] = t.id.split(':');
+    if (kind === 'v') {
+      if (m.kind !== 'cc' || t.min === undefined || t.max === undefined) return;
+      const x = t.min + (m.val / 127) * (t.max - t.min), st = t.step ?? 0.01;
+      (vs as any)[name] = +(Math.round(x / st) * st).toFixed(6);
+      return;
+    }
+    // botões: nota = ao apertar; CC = quando passa de 63 (controladores mandam 127 ao apertar e 0 ao soltar)
+    const press = m.kind === 'note' ? m.val > 0 : m.val > 63 && prev <= 63;
+    if (!press) return;
+    if (kind === 'c') perf.recall(+name);
+    else ACTIONS[name]?.();
+  }
+
+  invoke<string[]>('midi_devices').then((d) => (midi.devices = d));
+  onEvent<string[]>('midi-devices', (e) => {
+    midi.devices = e.payload;
+    status = e.payload.length ? 'MIDI: ' + e.payload.join(' · ') : 'Nenhum controlador MIDI conectado.';
+  });
+  onEvent<MidiMsg>('midi', (e) => onMidi(e.payload));
+
+  function toggleLearn() {
+    midi.learning = !midi.learning;
+    midi.armed = null;
+  }
+
   invoke<string[]>('list_inputs').then((d) => {
     devices = d;
     if (s.device && d.includes(s.device)) listen();
@@ -138,6 +191,7 @@
     const loop = () => {
       raf = requestAnimationFrame(loop);
       if (fps && performance.now() - fpsAt > 2500) fps = 0;
+      midiLit = performance.now() - midi.activity < 120;
       const f = frame;
       if (!f || !f.bpm) return;
       const x = f.beatPhase + ((performance.now() - frameAt) / 1000) * (f.bpm / 60);
@@ -150,6 +204,7 @@
   function onKey(e: KeyboardEvent) {
     const tag = (e.target as HTMLElement).tagName;
     if (tag === 'SELECT' || (tag === 'INPUT' && (e.target as HTMLInputElement).type !== 'range' && (e.target as HTMLInputElement).type !== 'checkbox')) return;
+    if (e.code === 'Escape' && midi.learning) { toggleLearn(); return; }
     if (e.code === 'Space') { e.preventDefault(); beat('tap'); }
     else if (e.code === 'ArrowLeft') { e.preventDefault(); beat({ nudge: -0.005 }); }
     else if (e.code === 'ArrowRight') { e.preventDefault(); beat({ nudge: 0.005 }); }
@@ -213,18 +268,31 @@
     </div>
 
     <div class="group">
-      <button onclick={() => beat('tap')} title="Espaço">TAP</button>
-      <button onclick={() => beat('half')} title="Metade do BPM">½</button>
-      <button onclick={() => beat('double')} title="Dobro do BPM">×2</button>
-      <button onclick={() => beat({ nudge: -0.005 })} title="Adiantar 5 ms (←)">◀</button>
-      <button onclick={() => beat({ nudge: 0.005 })} title="Atrasar 5 ms (→)">▶</button>
+      <button onclick={ACTIONS.tap} title="Espaço" use:learnable={{ id: 'a:tap', label: 'TAP' }}>TAP</button>
+      <button onclick={ACTIONS.half} title="Metade do BPM" use:learnable={{ id: 'a:half', label: '½ BPM' }}>½</button>
+      <button onclick={ACTIONS.double} title="Dobro do BPM" use:learnable={{ id: 'a:double', label: '×2 BPM' }}>×2</button>
+      <button onclick={ACTIONS['nudge-']} title="Adiantar 5 ms (←)" use:learnable={{ id: 'a:nudge-', label: 'Adiantar fase' }}>◀</button>
+      <button onclick={ACTIONS['nudge+']} title="Atrasar 5 ms (→)" use:learnable={{ id: 'a:nudge+', label: 'Atrasar fase' }}>▶</button>
     </div>
 
     <div class="group">
       <span class="fps" class:live={fps > 0}>{fps ? `TELÃO ${fps} fps` : 'telão fechado'}</span>
-      <button class="black" class:on={vs.blackout} onclick={() => (vs.blackout = !vs.blackout)} title="B">BLACKOUT</button>
+      <button class="midiBtn" class:on={midi.learning} onclick={toggleLearn} title="MIDI learn: mapear controles do controlador">
+        <i class:lit={midiLit}></i>MIDI
+      </button>
+      <button class="black" class:on={vs.blackout} onclick={ACTIONS.blackout} title="B" use:learnable={{ id: 'a:blackout', label: 'BLACKOUT' }}>BLACKOUT</button>
     </div>
   </header>
+
+  {#if midi.learning}
+    <div class="learnBar">
+      <b>MIDI learn</b>
+      <span>{midi.armed ? `“${midi.armed.label}” armado — mexa no knob ou aperte o pad do controlador` : 'Clique num controle da tela: knob, slider, cena, TAP, BLACKOUT…'}</span>
+      <small>{midi.devices.length ? midi.devices.join(' · ') : 'nenhum controlador MIDI encontrado'}</small>
+      {#if midi.armed}<button onclick={clearArmed}>Apagar mapeamento</button>{/if}
+      <button class="primary" onclick={toggleLearn}>Concluir</button>
+    </div>
+  {/if}
 
   <section class="left">
     <div class="panel previewBox">
@@ -274,21 +342,21 @@
           <label class="btn">Escolher logo<input type="file" accept="image/*" onchange={(e) => pick('logo', e.currentTarget.files?.[0])} /></label>
           <label class="color">Cor do brilho <input type="color" bind:value={vs.color} /></label>
         </div>
-        <Slider label="Tamanho" bind:value={vs.size} min={10} max={150} step={1} def={VISUAL.size} fmt={(v) => v + '%'} />
-        <Slider label="Pulso" bind:value={vs.amount} bind:mod={vs.mod.amount} min={0} max={1.5} step={0.01} def={VISUAL.amount} fmt={f2} />
-        <Slider label="Brilho (glow)" bind:value={vs.glow} bind:mod={vs.mod.glow} min={0} max={1} step={0.01} def={VISUAL.glow} fmt={f2} />
-        <Slider label="Aberração cromática" bind:value={vs.chroma} bind:mod={vs.mod.chroma} min={0} max={40} step={0.5} def={VISUAL.chroma} fmt={(v) => v + ' px'} />
+        <Slider label="Tamanho" bind:value={vs.size} learn="size" min={10} max={150} step={1} def={VISUAL.size} fmt={(v) => v + '%'} />
+        <Slider label="Pulso" bind:value={vs.amount} learn="amount" bind:mod={vs.mod.amount} min={0} max={1.5} step={0.01} def={VISUAL.amount} fmt={f2} />
+        <Slider label="Brilho (glow)" bind:value={vs.glow} learn="glow" bind:mod={vs.mod.glow} min={0} max={1} step={0.01} def={VISUAL.glow} fmt={f2} />
+        <Slider label="Aberração cromática" bind:value={vs.chroma} learn="chroma" bind:mod={vs.mod.chroma} min={0} max={40} step={0.5} def={VISUAL.chroma} fmt={(v) => v + ' px'} />
         <label class="check">
           <input type="checkbox" bind:checked={vs.rmWhite} />
           <span>Remover fundo branco da logo</span>
         </label>
         {#if vs.rmWhite}
-          <Slider label="Tolerância do branco" bind:value={vs.white} min={200} max={254} step={1} def={VISUAL.white} />
+          <Slider label="Tolerância do branco" bind:value={vs.white} learn="white" min={200} max={254} step={1} def={VISUAL.white} />
         {/if}
         <h2>Reação</h2>
         <p class="keys">O seletor ao lado de cada efeito escolhe o que no som o move: Auto (kick, ou a onda sem kick), Kick, Sub, Bass, Mid, Hats, Beat, Compasso ou LFO.</p>
-        <Slider label="Duração do pulso" bind:value={vs.rel} min={0.03} max={0.5} step={0.01} def={VISUAL.rel} fmt={(v) => v.toFixed(2) + ' s'} />
-        <Slider label="Seguir a música sem kick" bind:value={vs.wave} min={0} max={1} step={0.01} def={VISUAL.wave} fmt={f2} />
+        <Slider label="Duração do pulso" bind:value={vs.rel} learn="rel" min={0.03} max={0.5} step={0.01} def={VISUAL.rel} fmt={(v) => v.toFixed(2) + ' s'} />
+        <Slider label="Seguir a música sem kick" bind:value={vs.wave} learn="wave" min={0} max={1} step={0.01} def={VISUAL.wave} fmt={f2} />
 
       {:else if tab === 'Fundo'}
         <div class="files">
@@ -301,40 +369,40 @@
           <label class="check inline"><input type="checkbox" bind:checked={vs.bgGrad} /> Degradê</label>
         </div>
         {#if vs.bgGrad}
-          <Slider label="Ângulo do degradê" bind:value={vs.bgAngle} min={0} max={360} step={1} def={VISUAL.bgAngle} fmt={(v) => v + '°'} />
+          <Slider label="Ângulo do degradê" bind:value={vs.bgAngle} learn="bgAngle" min={0} max={360} step={1} def={VISUAL.bgAngle} fmt={(v) => v + '°'} />
         {/if}
         <div class="seg two">
           <button class:on={vs.bgFit === 'cover'} onclick={() => (vs.bgFit = 'cover')}>Preencher</button>
           <button class:on={vs.bgFit === 'contain'} onclick={() => (vs.bgFit = 'contain')}>Caber inteira</button>
         </div>
-        <Slider label="Opacidade da foto" bind:value={vs.bgOpacity} min={0} max={1} step={0.01} def={1} fmt={pct} />
-        <Slider label="Desfoque da foto" bind:value={vs.bgBlur} min={0} max={40} step={1} def={0} fmt={(v) => v + ' px'} />
-        <Slider label="Brilho da foto" bind:value={vs.bgDim} min={0} max={150} step={1} def={100} fmt={(v) => v + '%'} />
-        <Slider label="Girar matiz" bind:value={vs.bgHue} min={-180} max={180} step={1} def={0} fmt={(v) => v + '°/s'} />
-        <Slider label="Zoom do fundo" bind:value={vs.bgPulse} bind:mod={vs.mod.bgPulse} min={0} max={0.4} step={0.01} def={VISUAL.bgPulse} fmt={f2} />
-        <Slider label="Brilho do fundo" bind:value={vs.bgFlash} bind:mod={vs.mod.bgFlash} min={0} max={1} step={0.01} def={VISUAL.bgFlash} fmt={f2} />
+        <Slider label="Opacidade da foto" bind:value={vs.bgOpacity} learn="bgOpacity" min={0} max={1} step={0.01} def={1} fmt={pct} />
+        <Slider label="Desfoque da foto" bind:value={vs.bgBlur} learn="bgBlur" min={0} max={40} step={1} def={0} fmt={(v) => v + ' px'} />
+        <Slider label="Brilho da foto" bind:value={vs.bgDim} learn="bgDim" min={0} max={150} step={1} def={100} fmt={(v) => v + '%'} />
+        <Slider label="Girar matiz" bind:value={vs.bgHue} learn="bgHue" min={-180} max={180} step={1} def={0} fmt={(v) => v + '°/s'} />
+        <Slider label="Zoom do fundo" bind:value={vs.bgPulse} learn="bgPulse" bind:mod={vs.mod.bgPulse} min={0} max={0.4} step={0.01} def={VISUAL.bgPulse} fmt={f2} />
+        <Slider label="Brilho do fundo" bind:value={vs.bgFlash} learn="bgFlash" bind:mod={vs.mod.bgFlash} min={0} max={1} step={0.01} def={VISUAL.bgFlash} fmt={f2} />
 
       {:else if tab === 'Efeitos'}
-        <Slider label="Flash" bind:value={vs.fxFlash} bind:mod={vs.mod.fxFlash} min={0} max={1} step={0.01} def={VISUAL.fxFlash} fmt={f2} />
-        <Slider label="Anéis a cada kick" bind:value={vs.fxRings} min={0} max={1} step={0.01} def={VISUAL.fxRings} fmt={f2} />
-        <Slider label="Espectro em barras" bind:value={vs.fxBars} min={0} max={1} step={0.01} def={0} fmt={f2} />
-        <Slider label="Espectro radial na logo" bind:value={vs.fxRadial} min={0} max={1} step={0.01} def={0} fmt={f2} />
+        <Slider label="Flash" bind:value={vs.fxFlash} learn="fxFlash" bind:mod={vs.mod.fxFlash} min={0} max={1} step={0.01} def={VISUAL.fxFlash} fmt={f2} />
+        <Slider label="Anéis a cada kick" bind:value={vs.fxRings} learn="fxRings" min={0} max={1} step={0.01} def={VISUAL.fxRings} fmt={f2} />
+        <Slider label="Espectro em barras" bind:value={vs.fxBars} learn="fxBars" min={0} max={1} step={0.01} def={0} fmt={f2} />
+        <Slider label="Espectro radial na logo" bind:value={vs.fxRadial} learn="fxRadial" min={0} max={1} step={0.01} def={0} fmt={f2} />
         <h2>Rastro / túnel</h2>
-        <Slider label="Rastro" bind:value={vs.trail} min={0} max={1} step={0.01} def={0} fmt={f2} />
-        <Slider label="Zoom do rastro" bind:value={vs.trailZoom} bind:mod={vs.mod.trailZoom} min={-1} max={1} step={0.01} def={VISUAL.trailZoom} fmt={f2} />
-        <Slider label="Giro do rastro" bind:value={vs.trailRot} min={-1} max={1} step={0.01} def={0} fmt={f2} />
+        <Slider label="Rastro" bind:value={vs.trail} learn="trail" min={0} max={1} step={0.01} def={0} fmt={f2} />
+        <Slider label="Zoom do rastro" bind:value={vs.trailZoom} learn="trailZoom" bind:mod={vs.mod.trailZoom} min={-1} max={1} step={0.01} def={VISUAL.trailZoom} fmt={f2} />
+        <Slider label="Giro do rastro" bind:value={vs.trailRot} learn="trailRot" min={-1} max={1} step={0.01} def={0} fmt={f2} />
         <h2>Strobe</h2>
-        <Slider label="Intensidade" bind:value={vs.strobe} min={0} max={1} step={0.01} def={0} fmt={f2} />
+        <Slider label="Intensidade" bind:value={vs.strobe} learn="strobe" min={0} max={1} step={0.01} def={0} fmt={f2} />
         <div class="seg four">
           {#each [[1, '1/1'], [2, '1/2'], [4, '1/4']] as [d, l]}
             <button class:on={vs.strobeDiv === d} onclick={() => (vs.strobeDiv = d as number)}>{l}</button>
           {/each}
         </div>
         <h2>Tela</h2>
-        <Slider label="Vinheta" bind:value={vs.fxVig} min={0} max={1} step={0.01} def={VISUAL.fxVig} fmt={f2} />
-        <Slider label="Linhas de TV" bind:value={vs.fxScan} min={0} max={1} step={0.01} def={0} fmt={f2} />
-        <Slider label="Granulado" bind:value={vs.fxGrain} min={0} max={1} step={0.01} def={0} fmt={f2} />
-        <Slider label="Tremor" bind:value={vs.fxShake} bind:mod={vs.mod.fxShake} min={0} max={30} step={1} def={0} fmt={(v) => v + ' px'} />
+        <Slider label="Vinheta" bind:value={vs.fxVig} learn="fxVig" min={0} max={1} step={0.01} def={VISUAL.fxVig} fmt={f2} />
+        <Slider label="Linhas de TV" bind:value={vs.fxScan} learn="fxScan" min={0} max={1} step={0.01} def={0} fmt={f2} />
+        <Slider label="Granulado" bind:value={vs.fxGrain} learn="fxGrain" min={0} max={1} step={0.01} def={0} fmt={f2} />
+        <Slider label="Tremor" bind:value={vs.fxShake} learn="fxShake" bind:mod={vs.mod.fxShake} min={0} max={30} step={1} def={0} fmt={(v) => v + ' px'} />
 
       {:else}
         <h2>Telão</h2>
@@ -351,10 +419,10 @@
           <input type="checkbox" bind:checked={vs.predict} />
           <span>Pulsar pelo relógio do beat <small>com o BPM travado, o pulso é previsto e pode ser adiantado</small></span>
         </label>
-        <Slider label="Offset visual" bind:value={vs.offset} min={-150} max={50} step={1} def={VISUAL.offset} fmt={(v) => v + ' ms'} />
+        <Slider label="Offset visual" bind:value={vs.offset} learn="offset" min={-150} max={50} step={1} def={VISUAL.offset} fmt={(v) => v + ' ms'} />
         <p class="keys">Negativo = adianta o pulso para compensar o atraso do projetor. Ajuste até o pulso cair junto com o kick que você ouve.</p>
         <h2>Desempenho</h2>
-        <Slider label="Resolução de render" bind:value={vs.renderScale} min={0.4} max={1} step={0.05} def={1} fmt={pct} />
+        <Slider label="Resolução de render" bind:value={vs.renderScale} learn="renderScale" min={0.4} max={1} step={0.05} def={1} fmt={pct} />
         <p class="keys">Abaixe se o telão cair de 60 fps.</p>
       {/if}
     </div>
@@ -383,6 +451,16 @@
   .black { font-weight: 700; letter-spacing: .06em; }
   .black.on { background: var(--clip); border-color: var(--clip); }
   .fps { font-size: 11px; color: var(--muted); }
+  .midiBtn { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+  .midiBtn i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.15); transition: background 60ms; }
+  .midiBtn i.lit { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+  .learnBar {
+    position: fixed; top: 76px; left: 50%; translate: -50% 0; z-index: 20;
+    display: flex; align-items: center; gap: 12px; padding: 10px 14px; max-width: calc(100vw - 32px);
+    background: rgba(20, 16, 36, .92); border: 1px solid var(--accent); border-radius: var(--radius);
+    box-shadow: 0 10px 40px rgba(0,0,0,.5); backdrop-filter: blur(20px);
+  }
+  .learnBar small { color: var(--muted); }
   .fps.live { color: var(--ok); }
 
   .meter { position: relative; width: 140px; height: 26px; border-radius: 8px; background: rgba(255,255,255,.06); overflow: hidden; }

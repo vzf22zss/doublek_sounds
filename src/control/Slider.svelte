@@ -2,14 +2,15 @@
   // Fader com rótulo e valor. Duplo clique volta ao padrão.
   // Com `mod`, mostra a fonte que move o efeito (matriz de modulação).
   import { SOURCES, type Source } from '../lib/settings';
+  import { learnable } from './midi.svelte';
 
-  let { label, value = $bindable(), mod = $bindable(), min, max, step, def, fmt = (v: number) => String(v) }: {
-    label: string; value: number; mod?: Source; min: number; max: number; step: number; def: number; fmt?: (v: number) => string;
+  let { label, value = $bindable(), mod = $bindable(), min, max, step, def, fmt = (v: number) => String(v), learn }: {
+    label: string; value: number; mod?: Source; min: number; max: number; step: number; def: number; fmt?: (v: number) => string; learn?: string;
   } = $props();
   const fill = $derived(((value - min) / (max - min)) * 100);
 </script>
 
-<div class="row">
+<div class="row" use:learnable={learn ? { id: 'v:' + learn, label, min, max, step } : null}>
   <span class="top">
     <span>{label}</span>
     {#if mod !== undefined}

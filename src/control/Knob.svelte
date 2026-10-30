@@ -1,7 +1,10 @@
 <script lang="ts">
   // Knob: arrastar para cima/baixo, Shift = ajuste fino, roda do mouse, duplo clique = padrão.
-  let { label, value = $bindable(), min, max, step, def, fmt = (v: number) => v.toFixed(2) }: {
-    label: string; value: number; min: number; max: number; step: number; def: number; fmt?: (v: number) => string;
+  import { learnable } from './midi.svelte';
+
+  // `learn` = chave do ajuste visual, para o MIDI learn
+  let { label, value = $bindable(), min, max, step, def, fmt = (v: number) => v.toFixed(2), learn }: {
+    label: string; value: number; min: number; max: number; step: number; def: number; fmt?: (v: number) => string; learn?: string;
   } = $props();
 
   const norm = $derived((value - min) / (max - min));
@@ -30,6 +33,7 @@
 
 <div
   class="knob"
+  use:learnable={learn ? { id: 'v:' + learn, label, min, max, step } : null}
   role="slider"
   tabindex="0"
   aria-label={label}

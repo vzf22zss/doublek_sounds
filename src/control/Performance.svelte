@@ -1,6 +1,7 @@
 <script lang="ts">
   // Barra de performance: knobs dos efeitos mais mexidos ao vivo + 8 cenas com crossfade no beat.
   import Knob from './Knob.svelte';
+  import { learnable } from './midi.svelte';
   import { blend, loadScenes, lookOf, saveScenes, sanitizeLook, VISUAL, type Look, type Scene, type Visual } from '../lib/settings';
 
   let { vs = $bindable(), beatInfo, onstatus }: {
@@ -87,16 +88,16 @@
 
 <section class="panel perf">
   <div class="knobs">
-    <Knob label="Pulso" bind:value={vs.amount} min={0} max={1.5} step={0.01} def={VISUAL.amount} fmt={f2} />
-    <Knob label="Glow" bind:value={vs.glow} min={0} max={1} step={0.01} def={VISUAL.glow} fmt={f2} />
-    <Knob label="Flash" bind:value={vs.fxFlash} min={0} max={1} step={0.01} def={VISUAL.fxFlash} fmt={f2} />
-    <Knob label="Anéis" bind:value={vs.fxRings} min={0} max={1} step={0.01} def={VISUAL.fxRings} fmt={f2} />
-    <Knob label="Rastro" bind:value={vs.trail} min={0} max={1} step={0.01} def={0} fmt={f2} />
-    <Knob label="Strobe" bind:value={vs.strobe} min={0} max={1} step={0.01} def={0} fmt={f2} />
-    <Knob label="Cromática" bind:value={vs.chroma} min={0} max={40} step={0.5} def={0} fmt={(v) => v.toFixed(0)} />
-    <Knob label="Zoom fundo" bind:value={vs.bgPulse} min={0} max={0.4} step={0.01} def={VISUAL.bgPulse} fmt={f2} />
-    <Knob label="Tremor" bind:value={vs.fxShake} min={0} max={30} step={1} def={0} fmt={(v) => v.toFixed(0)} />
-    <Knob label="Matiz" bind:value={vs.bgHue} min={-180} max={180} step={1} def={0} fmt={(v) => v.toFixed(0) + '°'} />
+    <Knob label="Pulso" bind:value={vs.amount} learn="amount" min={0} max={1.5} step={0.01} def={VISUAL.amount} fmt={f2} />
+    <Knob label="Glow" bind:value={vs.glow} learn="glow" min={0} max={1} step={0.01} def={VISUAL.glow} fmt={f2} />
+    <Knob label="Flash" bind:value={vs.fxFlash} learn="fxFlash" min={0} max={1} step={0.01} def={VISUAL.fxFlash} fmt={f2} />
+    <Knob label="Anéis" bind:value={vs.fxRings} learn="fxRings" min={0} max={1} step={0.01} def={VISUAL.fxRings} fmt={f2} />
+    <Knob label="Rastro" bind:value={vs.trail} learn="trail" min={0} max={1} step={0.01} def={0} fmt={f2} />
+    <Knob label="Strobe" bind:value={vs.strobe} learn="strobe" min={0} max={1} step={0.01} def={0} fmt={f2} />
+    <Knob label="Cromática" bind:value={vs.chroma} learn="chroma" min={0} max={40} step={0.5} def={0} fmt={(v) => v.toFixed(0)} />
+    <Knob label="Zoom fundo" bind:value={vs.bgPulse} learn="bgPulse" min={0} max={0.4} step={0.01} def={VISUAL.bgPulse} fmt={f2} />
+    <Knob label="Tremor" bind:value={vs.fxShake} learn="fxShake" min={0} max={30} step={1} def={0} fmt={(v) => v.toFixed(0)} />
+    <Knob label="Matiz" bind:value={vs.bgHue} learn="bgHue" min={-180} max={180} step={1} def={0} fmt={(v) => v.toFixed(0) + '°'} />
   </div>
 
   <div class="scenes">
@@ -104,6 +105,7 @@
       {#each scenes as sc, i}
         <button
           class="pad"
+          use:learnable={{ id: 'c:' + i, label: sc ? sc.name : `Cena ${i + 1}` }}
           class:empty={!sc}
           class:active={active === i}
           onclick={(e) => pad(e, i)}
@@ -130,7 +132,7 @@
           <button class:on={trans === b} onclick={() => (trans = b)}>{b ? b + ' beat' + (b > 1 ? 's' : '') : 'corte'}</button>
         {/each}
       </div>
-      <button class:on={vs.logoOnly} onclick={() => (vs.logoOnly = !vs.logoOnly)} title="L">Só logo</button>
+      <button class:on={vs.logoOnly} onclick={() => (vs.logoOnly = !vs.logoOnly)} title="L" use:learnable={{ id: 'a:logoOnly', label: 'Só logo' }}>Só logo</button>
       <button onclick={exportFile} title="Salva visual e cenas num arquivo">Exportar</button>
       <label class="btn" title="Carrega visual e cenas de um arquivo">Importar<input type="file" accept=".json,application/json" onchange={(e) => { importFile(e.currentTarget.files?.[0]); e.currentTarget.value = ''; }} /></label>
     </div>
