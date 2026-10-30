@@ -460,7 +460,7 @@ A **música** do roteiro é **opt-in** no pacote (direitos autorais e tamanho; D
 
 **Tarefas:**
 
-- **DK-141 — Validação com áudio real (P0, M0).** Subir 3 mp3 de psy/dark/hi-tech; conferir BPM e 1º beat contra o Rekordbox; tocar pelo app e medir se os pontos caem no beat (gravar tela + áudio); testar troca de saída de áudio, mensagem "a saída está em … Hz", fim da faixa, seek durante a música e A/B (tecla R); testar GO com uma faixa tocando por outra fonte. Registrar em `docs/quality/` o que passou e o que falhou. Sem hardware → **NÃO VERIFICADO**, não "aprovado".
+- **DK-141 — Validação com áudio real (P0, M0).** Plano passo a passo para o mantenedor: [`docs/quality/DK-141-plano-de-teste.md`](quality/DK-141-plano-de-teste.md). Subir 3 mp3 de psy/dark/hi-tech; conferir BPM e 1º beat contra o Rekordbox; tocar pelo app e medir se os pontos caem no beat (gravar tela + áudio); testar troca de saída de áudio, mensagem "a saída está em … Hz", fim da faixa, seek durante a música e A/B (tecla R); testar GO com uma faixa tocando por outra fonte. Registrar em `docs/quality/` o que passou e o que falhou. Sem hardware → **NÃO VERIFICADO**, não "aprovado".
 - **DK-142 — Roteiros e músicas no Show Pack (P1, M1).** Roteiros (`doublek.roteiros`), vídeos referenciados e, opt-in, as músicas de `app_data/tracks/` entram no `.doublekshow` com hash; importar re-vincula ids. Depende de DK-010.
 - **DK-143 — Convivência com automação e Program/Preview (P1, M4).** Regra: ponto de roteiro > automação (DK-030); definir se ponto de cena faz TAKE direto ou vai para o Preview (DK-040); modo *só roteiro* desliga automação; override manual com cooldown vale para os dois. Depende de DK-030 e DK-040.
 
@@ -742,7 +742,7 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 |---|---|
 | Última revisão do planejamento | 2026-10-30 (alinhado à v0.3.1) |
 | Commit/branch baseline validado | `main` @ `09a7677` (v0.3.1) — ver `docs/quality/BASELINE.md` |
-| Tarefa ativa | DK-141 (validação real, exige o mantenedor) · DK-008 (benchmark de detecção) READY para o agente · DK-004 restante (licença, governança, 1ª Release) com o mantenedor |
+| Tarefa ativa | **Em paralelo (desde 2026-10-30, coordenador: sessão doublek-sounds-68):** DK-008 → sessão d7 (`feat/dk-008-benchmark`), DK-004 governança → sessão 29 (`docs/dk-004-governanca`), DK-011 → sessão 22 (`feat/dk-011-showpack-schema`); coordenador: plano de teste do DK-141 (`docs/coordenacao-m0`). Regras: cada sessão num `git worktree` próprio, escopo de arquivos disjunto, sem push/merge, só o coordenador edita roadmap/BASELINE/README |
 | Marco ativo | M0 (faltam DK-004 restante, DK-008, DK-141) |
 | Tarefas do roadmap marcadas | 5 (DK-001, DK-002, DK-003, DK-005, DK-006) |
 | Tarefas concluídas | 5 |
@@ -784,6 +784,7 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 | 2026-10-30 | DK-003 | DONE (software) | `feat/dk-003-telemetria` | `telemetry.check.ts` ok · typecheck 0 · build ok · `cargo test` 9/9 · mock Edge headless: header cabe em 1280, telemetria chega, `WEBGL_lose_context` → bolinha vermelha + "contexto perdido" no diário → `restoreContext` → renderer recriado; Diagnóstico JSON com 12 seções | **DK-005** (CSP, limites de arquivo em `add_track`, capabilities); teste de 2 h e matriz de máquinas com o mantenedor (NÃO VERIFICADO) |
 | 2026-10-30 | DK-005 | DONE (software) | `feat/dk-005-seguranca` | `limits.check.ts` 18 asserts · `cargo test` 10/10 (novo `limites_de_upload_e_id`) · typecheck 0 · build ok · OSV 529 crates: 2 avisos não aplicáveis · mock com CSP injetada nas duas janelas: nada recusado, vídeo blob: e logo data: ok, `.exe` recusado com mensagem | App real rodado com autorização (prod + dev, via `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port` + Puppeteer): IPC, telão e telemetria ok, nada recusado; de quebra, a migração v0→v1 do DK-002 rodou sobre os dados reais da v0.3.1 instalada. Próximo: **DK-006** ou **DK-008** |
 | 2026-10-30 | DK-006 | DONE (software) | `feat/dk-006-seguranca-visual` | `safety.check.ts` (≤ 3 Hz em 80–220 BPM × 1/1,1/2,1/4) · typecheck 0 · build ok · mock: P zera strobe/flash/tremor e reporta; B → `body.black`, canvas opacity 0, etiqueta no preview; header cabe em 1280 | **DK-008** (benchmark de detecção com fixtures); DEC-07 resolvida (3 Hz, revisável) |
+| 2026-10-30 | COORD | IN_PROGRESS | `docs/coordenacao-m0` | Três sessões em paralelo com briefs completos: DK-008 (d7), DK-004 governança (29), DK-011 (22); worktrees separados, escopos disjuntos, relatório §11 de volta ao coordenador | Integrar as três branches na `main` com autorização; atualizar este painel com as evidências de cada uma |
 
 ### 8.4. Bloqueios e decisões pendentes
 
