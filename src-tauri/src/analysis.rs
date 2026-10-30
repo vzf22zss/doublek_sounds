@@ -383,6 +383,34 @@ mod tests {
         assert!(dt < 60.0 / 148.0, "drop demorou {dt:.2}s");
     }
 
+    /// Troca de música no meio (148 → 175 BPM, sem breakdown): a trava da faixa velha não pode
+    /// segurar o andamento antigo para sempre. Hoje re-trava em ~7,3 s (a janela de 8 s do
+    /// ajuste precisa esvaziar dos kicks velhos); o limite de 9 s é esse comportamento, não meta.
+    #[test]
+    fn troca_de_musica_148_175() {
+        let sr = 48000.0;
+        let (a, _) = Synth { bpm: 148.0, secs: 15.0, sr, ..Default::default() }.render();
+        let (b, _) = Synth { bpm: 175.0, secs: 15.0, sr, seed: 2, ..Default::default() }.render();
+        let x: Vec<f32> = a.into_iter().chain(b).collect();
+        for (lo, hi) in [(145.0, 185.0), (80.0, 220.0)] {
+            let mut an = Analyzer::new(sr);
+            let p = Params { bpm_min: lo, bpm_max: hi, ..Default::default() };
+            let mut novo = None;
+            for (i, c) in x.chunks_exact(HOP).enumerate() {
+                let t = (i + 1) as f64 * HOP as f64 / sr as f64;
+                an.process(c, &p);
+                if t > 15.0 && novo.is_none() && an.beat.locked && (an.beat.at(t).0 - 175.0).abs() < 0.5 {
+                    novo = Some(t - 15.0);
+                }
+            }
+            let (est, _, _) = an.beat.at(30.0);
+            let dt = novo.unwrap_or_else(|| panic!("{lo}–{hi}: não re-travou em 175 (final {est:.2})"));
+            println!("{lo}–{hi}: re-travou em 175 após {dt:.2} s; final {est:.2}");
+            assert!(an.beat.locked && (est - 175.0).abs() < 0.5, "{lo}–{hi}: final {est}");
+            assert!(dt < 9.0, "{lo}–{hi}: re-trava demorou {dt:.2} s");
+        }
+    }
+
     #[test]
     fn psy_140() {
         check(140.0, 135.0, 150.0);
