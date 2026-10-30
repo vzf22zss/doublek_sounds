@@ -10,6 +10,7 @@
 cd src-tauri
 cargo run --release --example bench            # ≈ 43 s na máquina de desenvolvimento (i5-11400H), fora a compilação (≈ 36 s são o estresse)
 cargo run --release --example bench -- 60      # faixas de 60 s em vez de 30 s
+cargo run --release --example bench -- custo   # só o custo do Analyzer::process (µs por hop)
 ```
 
 A saída é Markdown; cole-a na seção 3 deste arquivo ao regenerar. O bench é determinístico (mesma semente → mesma faixa → mesmos números).
@@ -42,9 +43,9 @@ A saída é Markdown; cole-a na seção 3 deste arquivo ao regenerar. O bench é
 
 **Estresse** (desde DK-009, última tabela): os cenários limpo, baixo rolante, breakdown e ruído alto, mais **chimbal no contratempo** (`hats` = 0,15: ruído agudo de 30 ms a meio beat, junto com a 2ª nota do baixo) e chimbal + breakdown, cada um com 10 sementes × 7 BPM na faixa do gênero. Agrega precisão/recall, soma quedas de trava e grades no contratempo, e lista as faixas com problema como BPM/semente (reproduzir com `Synth { bpm, seed, .. }`).
 
-## 3. Resultados (gerado em 2026-10-30, `feat/dk-009-deteccao` após P1–P4, P7 e o resíduo do breakdown)
+## 3. Resultados (gerado em 2026-10-30, `feat/dk-031-indicadores`)
 
-A última tabela é o **estresse**: os mesmos cenários com 10 sementes × 7 BPM, mais o chimbal no contratempo, com as faixas problemáticas listadas como BPM/semente.
+Depois das tabelas de detecção vêm o **estresse** (10 sementes × 7 BPM por cenário), os **indicadores de energia** (DK-031, seção 9) e o custo do `Analyzer::process`.
 
 <!-- gerado por `cargo run --release --example bench` (src-tauri); faixas de 30 s a 48 kHz, HOP 256, janela ±30 ms, medido após 3 s -->
 
@@ -157,6 +158,20 @@ Nenhum.
 | chimbal no contratempo | 1.000 | 1.000 | 0 | 0 | 0.10 | — |
 | chimbal + breakdown | 0.998 | 0.996 | 0 | 0 | 0.08 | — |
 
+### Indicadores de energia (DK-031)
+
+| BPM | Faixa | Contraste máx. groove | Contraste máx. no build-up | Kicks/compasso groove | Kicks/compasso breakdown (máx.) | Estabilidade groove (mín. após 8 s) |
+|---:|---|---:|---:|---:|---:|---:|
+| 135 | Psy | 1.00 | 1.40 | 3.5–4.0 | 0.0 | 0.91 |
+| 140 | Psy | 1.00 | 1.40 | 3.5–4.0 | 0.0 | 0.92 |
+| 148 | Psy | 1.01 | 1.40 | 3.5–4.0 | 0.0 | 0.92 |
+| 160 | Dark | 1.01 | 1.40 | 3.5–4.0 | 0.0 | 0.91 |
+| 175 | Dark | 1.00 | 1.38 | 3.5–4.0 | 0.0 | 0.91 |
+| 200 | Hi-tech | 1.01 | 1.40 | 3.5–4.0 | 0.0 | 0.83 |
+| 220 | Hi-tech | 1.01 | 1.40 | 3.5–4.0 | 0.0 | 0.92 |
+
+Custo do `Analyzer::process`: **3.44 µs por hop** (mínimo de 7 passadas; o hop dura 5333 µs a 48 kHz).
+
 ## 4. Leitura dos resultados e casos degradados
 
 Resumo (após P1–P4, P7 e o resíduo do breakdown): na tabela principal, **nenhum caso fora da meta**. Precisão 1,00 em 82 das 84 combinações (0,99 nas outras duas), recall ≥ 0,96 em todas, erro de BPM ≤ 0,08, nenhum ½/×2, nenhuma queda de trava. A trava chega em **1,4–4,1 s** depois do primeiro kick. O atraso algorítmico mediano é **3–11 ms** (seção 5). No **estresse** com 10 sementes: zero quedas de trava e zero grades no contratempo em todos os cenários; o único resíduo é recall 0,94 em 2 faixas com ruído alto (4.8). Cada caso abaixo foi conferido hop a hop com um exemplo descartável que imprimia `flux`, `thr`, bandas e estado da trava.
@@ -242,6 +257,10 @@ Limite: com o kick a ≤ 0,3 do volume (≈ −10 dB do padrão) ele **nem é de
 - **Ruído alto — conhecido:** 160/s7 e 175/s5 com recall 0,94 (4 kicks perdidos em ~70, isolados, sem padrão). É o limite do click suave de P1 a 0,75×; 0,6× ganharia um pouco (4.1). Não corrigido.
 - **Breakdown com o detector original:** com 10 sementes já havia falsos no breakdown (precisão 0,998); a semente 1 do bench mostrava 0.
 
+### 4.9. Pausa e faixa nova no mesmo andamento: kicks ignorados até 30 s (achado em DK-031, não corrigido)
+
+Medido ao testar o reset dos indicadores: 20 s de groove a 148 BPM, 3 s de silêncio digital (ou só ruído de fundo), outra faixa a 148 BPM com outra fase. A grade velha continua travada (`HOLD` = 30 s, feito para segurar breakdowns) e os kicks novos caem fora dela, onde precisam de `click && strong`: **1 de 49 kicks detectado** em 20 s, BPM e fase presos na faixa velha. **Já existia no detector do DK-008** (mesmo resultado); não é regressão de DK-009/031. No show: troca de faixa com pausa ou corte em que o kick volta defasado. Os indicadores novos denunciam o estado (kicks/compasso ≈ 0 com grave tocando e grade travada). Proposta P8.
+
 ## 5. Latência captura → evento (conta analítica)
 
 Não há hardware nesta tarefa. A cadeia e o que se sabe de cada elo:
@@ -277,6 +296,7 @@ Soma do que é conhecido ou estimado por software: **≈ 14–28 ms** entre o ki
 | P4 | 4.4 ½ Auto | **Feito em DK-009** (seção 8): testa p/2 quando cabe na faixa e fica com ela se explicar mais kicks | em Auto, música real a 80–110 BPM com falsos no contratempo poderia dobrar; o teste cobre 90 e 100 BPM limpos |
 | P6 | 4.6 troca de música | **Medido duas vezes, não entrou** (4.6): soltar a trava quando, em 2 s, recusados com click ≥ 4 e > 2× aceitos; re-trava 7,26 → 4,51 s, mas com chimbal + ruído + breakdown 22 quedas e 3× os falsos; ignorando o contratempo, não ajuda mais (7,94 s) | precisa de um sinal de "fase deslizando" que o ruído não imite |
 | P7 | 4.7 contratempo | **Feito em DK-009** (seção 8): escolhe a fase da grade pelo punch (banda de 160 Hz, 30 ms) dos candidatos com click | baixo real com muito médio-grave pode ter punch de kick; kick ≤ −10 dB não é detectado |
+| P8 | 4.9 pausa + faixa defasada | Soltar a trava (ou abaixar a exigência fora da grade) quando há grave tocando (`low`) e candidatos com click consistentes fora da grade por ~2 compassos sem nenhum kick aceito; ou zerar a grade depois de ≥ 1 s de silêncio | o breakdown com pad e sem kick não pode soltar (P3); fill de kick fora da grade |
 | P5 | drift/real | Gravar 3–4 trechos reais (line-in e mic) rotulados no Rekordbox e acrescentar ao bench como fixtures opcionais (`examples/analyze` já lê mp3/wav) | tamanho do repo; licença das faixas (DEC-01) |
 
 **Limites de regressão propostos** a partir destes dados (para o CI, quando o bench entrar como teste): tabela principal sem nenhum caso fora da meta (precisão ≥ 0,98, recall ≥ 0,95, erro ≤ 0,2 BPM, nenhum ½/×2, nenhuma queda de trava). Estresse: zero quedas de trava e zero grades no contratempo em todos os cenários; precisão ≥ 0,998; recall ≥ 0,98 por cenário (ruído alto tem 2 faixas a 0,94, conhecidas).
@@ -364,3 +384,32 @@ Troca de música igual (7,26 s); P3 (`drop_breakdown`) verde.
 ### P6 — medido duas vezes, não entrou
 
 Re-trava na troca 148 → 175: 7,26 → 4,51 s com bench e estresse idênticos, mas reprovado na guarda com chimbal + ruído + breakdown (22 quedas, 3× os falsos); a versão que passa na guarda não ajuda (7,94 s). Detalhes em 4.6.
+
+## 9. Indicadores de energia musical (DK-031)
+
+Campos aditivos no `Frame` (TS: `energy?`, `contrast?`, `stability?`, `kickRate?` em `src/lib/types.ts`), calculados no `Analyzer` a cada hop:
+
+| Campo | Definição |
+|---|---|
+| `energy` | (rms + banda média + banda ≥ 6 kHz)/3 em nível **absoluto**, suavizado em ~1 compasso. As `bands` do `Frame` são normalizadas pelo pico de 4 s e apagariam um build-up. |
+| `contrast` | média dos últimos 4 blocos ÷ 4 anteriores; bloco = compasso da grade travada, 2 s sem trava. Blocos parciais (< 75 %) não entram. Zera (1,0) com 1 s de silêncio ou período travado mudando > 3 %. |
+| `stability` | (1 − jitter/20 ms) × rampa de 8 beats desde a trava; 0 sem trava. Jitter = desvio dos kicks em torno da grade no último ajuste (`Beat.jitter`). |
+| `kickRate` | kicks aceitos nos últimos 8 beats ÷ 2 (por compasso); sem período ainda, kicks nos últimos 2 s. |
+
+**Resultados** (tabela "Indicadores de energia" na seção 3; build-up = 8 compassos de groove, 16 de breakdown com ruído subindo de 0 a 0,25 nos 8 últimos, 8 de groove):
+
+| Medida | Meta (DK-031) | Medido |
+|---|---|---|
+| contraste máx. no groove | < 1,1 | **1,00–1,01** (7 BPM) |
+| contraste máx. no build-up | > 1,2 | **1,38–1,40**; passa de 1,2 por volta do 5º compasso do riser |
+| kicks/compasso no groove | ~4 | 3,5–4,0 |
+| kicks/compasso no breakdown | 0 | **0** (a partir de ~8 beats sem kick) |
+| estabilidade no groove (mín. após 8 s) | — | 0,91–0,92 (0,83 a 200 BPM) |
+| estabilidade na troca 148 → 175 | cai e volta | 1,00 → **0** → 0,92 |
+| contraste depois de 1 s de silêncio | zera | 1,0 |
+
+O blocos parciais importavam: antes de descartá-los, o groove a 135 BPM chegava a contraste 1,10 (na troca de blocos de 2 s para compassos, quando a grade trava, o primeiro compasso começa no meio).
+
+**Custo:** `Trend::step` isolado = **40,8 ns por hop** (1 milhão de chamadas, mínimo de 7), ~1 % dos ~4 µs do `Analyzer::process`. O A/B do `process` inteiro (40 rodadas intercaladas, base × nova) ficou abaixo do ruído desta máquina carregada: mínimo +5,4 %, percentil 10 −1,4 %, mediana −10 %. O hop dura 5 333 µs; o `process` usa < 0,1 % dele.
+
+**Limitações:** energia e contraste foram validados só com o synth (riser de ruído branco); com música real o build-up também sobe em filtro/tom, o que `energy` não mede. O limiar de 20 ms do jitter é escolha, não medida (jitter do synth ≈ 1,5 ms). Testes: `indicadores_build_groove_breakdown` (inclui o contrato JSON em camelCase) e `indicadores_estabilidade_e_reset`.
