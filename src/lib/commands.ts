@@ -33,7 +33,7 @@ export type ShowCommand =
   | { type: 'ROTEIRO_NUDGE'; beats: number }
   | { type: 'ROTEIRO_AB' }
   | { type: 'MACRO'; id: MacroId }
-  | { type: 'AUTOMATION_MODE'; mode: AutomationMode } // só o tipo: sem efeito até DK-030/040
+  | { type: 'AUTOMATION_MODE'; mode?: AutomationMode } // sem `mode` = próximo (Manual → Assistido → Automático → Manual)
   // DK-143: o que o roteiro faz além de cena. O roteiro desfaz o efeito e avança a rampa; o dispatcher valida e registra.
   | { type: 'FX_BURST'; fx: FxKind; beats: number; div?: number } // strobe/flash/blackout/só logo por N beats
   | { type: 'VIDEO_SET'; id: string }                             // '' = sem vídeo
@@ -94,7 +94,7 @@ export function validate(c: unknown): string | null {
       return fin(x.value) ? null : 'SET_PARAMETER: valor precisa ser número';
     case 'ROTEIRO_NUDGE': return int(x.beats, -16, 16) && x.beats !== 0 ? null : 'ROTEIRO_NUDGE: beats inteiro de -16 a 16, diferente de 0';
     case 'MACRO': return (MACROS as readonly string[]).includes(x.id) ? null : `MACRO: desconhecida (${String(x.id)})`;
-    case 'AUTOMATION_MODE': return (AUTOMATION_MODES as readonly string[]).includes(x.mode) ? null : 'AUTOMATION_MODE: modo desconhecido';
+    case 'AUTOMATION_MODE': return x.mode === undefined || (AUTOMATION_MODES as readonly string[]).includes(x.mode) ? null : 'AUTOMATION_MODE: modo desconhecido';
     case 'FX_BURST':
       if (!FX_KINDS.includes(x.fx)) return `FX_BURST: efeito desconhecido (${String(x.fx)})`;
       if (!(fin(x.beats) && x.beats > 0 && x.beats <= 64)) return 'FX_BURST: beats entre 0 e 64';
@@ -163,6 +163,8 @@ export function createDispatcher(handlers: Handlers, opts: DispatchOpts = {}) {
     history: () => history.slice(),
     /** ms restantes de override manual (0 = automação liberada). */
     manualLeft: () => Math.max(0, manualUntil - now()),
+    /** Nada executando e nada na fila (stress: nenhum comando pode ficar preso). */
+    idle: () => !running && queue.length === 0,
     /** Mexida que não passa por comando (knob/slider da tela): renova o override manual igual a um comando. */
     markManual: () => void (manualUntil = now() + cooldown),
   };
@@ -192,6 +194,8 @@ export const LEGACY_ACTIONS: Record<string, ShowCommand> = {
   'a:take': { type: 'SCENE_TAKE' },             // DK-043
   'a:previewMode': { type: 'PREVIEW_MODE' },
   'a:previewClear': { type: 'PREVIEW_CLEAR' },
+  'a:autoMode': { type: 'AUTOMATION_MODE' },   // DK-044: alterna Manual → Assistido → Automático
+  ...Object.fromEntries([0, 1, 2, 3].map((i) => [`a:bank:${i + 1}`, { type: 'BANK_SET', index: i } as ShowCommand])), // ir direto ao banco
   ...Object.fromEntries(MACROS.map((id) => [`a:macro:${id}`, { type: 'MACRO', id } as ShowCommand])),
 };
 
@@ -218,12 +222,18 @@ export const routePad = (c: ShowCommand, previewMode: boolean): ShowCommand =>
 
 // ---------- teclado ----------
 
-export type KeyIn = { code: string; key: string; shiftKey: boolean };
-/** Tecla → comando (null = não é comando de show). F (projetar) fica no App: abre janela, não é comando. */
+export type KeyIn = { code: string; key: string; shiftKey: boolean; altKey?: boolean; ctrlKey?: boolean; metaKey?: boolean; repeat?: boolean };
+/**
+ * Tecla → comando (null = não é comando de show). F (projetar) fica no App: abre janela, não é comando.
+ * Ctrl/Cmd ficam para o sistema (Ctrl+C não pode disparar o Caos) e tecla segurada não repete, menos as setas de fase.
+ */
 export function keyCommand(e: KeyIn): ShowCommand | null {
-  if (e.code === 'Space') return { type: 'TAP' };
+  if (e.ctrlKey || e.metaKey) return null;
   if (e.code === 'ArrowLeft') return { type: 'NUDGE', ms: -5 };
   if (e.code === 'ArrowRight') return { type: 'NUDGE', ms: 5 };
+  if (e.repeat) return null;
+  if (e.code === 'Space') return { type: 'TAP' };
+  if (e.altKey) return /^Digit[1-4]$/.test(e.code) ? { type: 'BANK_SET', index: +e.code.slice(5) - 1 } : null; // Alt+1..4: banco
   if (e.code === 'KeyB') return { type: 'BLACKOUT' };
   if (e.code === 'KeyL') return { type: 'LOGO_ONLY' };
   if (e.code === 'KeyP') return { type: 'PANIC' };
@@ -235,6 +245,13 @@ export function keyCommand(e: KeyIn): ShowCommand | null {
   if (e.code === 'Period') return { type: 'ROTEIRO_NUDGE', beats: 1 };
   if (e.code === 'Semicolon') return { type: 'ROTEIRO_NUDGE', beats: -4 };
   if (e.code === 'Quote') return { type: 'ROTEIRO_NUDGE', beats: 4 };
+  // DK-044: macros e modos ganham tecla (eram só botão/MIDI)
+  if (e.code === 'KeyU') return { type: 'MACRO', id: 'BUILD_UP' };
+  if (e.code === 'KeyD') return { type: 'MACRO', id: 'DROP' };
+  if (e.code === 'KeyC') return { type: 'MACRO', id: 'CHAOS' };
+  if (e.code === 'KeyX') return { type: 'MACRO', id: 'RESET' };
+  if (e.code === 'KeyV') return { type: 'PREVIEW_MODE' };
+  if (e.code === 'KeyA') return { type: 'AUTOMATION_MODE' };
   // bancos: vale o caractere ([ e ] em qualquer layout, ex. ABNT2) e, se ele não for colchete, a posição física US
   if (e.key === '[' || (e.code === 'BracketLeft' && e.key !== ']')) return { type: 'BANK_STEP', delta: -1 };
   if (e.key === ']' || (e.code === 'BracketRight' && e.key !== '[')) return { type: 'BANK_STEP', delta: 1 };

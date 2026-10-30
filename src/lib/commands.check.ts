@@ -142,7 +142,10 @@ const reason = (r: { ok: boolean; reason?: string }) => (r.ok ? '' : (r as any).
   assert.deepEqual(fromTarget({ id: 'a:bank-' }), { type: 'BANK_STEP', delta: -1 });
   for (const m of MACROS) assert.deepEqual(fromTarget({ id: `a:macro:${m}` }), { type: 'MACRO', id: m });
   const novos = ['a:take', 'a:previewMode', 'a:previewClear']; // DK-043
-  assert.equal(Object.keys(LEGACY_ACTIONS).length, ids.length + MACROS.length + novos.length);
+  const dk044 = ['a:autoMode', 'a:bank:1', 'a:bank:2', 'a:bank:3', 'a:bank:4'];
+  assert.equal(Object.keys(LEGACY_ACTIONS).length, ids.length + MACROS.length + novos.length + dk044.length);
+  assert.deepEqual(dk044.map((id) => fromTarget({ id })), [{ type: 'AUTOMATION_MODE' }, ...[0, 1, 2, 3].map((index) => ({ type: 'BANK_SET', index }))]);
+  for (const id of dk044) assert.equal(validate(fromTarget({ id })), null, id);
   assert.deepEqual(novos.map((id) => fromTarget({ id })), [{ type: 'SCENE_TAKE' }, { type: 'PREVIEW_MODE' }, { type: 'PREVIEW_CLEAR' }]);
   // c:<i>
   for (let i = 0; i < 8; i++) assert.deepEqual(fromTarget({ id: `c:${i}` }), { type: 'SCENE_RECALL', index: i });
@@ -259,6 +262,34 @@ const reason = (r: { ok: boolean; reason?: string }) => (r.ok ? '' : (r as any).
   // trocar o modo de automação é comando da UI, mas não pausa a automação (senão ligar o Automático a desligaria por 8 s)
   d.dispatch({ type: 'AUTOMATION_MODE', mode: 'AUTO' }, 'ui');
   assert.equal(d.manualLeft(), 0);
+}
+
+// --- DK-044: todo comando de show tem tecla; Ctrl/Cmd e tecla segurada não disparam ---
+{
+  const k = (code: string, x: Partial<{ shiftKey: boolean; altKey: boolean; ctrlKey: boolean; metaKey: boolean; repeat: boolean; key: string }> = {}) =>
+    keyCommand({ code, key: x.key ?? '', shiftKey: false, ...x });
+  assert.deepEqual([k('KeyU'), k('KeyD'), k('KeyC'), k('KeyX')], MACROS.map((id) => ({ type: 'MACRO', id })));
+  assert.deepEqual(k('KeyV'), { type: 'PREVIEW_MODE' });
+  assert.deepEqual(k('KeyA'), { type: 'AUTOMATION_MODE' });
+  assert.equal(validate({ type: 'AUTOMATION_MODE' }), null, 'sem mode = alterna');
+  assert.deepEqual(k('Digit2', { altKey: true }), { type: 'BANK_SET', index: 1 });
+  assert.equal(k('Digit5', { altKey: true }), null, 'só há 4 bancos');
+  assert.equal(k('KeyB', { altKey: true }), null);
+  assert.deepEqual(k('Digit2'), { type: 'SCENE_RECALL', index: 1 }, 'sem Alt continua chamando a cena');
+  for (const code of ['KeyC', 'KeyB', 'KeyR', 'KeyP', 'Digit1', 'KeyT', 'Space'])
+    assert.equal(k(code, { ctrlKey: true }) ?? k(code, { metaKey: true }), null, `Ctrl/Cmd+${code} é do sistema`);
+  for (const code of ['KeyD', 'Space', 'KeyB', 'Digit1', 'KeyT']) assert.equal(k(code, { repeat: true }), null, `${code} segurado não repete`);
+  assert.deepEqual(k('ArrowLeft', { repeat: true }), { type: 'NUDGE', ms: -5 }, 'seta segurada continua ajustando a fase');
+  // cobertura: todo comando que o operador dispara ao vivo tem tecla E id MIDI
+  const keys = ['Space', 'ArrowLeft', 'KeyB', 'KeyL', 'KeyP', 'Digit1', 'KeyT', 'KeyG', 'KeyR', 'Comma', 'KeyU', 'KeyD', 'KeyC', 'KeyX', 'KeyV', 'KeyA']
+    .flatMap((c) => [k(c), k(c, { shiftKey: true })]).concat([k('BracketLeft'), k('Digit1', { altKey: true })]).filter(Boolean).map((c) => c!.type);
+  // c:<i> chama a cena; com o modo preview ligado, o mesmo c:<i> prepara (DK-043)
+  const midi = Object.values(LEGACY_ACTIONS).map((c) => c.type).concat([fromTarget({ id: 'c:0' })!.type, routePad(fromTarget({ id: 'c:0' })!, true).type, 'SET_PARAMETER']);
+  for (const t of ['TAP', 'NUDGE', 'BLACKOUT', 'LOGO_ONLY', 'PANIC', 'SCENE_RECALL', 'SCENE_PREVIEW', 'SCENE_TAKE', 'PREVIEW_CLEAR', 'PREVIEW_MODE',
+    'BANK_STEP', 'BANK_SET', 'ROTEIRO_GO', 'ROTEIRO_STOP', 'ROTEIRO_NUDGE', 'ROTEIRO_AB', 'MACRO', 'AUTOMATION_MODE']) {
+    assert.ok(keys.includes(t as any), `${t} tem tecla`);
+    assert.ok(midi.includes(t as any), `${t} tem id MIDI`);
+  }
 }
 
 console.log('commands: ok');
