@@ -213,6 +213,10 @@ os kicks. Use quando o BPM estiver certo e você não quiser que ele oscile.
    **Tolerância do branco** até sumir o fundo sem comer a logo.
 3. **Cor do brilho:** a cor do glow em volta da logo. Ela também vira a cor de destaque da
    janela de controle.
+4. **Cores da logo** (o jeito rápido): o app analisa a logo e acerta tudo de uma vez. A cor
+   mais viva vai para o brilho, as ondas, o flash e o espectro. A segunda cor vira o
+   **degradê do fundo**. Exemplo: numa logo lima e roxa, ficam ondas lima sobre um fundo
+   roxo. Depois dá para ajustar qualquer cor na mão.
 
 | Ajuste | O que faz |
 |---|---|

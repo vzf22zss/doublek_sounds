@@ -7,7 +7,7 @@
   import { midi, keyOf, bindArmed, clearArmed, keyLabel, learnable, type MidiMsg } from './midi.svelte';
   import { Renderer } from '../render/renderer';
   import { VISUAL, loadVisual, saveVisual } from '../lib/settings';
-  import { assetSync, bgColors, setAsset } from '../lib/assets';
+  import { assetSync, imageColors, setAsset } from '../lib/assets';
   import type { Frame, Msg } from '../lib/types';
 
   const RANGES: Record<string, [number, number]> = {
@@ -59,6 +59,9 @@
     const v = $state.snapshot(vs);
     saveVisual(v);
     document.documentElement.style.setProperty('--accent', v.color);
+    // texto em cima da cor de destaque: escuro se ela for clara (ex.: lima), branco se for escura
+    const n = parseInt(v.color.slice(1), 16), lum = 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
+    document.documentElement.style.setProperty('--accent-ink', lum > 160 ? '#111' : '#fff');
     emitTo('output', 'visual', v);
     preview?.setVisual({ ...v, renderScale: 0.5 });
     sync?.(v);
@@ -177,14 +180,15 @@
     await setAsset(kind, file);
     sync?.($state.snapshot(vs), true);
     emitTo('output', 'assets');
-    if (kind === 'bg') photoColors();
+    if (kind === 'bg') autoColors('bg');
   }
 
-  async function photoColors() {
-    const c = await bgColors();
-    if (!c) { status = 'Escolha uma foto de fundo primeiro.'; return; }
-    Object.assign(vs, c);
-    status = `Cores da foto: brilho ${c.color}, fundo ${c.bgc1} → ${c.bgc2}.`;
+  /** Brilho/ondas/flash/espectro + cores do fundo tirados da foto ou da logo (na logo, liga o degradê). */
+  async function autoColors(kind: 'logo' | 'bg') {
+    const c = await imageColors(kind);
+    if (!c) { status = kind === 'bg' ? 'Escolha uma foto de fundo primeiro.' : 'Não achei cores na logo.'; return; }
+    Object.assign(vs, c, kind === 'logo' ? { bgGrad: true } : {});
+    status = `Cores ${kind === 'bg' ? 'da foto' : 'da logo'}: brilho ${c.color}, fundo ${c.bgc1} → ${c.bgc2}.`;
   }
 
   async function clearBg() {
@@ -348,6 +352,7 @@
       {:else if tab === 'Logo'}
         <div class="files">
           <label class="btn">Escolher logo<input type="file" accept="image/*" onchange={(e) => pick('logo', e.currentTarget.files?.[0])} /></label>
+          <button onclick={() => autoColors('logo')} title="Analisa a logo e ajusta brilho, ondas, flash, espectro e o degradê do fundo">Cores da logo</button>
           <label class="color">Cor do brilho <input type="color" bind:value={vs.color} /></label>
         </div>
         <Slider label="Tamanho" bind:value={vs.size} learn="size" min={10} max={150} step={1} def={VISUAL.size} fmt={(v) => v + '%'} />
@@ -370,7 +375,7 @@
         <div class="files">
           <label class="btn">Foto de fundo<input type="file" accept="image/*" onchange={(e) => pick('bg', e.currentTarget.files?.[0])} /></label>
           <button onclick={clearBg}>Remover foto</button>
-          <button onclick={photoColors} title="Brilho e cores do fundo tirados da foto (já acontece ao escolher a foto)">Cores da foto</button>
+          <button onclick={() => autoColors('bg')} title="Brilho e cores do fundo tirados da foto (já acontece ao escolher a foto)">Cores da foto</button>
         </div>
         <div class="files">
           <label class="color">Cor 1 <input type="color" bind:value={vs.bgc1} /></label>
@@ -456,7 +461,7 @@
   .brand span { font-weight: 400; letter-spacing: 0.05em; color: var(--muted); margin-left: 6px; }
   .group { display: flex; gap: 6px; align-items: center; }
   .group select:first-child { max-width: 130px; }
-  .primary { background: var(--accent); border-color: var(--accent); font-weight: 600; }
+  .primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink, #fff); font-weight: 600; }
   .black { font-weight: 700; letter-spacing: .06em; }
   .black.on { background: var(--clip); border-color: var(--clip); }
   .fps { font-size: 11px; color: var(--muted); }

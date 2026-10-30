@@ -37,7 +37,7 @@ button {
 }
 button:hover { background: rgba(255, 255, 255, 0.1); }
 button:active { transform: scale(0.96); }
-button.on { background: var(--accent); border-color: var(--accent); }
+button.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink, #fff); }
 
 select {
   background: rgba(255, 255, 255, 0.06);
@@ -89,7 +89,7 @@ input[type=range]:hover::-webkit-slider-thumb { box-shadow: 0 0 0 6px rgba(124, 
   content: attr(data-midi);
   position: absolute; top: -8px; right: -6px; z-index: 2;
   font-size: 9px; font-weight: 700; line-height: 1; color: #fff;
-  background: var(--accent); padding: 2px 4px; border-radius: 6px; pointer-events: none;
+  background: var(--accent); color: var(--accent-ink, #fff); padding: 2px 4px; border-radius: 6px; pointer-events: none;
 }
 /* pads cortam o que sai da borda (overflow: hidden): o selo fica por dentro */
 .pad.learn[data-midi]::after { top: 4px; right: 4px; }

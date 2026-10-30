@@ -30,6 +30,11 @@ const [r, g, b] = rgb(c.color);
 assert.ok(r > 200 && g < 120 && b < 120, 'brilho deveria ser vermelho: ' + c.color);
 const [r1, g1, b1] = rgb(c.bgc1);
 assert.ok(b1 > r1 && b1 > g1 && b1 < 40, 'fundo deveria ser azul bem escuro: ' + c.bgc1);
+// logo lima + roxo com contorno preto → brilho lima, segunda cor do fundo roxa
+const l = pickColors([...px([215, 245, 20], 200), ...px([110, 40, 170], 150), ...px([5, 5, 5], 250)])!;
+const [lr, lg, lb] = rgb(l.color), [pr, pg, pb] = rgb(l.bgc2);
+assert.ok(lg > 200 && lr > 150 && lb < 120, 'brilho deveria ser lima: ' + l.color);
+assert.ok(pb > pg && pr > pg, 'fundo deveria ser roxo: ' + l.bgc2);
 assert.equal(pickColors(px([0, 0, 0], 10).map((v, i) => (i % 4 === 3 ? 0 : v))), null); // tudo transparente
 assert.match(pickColors(px([200, 200, 200], 10))!.color, /^#([0-9a-f]{2})\1\1$/); // foto cinza → brilho cinza
 

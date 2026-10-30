@@ -130,17 +130,20 @@ export function pickColors(px: ArrayLike<number>) {
   const cols = [...bins.values()].map(([r, g, b, n]) => ({ hsl: toHsl(r / n, g / n, b / n), n }));
   const best = (score: (c: (typeof cols)[number]) => number) => cols.reduce((a, c) => (score(c) > score(a) ? c : a));
   // destaque: área × saturação² × "meio-tom"² — senão um fundo escuro enorme ganha de um detalhe vivo
-  const [h, s] = best((c) => c.n * (c.hsl[1] * Math.min(c.hsl[2], 1 - c.hsl[2])) ** 2).hsl;
-  const dom = best((c) => c.n).hsl;
+  const vivid = (c: (typeof cols)[number]) => c.n * (c.hsl[1] * Math.min(c.hsl[2], 1 - c.hsl[2])) ** 2;
+  const [h, s] = best(vivid).hsl;
+  // segunda cor: a mais viva com matiz bem diferente (logo lima e roxa → fundo roxo); senão, a própria
+  const far = (c: (typeof cols)[number]) => Math.min(Math.abs(c.hsl[0] - h), 360 - Math.abs(c.hsl[0] - h)) > 40 && c.hsl[1] > 0.15;
+  const [h2, s2] = cols.some(far) ? best((c) => (far(c) ? vivid(c) : -1)).hsl : [h, s];
   return {
     color: hslHex(h, s > 0.08 ? Math.max(s, 0.6) : s, 0.62), // brilho: viva e clara, para aparecer no escuro
-    bgc1: hslHex(dom[0], dom[1] * 0.8, Math.min(dom[2], 0.08)),
-    bgc2: hslHex(h, s * 0.9, 0.22),
+    bgc1: hslHex(h2, s2 * 0.8, 0.05),
+    bgc2: hslHex(h2, s2 * 0.9, 0.22),
   };
 }
 
-export async function bgColors() {
-  const img = await imageFrom(await getAsset('bg'));
+export async function imageColors(kind: 'logo' | 'bg') {
+  const img = await imageFrom(await getAsset(kind), kind === 'logo' ? DEFAULT_LOGO : undefined);
   if (!img) return null;
   const [, x] = canvas(48, 48);
   x.drawImage(img, 0, 0, 48, 48);
