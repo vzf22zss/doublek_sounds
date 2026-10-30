@@ -458,6 +458,19 @@ controlador para trocar de banco pelo MIDI. Os pads 1–8, as teclas 1–8, os b
 aprendidos e os pontos de cena do roteiro agem sempre no **banco que está aberto**. Quem já
 tinha cenas encontra todas no banco 1, "Principal".
 
+### Preview e TAKE
+
+O canvas grande da janela de controle é o **PREVIEW**: só você vê. O telão é o **Program**. Para
+preparar uma cena sem o público ver, aperte **Shift + 1..8** (ou ligue o botão **Preview** e toque
+o pad, ou o pad do controlador MIDI): o pad ganha um contorno ciano tracejado e o canvas mostra a
+cena, com a etiqueta "PREVIEW: nome — T para TAKE". Quando estiver pronto, aperte **T** (ou o
+botão **TAKE**): a cena vai para o telão no próximo beat, com a transição escolhida ("TAKE · 4
+beats"; em "corte", na hora). **Shift+T** ou **×** desfaz o preparo. Pode trocar de banco com a
+cena preparada: o TAKE volta ao banco dela. Regravar a cena preparada atualiza o preview.
+**PÂNICO** limpa o preview; **BLACKOUT** não. Os pontos de cena do roteiro vão direto para o
+telão, sem passar pelo preview. No MIDI learn, TAKE, Preview e × podem ser aprendidos como
+qualquer botão.
+
 ### Macros
 
 Na barra de performance, a linha **Macros** tem 4 botões que mexem em vários efeitos de uma vez,
