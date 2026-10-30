@@ -211,7 +211,7 @@ A **música** do roteiro é **opt-in** no pacote (direitos autorais e tamanho; D
 
 **Requisitos:**
 
-- Formato `.doublekshow` baseado em ZIP, com `manifest.json`, `visual.json`, `scenes.json`, `assets/` e, se escolhido, `midi-mappings.json`.
+- Formato `.doublekshow` baseado em ZIP, com `manifest.json`, `visual.json`, `scenes.json`, `roteiros.json`, `assets/` e, se escolhido, `midi.json` (especificado em [`docs/SHOWPACK.md`](SHOWPACK.md), DK-011). `doublek.settings` (dispositivo de áudio, ganho) **não** entra: é da máquina, não do show.
 - Manifesto versionado (`schemaVersion`, `appVersion`, `createdAt`, `name`, `assets[]` com caminho, tipo, tamanho e hash SHA-256).
 - Importação transacional: validar primeiro, instalar assets e estado apenas quando tudo estiver consistente; rollback em falha.
 - Validar caminhos internos (bloquear `../` e caminhos absolutos), tamanhos, quantidade de arquivos, MIME real, dimensões de imagem e consumo descomprimido.
@@ -657,7 +657,7 @@ Audio Engine (Rust) ──► Music Features ──► Show Engine / Dispatcher
 
 ### Marco M1 — Shows portáteis (semanas 3–4)
 
-- [ ] **DK-011** Definir schema do `.doublekshow` e limites de importação.
+- [x] **DK-011** Definir schema do `.doublekshow` e limites de importação. — 2026-10-30, sessão 22, `feat/dk-011-showpack-schema` @ `fb00d17`: [`docs/SHOWPACK.md`](SHOWPACK.md), `src/lib/showpack/manifest.ts` (`validateManifest`, `safeAssetPath`, limites 50 assets / 2 GiB / tetos de `limits.ts`), `manifest.check.ts` (positivos, zip-slip, versão futura, hash, mime, refId, ordem dos erros). `npm run check` e `typecheck` verdes, conferidos pelo coordenador. Sem ZIP nem UI (DK-012/013/014).
 - [ ] **DK-012** Implementar exportação com assets, hashes e testes de roundtrip.
 - [ ] **DK-013** Implementar importação validada, staging, rollback e migração JSON.
 - [ ] **DK-014** UI “Salvar/Abrir Show”, mensagens de erro e tutorial.
@@ -786,6 +786,7 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 | 2026-10-30 | DK-006 | DONE (software) | `feat/dk-006-seguranca-visual` | `safety.check.ts` (≤ 3 Hz em 80–220 BPM × 1/1,1/2,1/4) · typecheck 0 · build ok · mock: P zera strobe/flash/tremor e reporta; B → `body.black`, canvas opacity 0, etiqueta no preview; header cabe em 1280 | **DK-008** (benchmark de detecção com fixtures); DEC-07 resolvida (3 Hz, revisável) |
 | 2026-10-30 | COORD | IN_PROGRESS | `docs/coordenacao-m0` | Três sessões em paralelo com briefs completos: DK-008 (d7), DK-004 governança (29), DK-011 (22); worktrees separados, escopos disjuntos, relatório §11 de volta ao coordenador | Integrar as três branches na `main` com autorização; atualizar este painel com as evidências de cada uma |
 | 2026-10-30 | DK-004 (docs) | PARCIAL → documentos DONE | `docs/dk-004-governanca` @ `731d370` (sessão 29) | CONTRIBUTING, SECURITY (placeholders `[PREENCHER]` para canal de relato), templates de issue/PR, CHANGELOG 0.1.0→0.3.1 + Não lançado; só Markdown, revisado pelo coordenador. Faltam: licença (DEC-01), 1ª Release (DEC-10), assinatura do instalador | Mantenedor preenche SECURITY e decide DEC-01; merge; templates só valem na default branch |
+| 2026-10-30 | DK-011 | DONE (contrato) | `feat/dk-011-showpack-schema` @ `fb00d17` (sessão 22) | `manifest.check.ts` + todos os checks ok e typecheck 0, rodados pelo coordenador no worktree; spec `docs/SHOWPACK.md`; decisões de schema registradas em DEC-03 | **DK-012** (exportar ZIP, mesma sessão, em cima desta branch); DK-013 precisa de `store.migrate(key, envelope)` para aplicar sobre texto do ZIP |
 
 ### 8.4. Bloqueios e decisões pendentes
 
@@ -793,7 +794,7 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 |---|---|---|---|---|
 | DEC-01 | Licença do repositório e contribuições | Mantenedor | PENDENTE | Escolher licença e política de contribuição |
 | DEC-02 | Mínimo hardware/Windows/GPU suportados | Mantenedor + agente | PENDENTE | Definir máquina de referência e medir baseline |
-| DEC-03 | Tamanho/limites do Show Pack | Agente + mantenedor | PENDENTE | Benchmark de assets reais e análise de risco |
+| DEC-03 | Tamanho/limites do Show Pack | Agente + mantenedor | PROPOSTA (DK-011) | Em `docs/SHOWPACK.md`: 50 assets, 2 GiB descomprimidos (soma do manifesto, checada antes de extrair), por asset os tetos de `limits.ts`; `settings` fora do pacote; música só com `includeTracks` (DEC-09). Mantenedor confirma ou ajusta |
 | DEC-04 | Codec/container padrão de gravação | Agente + mantenedor | PENDENTE | Spike com compatibilidade WebView2/Windows |
 | DEC-05 | Viabilidade técnica/licença do Spout | Agente + mantenedor | PENDENTE | POC, benchmark e revisão de distribuição |
 | DEC-06 | SDK/licença Ableton Link | Agente + mantenedor | PENDENTE | POC mínima com compatibilidade demonstrada |
