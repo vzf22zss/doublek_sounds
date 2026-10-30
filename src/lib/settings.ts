@@ -44,6 +44,9 @@ export const VISUAL = {
   glitch: 0, // rajadas curtas no disparo; teto em music.ts (BURST_HZ, BURST_MS)
   // saída / operação (fora das cenas)
   psyQuality: 1, // 0 baixa · 1 média · 2 alta: amostras/iterações por pixel dos módulos do Psy Engine
+  psyAuto: true,    // DK-024: baixa a qualidade / desliga o módulo mais caro se o telão engasgar
+  psyBudgetMs: 22,  // teto do p95 do frametime para o ajuste automático
+  psySafe: false,   // interruptor: true = os módulos do Psy Engine param de desenhar, sem mexer nas cenas
   renderScale: 1, blackout: false, logoOnly: false,
   react: true, // false = "só roteiro": o visual muda só nos pontos marcados, sem reagir ao som
   safeFlash: true, // limita strobe/flash a 3 por segundo (fotossensibilidade); fora das cenas, ligado por padrão
@@ -69,7 +72,7 @@ export function saveVisual(v: Visual) {
 
 // ---------- cenas ----------
 // Uma cena é o "visual" sem os ajustes de operação (sincronia, desempenho, blackout, recorte da logo).
-const NOT_IN_SCENE = ['renderScale', 'psyQuality', 'offset', 'predict', 'blackout', 'logoOnly', 'rmWhite', 'white', 'react', 'safeFlash'] as const;
+const NOT_IN_SCENE = ['renderScale', 'psyQuality', 'psyAuto', 'psyBudgetMs', 'psySafe', 'offset', 'predict', 'blackout', 'logoOnly', 'rmWhite', 'white', 'react', 'safeFlash'] as const;
 export type Look = Omit<Visual, (typeof NOT_IN_SCENE)[number]>;
 export type Scene = { name: string; look: Look } | null;
 
