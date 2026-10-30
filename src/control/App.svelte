@@ -3,6 +3,7 @@
   import { emitTo, listen as onEvent } from '@tauri-apps/api/event';
   import Analyzer from './Analyzer.svelte';
   import Slider from './Slider.svelte';
+  import Performance from './Performance.svelte';
   import { Renderer } from '../render/renderer';
   import { VISUAL, loadVisual, saveVisual } from '../lib/settings';
   import { assetSync, setAsset } from '../lib/assets';
@@ -39,6 +40,7 @@
   let previewCanvas: HTMLCanvasElement;
   let preview: Renderer | null = null;
   let sync: ReturnType<typeof assetSync> | null = null;
+  let perf: ReturnType<typeof Performance>;
 
   // ajustes de áudio → motor (e salvos)
   $effect(() => {
@@ -54,6 +56,7 @@
   $effect(() => {
     const v = $state.snapshot(vs);
     saveVisual(v);
+    document.documentElement.style.setProperty('--accent', v.color);
     emitTo('output', 'visual', v);
     preview?.setVisual({ ...v, renderScale: 0.5 });
     sync?.(v);
@@ -151,6 +154,16 @@
     else if (e.code === 'ArrowLeft') { e.preventDefault(); beat({ nudge: -0.005 }); }
     else if (e.code === 'ArrowRight') { e.preventDefault(); beat({ nudge: 0.005 }); }
     else if (e.code === 'KeyB') vs.blackout = !vs.blackout;
+    else if (e.code === 'KeyL') vs.logoOnly = !vs.logoOnly;
+    else if (e.code === 'KeyF') fps ? invoke('close_output') : project();
+    else if (/^Digit[1-8]$/.test(e.code)) perf.recall(+e.code.slice(5) - 1);
+  }
+
+  function beatInfo() {
+    const f = frame;
+    if (!f?.bpm) return null;
+    const x = f.beatPhase + ((performance.now() - frameAt) / 1000) * (f.bpm / 60);
+    return { bpm: f.bpm, ph: x - Math.floor(x) };
   }
 
   const db = $derived(frame ? 20 * Math.log10(Math.max(frame.peak, 1e-5)) : -90);
@@ -254,7 +267,7 @@
           <input type="checkbox" bind:checked={s.lock} />
           <span>Travar BPM <small>só a fase se ajusta aos kicks</small></span>
         </label>
-        <p class="keys">Espaço = tap · ← → = ajuste fino da fase · B = blackout</p>
+        <p class="keys">Espaço = tap · ← → = fase · 1–8 = cenas · B = blackout · L = só logo · F = telão</p>
 
       {:else if tab === 'Logo'}
         <div class="files">
@@ -262,9 +275,9 @@
           <label class="color">Cor do brilho <input type="color" bind:value={vs.color} /></label>
         </div>
         <Slider label="Tamanho" bind:value={vs.size} min={10} max={150} step={1} def={VISUAL.size} fmt={(v) => v + '%'} />
-        <Slider label="Pulso no kick" bind:value={vs.amount} min={0} max={1.5} step={0.01} def={VISUAL.amount} fmt={f2} />
-        <Slider label="Brilho (glow)" bind:value={vs.glow} min={0} max={1} step={0.01} def={VISUAL.glow} fmt={f2} />
-        <Slider label="Aberração cromática" bind:value={vs.chroma} min={0} max={40} step={0.5} def={VISUAL.chroma} fmt={(v) => v + ' px'} />
+        <Slider label="Pulso" bind:value={vs.amount} bind:mod={vs.mod.amount} min={0} max={1.5} step={0.01} def={VISUAL.amount} fmt={f2} />
+        <Slider label="Brilho (glow)" bind:value={vs.glow} bind:mod={vs.mod.glow} min={0} max={1} step={0.01} def={VISUAL.glow} fmt={f2} />
+        <Slider label="Aberração cromática" bind:value={vs.chroma} bind:mod={vs.mod.chroma} min={0} max={40} step={0.5} def={VISUAL.chroma} fmt={(v) => v + ' px'} />
         <label class="check">
           <input type="checkbox" bind:checked={vs.rmWhite} />
           <span>Remover fundo branco da logo</span>
@@ -273,6 +286,7 @@
           <Slider label="Tolerância do branco" bind:value={vs.white} min={200} max={254} step={1} def={VISUAL.white} />
         {/if}
         <h2>Reação</h2>
+        <p class="keys">O seletor ao lado de cada efeito escolhe o que no som o move: Auto (kick, ou a onda sem kick), Kick, Sub, Bass, Mid, Hats, Beat, Compasso ou LFO.</p>
         <Slider label="Duração do pulso" bind:value={vs.rel} min={0.03} max={0.5} step={0.01} def={VISUAL.rel} fmt={(v) => v.toFixed(2) + ' s'} />
         <Slider label="Seguir a música sem kick" bind:value={vs.wave} min={0} max={1} step={0.01} def={VISUAL.wave} fmt={f2} />
 
@@ -297,17 +311,17 @@
         <Slider label="Desfoque da foto" bind:value={vs.bgBlur} min={0} max={40} step={1} def={0} fmt={(v) => v + ' px'} />
         <Slider label="Brilho da foto" bind:value={vs.bgDim} min={0} max={150} step={1} def={100} fmt={(v) => v + '%'} />
         <Slider label="Girar matiz" bind:value={vs.bgHue} min={-180} max={180} step={1} def={0} fmt={(v) => v + '°/s'} />
-        <Slider label="Zoom na batida" bind:value={vs.bgPulse} min={0} max={0.4} step={0.01} def={VISUAL.bgPulse} fmt={f2} />
-        <Slider label="Brilho na batida" bind:value={vs.bgFlash} min={0} max={1} step={0.01} def={VISUAL.bgFlash} fmt={f2} />
+        <Slider label="Zoom do fundo" bind:value={vs.bgPulse} bind:mod={vs.mod.bgPulse} min={0} max={0.4} step={0.01} def={VISUAL.bgPulse} fmt={f2} />
+        <Slider label="Brilho do fundo" bind:value={vs.bgFlash} bind:mod={vs.mod.bgFlash} min={0} max={1} step={0.01} def={VISUAL.bgFlash} fmt={f2} />
 
       {:else if tab === 'Efeitos'}
-        <Slider label="Flash na batida" bind:value={vs.fxFlash} min={0} max={1} step={0.01} def={VISUAL.fxFlash} fmt={f2} />
+        <Slider label="Flash" bind:value={vs.fxFlash} bind:mod={vs.mod.fxFlash} min={0} max={1} step={0.01} def={VISUAL.fxFlash} fmt={f2} />
         <Slider label="Anéis a cada kick" bind:value={vs.fxRings} min={0} max={1} step={0.01} def={VISUAL.fxRings} fmt={f2} />
         <Slider label="Espectro em barras" bind:value={vs.fxBars} min={0} max={1} step={0.01} def={0} fmt={f2} />
         <Slider label="Espectro radial na logo" bind:value={vs.fxRadial} min={0} max={1} step={0.01} def={0} fmt={f2} />
         <h2>Rastro / túnel</h2>
         <Slider label="Rastro" bind:value={vs.trail} min={0} max={1} step={0.01} def={0} fmt={f2} />
-        <Slider label="Zoom do rastro" bind:value={vs.trailZoom} min={-1} max={1} step={0.01} def={VISUAL.trailZoom} fmt={f2} />
+        <Slider label="Zoom do rastro" bind:value={vs.trailZoom} bind:mod={vs.mod.trailZoom} min={-1} max={1} step={0.01} def={VISUAL.trailZoom} fmt={f2} />
         <Slider label="Giro do rastro" bind:value={vs.trailRot} min={-1} max={1} step={0.01} def={0} fmt={f2} />
         <h2>Strobe</h2>
         <Slider label="Intensidade" bind:value={vs.strobe} min={0} max={1} step={0.01} def={0} fmt={f2} />
@@ -320,7 +334,7 @@
         <Slider label="Vinheta" bind:value={vs.fxVig} min={0} max={1} step={0.01} def={VISUAL.fxVig} fmt={f2} />
         <Slider label="Linhas de TV" bind:value={vs.fxScan} min={0} max={1} step={0.01} def={0} fmt={f2} />
         <Slider label="Granulado" bind:value={vs.fxGrain} min={0} max={1} step={0.01} def={0} fmt={f2} />
-        <Slider label="Tremor no kick" bind:value={vs.fxShake} min={0} max={30} step={1} def={0} fmt={(v) => v + ' px'} />
+        <Slider label="Tremor" bind:value={vs.fxShake} bind:mod={vs.mod.fxShake} min={0} max={30} step={1} def={0} fmt={(v) => v + ' px'} />
 
       {:else}
         <h2>Telão</h2>
@@ -346,6 +360,8 @@
     </div>
   </aside>
 
+  <Performance bind:this={perf} bind:vs {beatInfo} onstatus={(m) => (status = m)} />
+
   <footer class="status">{status}</footer>
 </main>
 
@@ -354,15 +370,9 @@
     height: 100vh;
     display: grid;
     grid-template-columns: 1fr 320px;
-    grid-template-rows: auto 1fr auto;
+    grid-template-rows: auto 1fr auto auto;
     gap: 12px;
     padding: 12px;
-  }
-  .panel {
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    backdrop-filter: blur(20px);
   }
   .bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; padding: 10px 14px; flex-wrap: wrap; }
   .brand { font-weight: 800; letter-spacing: 0.18em; font-size: 14px; }
@@ -390,7 +400,7 @@
   .dots i:first-child { border: 1px solid rgba(255,255,255,.3); }
 
   .left { display: grid; grid-template-rows: auto 1fr; gap: 12px; min-height: 0; }
-  .previewBox { position: relative; aspect-ratio: 16 / 9; max-height: 52vh; overflow: hidden; justify-self: center; width: 100%; max-width: calc(52vh * 16 / 9); }
+  .previewBox { position: relative; aspect-ratio: 16 / 9; max-height: 42vh; overflow: hidden; justify-self: center; width: 100%; max-width: calc(42vh * 16 / 9); }
   .previewBox canvas { width: 100%; height: 100%; display: block; border-radius: var(--radius); }
   .tag { position: absolute; top: 10px; left: 12px; font-size: 10px; letter-spacing: .14em; color: rgba(255,255,255,.55); }
   .analyzer { padding: 12px; min-height: 160px; }
