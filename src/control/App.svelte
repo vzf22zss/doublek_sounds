@@ -13,7 +13,7 @@
   import { Renderer } from '../render/renderer';
   import { VISUAL, loadVisual, saveVisual } from '../lib/settings';
   import { SAFE_LOOK, strobeRate } from '../lib/safety';
-  import { createDispatcher, fromTarget, startMacro, type Handlers, type MacroId, type MacroRun, type ShowCommand, type Source } from '../lib/commands';
+  import { createDispatcher, fromTarget, keyCommand, routePad, startMacro, type Handlers, type MacroId, type MacroRun, type ShowCommand, type Source } from '../lib/commands';
   import { addVideo, assetSync, imageColors, listVideos, removeVideo, setAsset, videoColors } from '../lib/assets';
   import { load as storeLoad, save as storeSave, shaped } from '../lib/store';
   import { getVersion } from '@tauri-apps/api/app';
@@ -61,7 +61,8 @@
   let previewCanvas: HTMLCanvasElement;
   let preview: Renderer | null = null;
   let sync: ReturnType<typeof assetSync> | null = null;
-  let perf: ReturnType<typeof Performance>;
+  let perf: ReturnType<typeof Performance> = $state(null as any); // $state: o canvas de preview lê perf.getStaged()
+  let previewMode = $state(false); // DK-043: pads e MIDI c:<i> preparam no preview em vez de chamar
   let midiLit = $state(false);
 
   // ---------- atualização (Releases do GitHub) ----------
@@ -105,8 +106,16 @@
     const n = parseInt(v.color.slice(1), 16), lum = 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
     document.documentElement.style.setProperty('--accent-ink', lum > 160 ? '#111' : '#fff');
     emitTo('output', 'visual', v);
-    preview?.setVisual({ ...v, renderScale: 0.5 });
-    sync?.(v);
+  });
+
+  // PREVIEW (DK-043): com cena preparada, o canvas mostra o look dela sobre os ajustes de operação do `vs`
+  // (blackout, recorte da logo, desempenho…); sem preparo, mostra o Program. O telão só recebe o `vs` acima.
+  const staged = $derived(perf?.getStaged() ?? null);
+  $effect(() => {
+    const v = $state.snapshot(vs), st = staged;
+    const pv = st ? { ...v, ...($state.snapshot(st.look) as object) } as typeof v : v;
+    preview?.setVisual({ ...pv, renderScale: 0.5 });
+    sync?.(pv);
   });
 
   // preview: o mesmo renderer do telão, a 30 fps e meia resolução
@@ -167,12 +176,24 @@
     PANIC: () => {
       stopMacro();
       roteiroStop();
+      perf.clearPreview();
       Object.assign(vs, SAFE_LOOK, { blackout: false, logoOnly: false, react: true, safeFlash: true });
       status = 'PÂNICO: roteiro parado, strobe/flash/tremor/aberração/rastro zerados.';
       log('warn', status);
     },
     SCENE_RECALL: (c) => { stopMacro(); perf.recall(c.index, c.fade, c.now); },
     SCENE_SAVE: (c) => perf.saveScene(c.index),
+    SCENE_PREVIEW: (c) => (status = perf.previewScene(c.bank, c.index)), // pad vazio lança: vira recusa com motivo
+    SCENE_TAKE: (c) => {
+      stopMacro();
+      const t = perf.take(c.fade); // sem preview lança "nada em preview"
+      status = `TAKE: cena ${t.index + 1} (${t.name}) ${t.fade ? `em ${t.fade} beat${t.fade > 1 ? 's' : ''}` : 'no corte'}.`;
+    },
+    PREVIEW_CLEAR: () => { perf.clearPreview(); status = 'Preview limpo.'; },
+    PREVIEW_MODE: (c) => {
+      previewMode = c.on ?? !previewMode;
+      status = previewMode ? 'Modo preview: tocar um pad prepara a cena; T ou TAKE manda para o telão.' : 'Modo preview desligado: pads chamam a cena direto.';
+    },
     BANK_STEP: (c) => perf.stepBankBy(c.delta), // DK-041: os pads c:0..7 agem no banco ativo
     BANK_SET: (c) => perf.setBank(c.index),
     SET_PARAMETER: (c) => ((vs as any)[c.key] = c.value),
@@ -260,7 +281,7 @@
     // botões: nota = ao apertar; CC = quando passa de 63 (controladores mandam 127 ao apertar e 0 ao soltar)
     const press = m.kind === 'note' ? m.val > 0 : m.val > 63 && prev <= 63;
     const c = press ? fromTarget(t) : null;
-    if (c) dispatch(c, 'midi');
+    if (c) dispatch(routePad(c, previewMode), 'midi');
   }
 
   invoke<string[]>('midi_devices').then((d) => (midi.devices = d));
@@ -403,26 +424,6 @@
     if (c) dispatch(c, 'keyboard');
   }
 
-  function keyCommand(e: KeyboardEvent): ShowCommand | null {
-    if (e.code === 'Space') return { type: 'TAP' };
-    if (e.code === 'ArrowLeft') return { type: 'NUDGE', ms: -5 };
-    if (e.code === 'ArrowRight') return { type: 'NUDGE', ms: 5 };
-    if (e.code === 'KeyB') return { type: 'BLACKOUT' };
-    if (e.code === 'KeyL') return { type: 'LOGO_ONLY' };
-    if (e.code === 'KeyP') return { type: 'PANIC' };
-    if (/^Digit[1-8]$/.test(e.code)) return { type: 'SCENE_RECALL', index: +e.code.slice(5) - 1 };
-    if (e.code === 'KeyG') return { type: e.shiftKey ? 'ROTEIRO_STOP' : 'ROTEIRO_GO' };
-    if (e.code === 'KeyR') return { type: 'ROTEIRO_AB' };
-    if (e.code === 'Comma') return { type: 'ROTEIRO_NUDGE', beats: -1 };
-    if (e.code === 'Period') return { type: 'ROTEIRO_NUDGE', beats: 1 };
-    if (e.code === 'Semicolon') return { type: 'ROTEIRO_NUDGE', beats: -4 };
-    if (e.code === 'Quote') return { type: 'ROTEIRO_NUDGE', beats: 4 };
-    // bancos: vale o caractere ([ e ] em qualquer layout, ex. ABNT2) e, se ele não for colchete, a posição física US
-    if (e.key === '[' || (e.code === 'BracketLeft' && e.key !== ']')) return { type: 'BANK_STEP', delta: -1 };
-    if (e.key === ']' || (e.code === 'BracketRight' && e.key !== '[')) return { type: 'BANK_STEP', delta: 1 };
-    return null;
-  }
-
   function beatInfo() {
     const f = frame;
     if (!f?.bpm) return null;
@@ -516,7 +517,7 @@
   <section class="left">
     <div class="panel previewBox">
       <canvas bind:this={previewCanvas}></canvas>
-      <span class="tag">PREVIEW</span>
+      <span class="tag" class:stagedTag={!!staged}>{staged ? `PREVIEW: ${staged.name} — T para TAKE` : 'PREVIEW'}</span>
       {#if vs.blackout}<span class="tag blackTag">BLACKOUT</span>{/if}
     </div>
     <div class="panel analyzer">
@@ -691,7 +692,7 @@
     </div>
   </aside>
 
-  <Performance bind:this={perf} bind:vs {beatInfo} onstatus={(m) => (status = m)} cmd={(c) => dispatch(c, 'ui')} macro={macroId} />
+  <Performance bind:this={perf} bind:vs {beatInfo} onstatus={(m) => (status = m)} cmd={(c) => dispatch(c, 'ui')} macro={macroId} {previewMode} />
 
   <footer class="status">
     <span>{status}</span>
@@ -716,6 +717,7 @@
   .bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding: 10px 14px; flex-wrap: wrap; }
   .panic { font-weight: 700; letter-spacing: .04em; font-size: 11px; padding: 7px 8px; color: #ffb84d; border-color: rgba(255,184,77,.45); }
   .panic:hover { background: rgba(255,184,77,.15); }
+  .stagedTag { color: #062a30; background: #22d3ee; padding: 2px 8px; border-radius: 6px; font-weight: 800; letter-spacing: .06em; }
   .blackTag { left: auto; right: 12px; color: #fff; background: var(--clip); padding: 2px 8px; border-radius: 6px; font-weight: 800; }
   .warnTxt { color: #ffb84d; }
   .brand { font-weight: 800; letter-spacing: 0.12em; font-size: 14px; }

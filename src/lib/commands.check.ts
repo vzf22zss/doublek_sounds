@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { VISUAL } from './settings.ts';
 import { SAFE_FLASH_MAX, SAFE_STROBE_MAX } from './safety.ts';
-import { createDispatcher, fromTarget, LEGACY_ACTIONS, MACROS, startMacro, validate, type Handlers, type ShowCommand, type Source } from './commands.ts';
+import { createDispatcher, fromTarget, keyCommand, LEGACY_ACTIONS, MACROS, routePad, startMacro, validate, type Handlers, type ShowCommand, type Source } from './commands.ts';
 
 let t = 1000;
 const log: string[] = [];
@@ -141,7 +141,9 @@ const reason = (r: { ok: boolean; reason?: string }) => (r.ok ? '' : (r as any).
   assert.deepEqual(fromTarget({ id: 'a:bar+' }), { type: 'ROTEIRO_NUDGE', beats: 4 });
   assert.deepEqual(fromTarget({ id: 'a:bank-' }), { type: 'BANK_STEP', delta: -1 });
   for (const m of MACROS) assert.deepEqual(fromTarget({ id: `a:macro:${m}` }), { type: 'MACRO', id: m });
-  assert.equal(Object.keys(LEGACY_ACTIONS).length, ids.length + MACROS.length);
+  const novos = ['a:take', 'a:previewMode', 'a:previewClear']; // DK-043
+  assert.equal(Object.keys(LEGACY_ACTIONS).length, ids.length + MACROS.length + novos.length);
+  assert.deepEqual(novos.map((id) => fromTarget({ id })), [{ type: 'SCENE_TAKE' }, { type: 'PREVIEW_MODE' }, { type: 'PREVIEW_CLEAR' }]);
   // c:<i>
   for (let i = 0; i < 8; i++) assert.deepEqual(fromTarget({ id: `c:${i}` }), { type: 'SCENE_RECALL', index: i });
   assert.equal(fromTarget({ id: 'c:x' }), null);
@@ -181,6 +183,39 @@ const reason = (r: { ok: boolean; reason?: string }) => (r.ok ? '' : (r as any).
   assert.notDeepEqual(b, a);
   for (const s of [a, b]) assert.ok(s.chroma >= 0 && s.chroma <= 20 && s.fxShake >= 0 && s.fxShake <= 15 && Math.abs(s.trailRot) <= 0.4);
   assert.deepEqual(ch.update(4), { set: { chroma: 3, fxShake: 0, trailRot: 0.1 }, done: true });
+}
+
+// --- DK-043: preview/TAKE, modo preview nos pads, teclado ---
+{
+  for (const c of [{ type: 'SCENE_PREVIEW', index: 2 }, { type: 'SCENE_PREVIEW', bank: 3, index: 7 }, { type: 'SCENE_TAKE' }, { type: 'SCENE_TAKE', fade: 0 },
+    { type: 'PREVIEW_CLEAR' }, { type: 'PREVIEW_MODE' }, { type: 'PREVIEW_MODE', on: false }] as ShowCommand[]) assert.equal(validate(c), null, JSON.stringify(c));
+  assert.match(validate({ type: 'SCENE_PREVIEW', index: 8 })!, /0 a 7/);
+  assert.match(validate({ type: 'SCENE_PREVIEW', bank: 4, index: 0 })!, /banco de 0 a 3/);
+  assert.match(validate({ type: 'SCENE_TAKE', fade: -1 })!, /fade/);
+  assert.match(validate({ type: 'PREVIEW_MODE', on: 1 })!, /"on"/);
+
+  // c:<i> do MIDI e o toque no pad obedecem ao modo preview; o resto passa igual
+  const pad = fromTarget({ id: 'c:4' })!;
+  assert.deepEqual(routePad(pad, false), { type: 'SCENE_RECALL', index: 4 });
+  assert.deepEqual(routePad(pad, true), { type: 'SCENE_PREVIEW', index: 4 });
+  assert.deepEqual(routePad({ type: 'BLACKOUT' }, true), { type: 'BLACKOUT' });
+  assert.deepEqual(routePad({ type: 'SCENE_RECALL', index: 1, fade: 0, now: true }, false), { type: 'SCENE_RECALL', index: 1, fade: 0, now: true });
+
+  const k = (code: string, shiftKey = false, key = '') => keyCommand({ code, key, shiftKey });
+  assert.deepEqual(k('Digit3'), { type: 'SCENE_RECALL', index: 2 });
+  assert.deepEqual(k('Digit3', true, '#'), { type: 'SCENE_PREVIEW', index: 2 });   // Shift+3 não chama a cena
+  assert.deepEqual(k('Digit1', true, '!'), { type: 'SCENE_PREVIEW', index: 0 });
+  assert.equal(k('Digit9'), null);
+  assert.deepEqual(k('KeyT', false, 't'), { type: 'SCENE_TAKE' });
+  assert.deepEqual(k('KeyT', true, 'T'), { type: 'PREVIEW_CLEAR' });
+  // o que já existia continua igual
+  assert.deepEqual([k('Space'), k('KeyB'), k('KeyL'), k('KeyP'), k('KeyG'), k('KeyG', true), k('KeyR')].map((c) => c!.type),
+    ['TAP', 'BLACKOUT', 'LOGO_ONLY', 'PANIC', 'ROTEIRO_GO', 'ROTEIRO_STOP', 'ROTEIRO_AB']);
+  assert.deepEqual([k('ArrowLeft'), k('Comma'), k('Quote')], [{ type: 'NUDGE', ms: -5 }, { type: 'ROTEIRO_NUDGE', beats: -1 }, { type: 'ROTEIRO_NUDGE', beats: 4 }]);
+  assert.deepEqual(k('BracketRight', false, '['), { type: 'BANK_STEP', delta: -1 });  // ABNT2: tecla "[" na posição BracketRight
+  assert.deepEqual(k('Backslash', false, ']'), { type: 'BANK_STEP', delta: 1 });
+  assert.deepEqual(k('BracketLeft', false, 'Dead'), { type: 'BANK_STEP', delta: -1 });
+  assert.equal(k('KeyF'), null, 'F (projetar) não é comando de show');
 }
 
 console.log('commands: ok');
