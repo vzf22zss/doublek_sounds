@@ -636,7 +636,7 @@ Audio Engine (Rust) ──► Music Features ──► Show Engine / Dispatcher
 
 ### Marco M0 — Base confiável e beta (semanas 1–2)
 
-- [ ] **DK-001** Auditar a baseline, rodar projeto e criar `BASELINE.md`.
+- [x] **DK-001** Auditar a baseline, rodar projeto e criar `BASELINE.md`. — 2026-10-30, branch `docs/dk-001-baseline`: [`docs/quality/BASELINE.md`](quality/BASELINE.md), ADRs [0001](adr/0001-persistencia-e-importacao.md), [0002](adr/0002-renderer.md), [0003](adr/0003-protocolo-de-comandos.md). Testes: `cargo test --release` 9/9, `npm run check`, `typecheck`, `build` ok. Hardware: NÃO VERIFICADO (lista em BASELINE §12).
 - [ ] **DK-002** Introduzir contratos/migrações e testes JS/TS.
 - [ ] **DK-003** Criar telemetria local, health indicators e teste longo inicial.
 - [ ] **DK-004** Configurar CI, versionamento, licença pendente e plano de Release.
@@ -770,6 +770,8 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 | Data | ID | Estado | Branch/commit/PR | Testes/evidência | Pendência/próximo passo |
 |---|---|---|---|---|---|
 | 2026-10-30 | PLANO | PROPOSTO | — | Análise do código/documentação existente; implementação não iniciada | Começar DK-001 |
+| 2026-10-30 | PLANO | ALINHADO | `docs/dk-001-baseline` @ `e011daf` | Roadmap corrigido para a v0.3.1 (drop, vídeo, roteiro, updater/release já existem); DK-140 criado; DEC-09/10/11 | DK-001 |
+| 2026-10-30 | DK-001 | DONE | `docs/dk-001-baseline` (commit seguinte) | `cargo test --release` 9/9 · `npm run check` 43 asserts · typecheck 0 erros · build ok · `npm audit` 0 em prod · licenças: 527 crates, sem GPL; 6 com `AND` permissivo · BASELINE.md + 3 ADRs | **DK-141** (validar roteiro com áudio real, exige o mantenedor) e **DK-002** (schemas/migrações) em paralelo; DEC-10 destrava a 1ª release |
 
 ### 8.4. Bloqueios e decisões pendentes
 
