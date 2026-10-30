@@ -21,15 +21,15 @@
   $effect(() => saveScenes($state.snapshot(scenes)));
   $effect(() => { try { localStorage.setItem('doublek.trans', String(trans)); } catch {} });
 
-  /** Chama a cena i: começa no próximo beat e dura `trans` beats. */
-  export function recall(i: number) {
+  /** Chama a cena i: começa no próximo beat e dura `fade` beats. O roteiro já dispara no beat (`now`). */
+  export function recall(i: number, fade = trans, now = false) {
     const sc = scenes[i];
     if (!sc) return;
     active = i;
     const b = beatInfo();
     const beatMs = b?.bpm ? 60000 / b.bpm : 500;
-    const wait = b?.bpm && trans ? (1 - b.ph) * beatMs : 0;
-    const dur = trans * beatMs, id = ++token;
+    const wait = b?.bpm && fade && !now ? (1 - b.ph) * beatMs : 0;
+    const dur = fade * beatMs, id = ++token;
     setTimeout(() => {
       if (id !== token) return;
       // snapshot: sc.look é um proxy do $state e o blend clona o `mod` (structuredClone não aceita proxy)
@@ -46,6 +46,8 @@
       requestAnimationFrame(step);
     }, wait);
   }
+
+  export const sceneNames = () => scenes.map((s, i) => s?.name ?? `Cena ${i + 1}`);
 
   function save(i: number) {
     scenes[i] = { name: scenes[i]?.name ?? `Cena ${i + 1}`, look: lookOf($state.snapshot(vs) as Visual) };

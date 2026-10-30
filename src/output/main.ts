@@ -3,7 +3,7 @@ import { Channel, invoke } from '@tauri-apps/api/core';
 import { emitTo, listen } from '@tauri-apps/api/event';
 import { Renderer } from '../render/renderer';
 import { loadVisual, type Visual } from '../lib/settings';
-import { assetSync } from '../lib/assets';
+import { assetSync, getVideo } from '../lib/assets';
 import type { Msg } from '../lib/types';
 
 let v = loadVisual();
@@ -13,6 +13,7 @@ sync(v, true);
 
 listen<Visual>('visual', (e) => { v = e.payload; r.setVisual(v); sync(v); });
 listen('assets', () => sync(v, true));
+listen<string[]>('preload', (e) => e.payload.forEach(getVideo)); // vídeos do roteiro: troca instantânea
 
 const ch = new Channel<Msg>();
 ch.onmessage = (m) => { if (m.t === 'frame') r.setFrame(m.v); };

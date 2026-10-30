@@ -163,7 +163,7 @@ export class Renderer {
     if (f.kick > 0) {
       this.lastKickRx = now;
       this.strength = f.kick;
-      if (!this.predicting()) this.trigger(now, f.kick);
+      if (!this.predicting() && this.v.react !== false) this.trigger(now, f.kick);
     }
   }
 
@@ -211,25 +211,26 @@ export class Renderer {
     const stale = !f || now - this.rxAt > 3000;
     const period = f?.bpm ? 60000 / f.bpm : 420;
 
+    const live = v.react !== false; // "só roteiro": ignora o som (o relógio do beat continua)
     // fase do beat extrapolada, já com o offset visual (negativo = adiantado)
     let ph = 0, bar = (now / 2000) % 1;
     if (f?.bpm) {
       const x = f.beatPhase + ((now - this.rxAt - v.offset) / 1000) * (f.bpm / 60);
       ph = x - Math.floor(x);
       bar = ((((f.beat + Math.floor(x)) % 4) + 4) % 4 + ph) / 4;
-      if (this.predicting() && ph < this.prevPh - 0.5 && now - this.lastTrig > period * 0.5) this.trigger(now, this.strength);
+      if (live && this.predicting() && ph < this.prevPh - 0.5 && now - this.lastTrig > period * 0.5) this.trigger(now, this.strength);
     }
     this.prevPh = ph;
 
     // envelopes (independem da taxa de quadros)
     this.kickEnv *= Math.exp(-dt / Math.max(0.01, v.rel));
-    const b = !stale && f ? f.bands : [0, 0, 0, 0, 0];
+    const b = !stale && f && live ? f.bands : [0, 0, 0, 0, 0];
     const w = Math.max(b[0], b[1]) * 0.6 + b[2] * 0.4;
     this.waveEnv += (w - this.waveEnv) * (1 - Math.exp(-dt / (w > this.waveEnv ? 0.012 : Math.max(0.02, v.rel * 0.8))));
     const target = this.predicting() || now - this.lastKickRx < period * 1.6 ? 1 : 0;
     this.presence += (target - this.presence) * (1 - Math.exp(-dt / (target > this.presence ? 0.04 : 0.3)));
     const kick = this.presence * this.kickEnv;
-    let p = kick + (1 - this.presence) * this.waveEnv * v.wave;
+    let p = live ? kick + (1 - this.presence) * this.waveEnv * v.wave : 0;
     if (stale) p = 0.12 * (0.5 + 0.5 * Math.sin(now / 1000 * 1.6)); // sem sinal: respira devagar
 
     // matriz de modulação: cada efeito escolhe a fonte do movimento
@@ -240,12 +241,12 @@ export class Renderer {
     const m = (k: ModTarget) => (stale ? p : S[v.mod[k]] ?? p);
     const fx = v.logoOnly ? 0 : 1; // L = só a logo, sem efeitos
     // "só no drop": some no breakdown sem grave e entra quando o grave volta, em dropFade beats
-    const lowT = f && !stale ? f.low ?? 1 : 0;
+    const lowT = !live ? 1 : f && !stale ? f.low ?? 1 : 0;
     this.dropEnv += (lowT - this.dropEnv) * (1 - Math.exp(-dt / Math.max(0.02, (v.dropFade * period) / 3000)));
     const d = (k: DropTarget) => (v.drop?.[k] ? this.dropEnv : 1);
     this.black += ((v.blackout ? 1 : 0) - this.black) * (1 - Math.exp(-dt / 0.08));
     if (f && !stale) for (let i = 0; i < 64; i++) {
-      const s = f.spectrum[i] ?? 0;
+      const s = live ? f.spectrum[i] ?? 0 : 0;
       this.spec[i] += (s - this.spec[i]) * (s > this.spec[i] ? 0.6 : 0.15);
     }
 

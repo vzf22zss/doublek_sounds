@@ -4,6 +4,10 @@
   import Analyzer from './Analyzer.svelte';
   import Slider from './Slider.svelte';
   import Performance from './Performance.svelte';
+  import Timeline from './Timeline.svelte';
+  import RoteiroPanel from './RoteiroPanel.svelte';
+  import { rt, attach as attachRoteiro, tick as roteiroTick, play as roteiroPlay, stop as roteiroStop, pause as roteiroPause, nudge as roteiroNudge } from './roteiro.svelte';
+  import { saveRoteiros } from '../lib/roteiro';
   import { midi, keyOf, bindArmed, clearArmed, keyLabel, learnable, type MidiMsg } from './midi.svelte';
   import { Renderer } from '../render/renderer';
   import { VISUAL, loadVisual, saveVisual } from '../lib/settings';
@@ -20,7 +24,7 @@
   };
   const DEFAULTS = { device: '', channel: 0, gain: 1, gate: 0.003, sens: 1.4, range: 'Psy', lock: false, needClick: true, monitor: 1, dropThr: 0.35 };
   const KEY = 'doublek.settings';
-  const TABS = ['Áudio', 'Logo', 'Fundo', 'Efeitos', 'Saída'] as const;
+  const TABS = ['Áudio', 'Logo', 'Fundo', 'Efeitos', 'Saída', 'Roteiro'] as const;
 
   function load() {
     try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') }; } catch { return { ...DEFAULTS }; }
@@ -121,11 +125,25 @@
   }
 
   const ch = new Channel<Msg>();
-  ch.onmessage = (m) => (m.t === 'frame' ? onFrame(m.v) : (status = m.v));
+  ch.onmessage = (m) => {
+    if (m.t === 'frame') return onFrame(m.v);
+    status = m.v;
+    if (m.v === 'Fim da faixa') roteiroPause();
+  };
   invoke('subscribe', { onMsg: ch });
 
   const listen = () => invoke('start_input', { device: s.device || null, channel: +s.channel });
   const beat = (cmd: unknown) => invoke('beat', { cmd });
+
+  // ---------- roteiro ----------
+  attachRoteiro({
+    vs: () => vs,
+    recall: (i, fade, now) => perf?.recall(i, fade, now),
+    status: (m) => (status = m),
+    listen: () => listen(),
+    range: () => RANGES[s.range] ?? RANGES.Auto,
+  });
+  $effect(() => saveRoteiros($state.snapshot(rt.list)));
 
   // ---------- MIDI ----------
   const ACTIONS: Record<string, () => void> = {
@@ -136,6 +154,12 @@
     'nudge+': () => beat({ nudge: 0.005 }),
     blackout: () => (vs.blackout = !vs.blackout),
     logoOnly: () => (vs.logoOnly = !vs.logoOnly),
+    go: () => (rt.running && rt.source === 'app' ? roteiroPause() : roteiroPlay()),
+    stop: () => roteiroStop(),
+    'beat-': () => roteiroNudge(-1),
+    'beat+': () => roteiroNudge(1),
+    'bar-': () => roteiroNudge(-4),
+    'bar+': () => roteiroNudge(4),
   };
   const lastVal = new Map<string, number>();
 
@@ -244,6 +268,7 @@
       if (fps && performance.now() - fpsAt > 2500) fps = 0;
       midiLit = performance.now() - midi.activity < 120;
       const f = frame;
+      roteiroTick(f, frameAt);
       if (!f || !f.bpm) return;
       const x = f.beatPhase + ((performance.now() - frameAt) / 1000) * (f.bpm / 60);
       beatNow = { idx: (((f.beat + Math.floor(x)) % 4) + 4) % 4, phase: x - Math.floor(x) };
@@ -263,6 +288,11 @@
     else if (e.code === 'KeyL') vs.logoOnly = !vs.logoOnly;
     else if (e.code === 'KeyF') fps ? invoke('close_output') : project();
     else if (/^Digit[1-8]$/.test(e.code)) perf.recall(+e.code.slice(5) - 1);
+    else if (e.code === 'KeyG') e.shiftKey ? ACTIONS.stop() : ACTIONS.go();
+    else if (e.code === 'Comma') ACTIONS['beat-']();
+    else if (e.code === 'Period') ACTIONS['beat+']();
+    else if (e.code === 'Semicolon') ACTIONS['bar-']();
+    else if (e.code === 'Quote') ACTIONS['bar+']();
   }
 
   function beatInfo() {
@@ -352,7 +382,11 @@
       <span class="tag">PREVIEW</span>
     </div>
     <div class="panel analyzer">
-      <Analyzer {frame} {kickAt} />
+      {#if tab === 'Roteiro'}
+        <Timeline sceneNames={() => perf?.sceneNames() ?? []} />
+      {:else}
+        <Analyzer {frame} {kickAt} />
+      {/if}
     </div>
   </section>
 
@@ -481,6 +515,8 @@
         <Slider label="Granulado" bind:value={vs.fxGrain} learn="fxGrain" min={0} max={1} step={0.01} def={0} fmt={f2} />
         <Slider label="Tremor" bind:value={vs.fxShake} learn="fxShake" bind:mod={vs.mod.fxShake} bind:drop={vs.drop.fxShake} min={0} max={30} step={1} def={0} fmt={(v) => v + ' px'} />
 
+      {:else if tab === 'Roteiro'}
+        <RoteiroPanel sceneNames={() => perf?.sceneNames() ?? []} />
       {:else}
         <h2>Telão</h2>
         <select class="wide" bind:value={s.monitor}>
@@ -571,7 +607,7 @@
 
   .side { display: flex; flex-direction: column; min-height: 0; }
   .tabs { display: flex; gap: 2px; padding: 8px; border-bottom: 1px solid var(--line); }
-  .tabs button { flex: 1; padding: 6px 0; font-size: 12px; background: transparent; border-color: transparent; color: var(--muted); }
+  .tabs button { flex: 1; padding: 6px 0; font-size: 11.5px; background: transparent; border-color: transparent; color: var(--muted); }
   .tabs button.on { background: rgba(255,255,255,.08); color: var(--text); border-color: var(--line); }
   .tabBody { padding: 4px 16px 16px; overflow: auto; }
   h2 { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 18px 0 2px; font-weight: 600; }

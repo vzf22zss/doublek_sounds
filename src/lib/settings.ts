@@ -33,6 +33,7 @@ export const VISUAL = {
   trail: 0, trailZoom: 0.5, trailRot: 0, strobe: 0, strobeDiv: 1,
   // saída / operação (fora das cenas)
   renderScale: 1, blackout: false, logoOnly: false,
+  react: true, // false = "só roteiro": o visual muda só nos pontos marcados, sem reagir ao som
 };
 export type Visual = typeof VISUAL;
 
@@ -41,7 +42,7 @@ const KEY = 'doublek.visual';
 export function loadVisual(): Visual {
   try {
     const s = JSON.parse(localStorage.getItem(KEY) ?? '{}');
-    return { ...VISUAL, ...s, mod: { ...VISUAL.mod, ...s.mod }, drop: { ...VISUAL.drop, ...s.drop }, blackout: false, logoOnly: false };
+    return { ...VISUAL, ...s, mod: { ...VISUAL.mod, ...s.mod }, drop: { ...VISUAL.drop, ...s.drop }, blackout: false, logoOnly: false, react: true };
   } catch {
     return { ...VISUAL };
   }
@@ -53,7 +54,7 @@ export function saveVisual(v: Visual) {
 
 // ---------- cenas ----------
 // Uma cena é o "visual" sem os ajustes de operação (sincronia, desempenho, blackout, recorte da logo).
-const NOT_IN_SCENE = ['renderScale', 'offset', 'predict', 'blackout', 'logoOnly', 'rmWhite', 'white'] as const;
+const NOT_IN_SCENE = ['renderScale', 'offset', 'predict', 'blackout', 'logoOnly', 'rmWhite', 'white', 'react'] as const;
 export type Look = Omit<Visual, (typeof NOT_IN_SCENE)[number]>;
 export type Scene = { name: string; look: Look } | null;
 
