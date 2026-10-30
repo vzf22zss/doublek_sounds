@@ -20,6 +20,10 @@ export type ShowCommand =
   | { type: 'PANIC' }
   | { type: 'SCENE_RECALL'; index: number; fade?: number; now?: boolean } // pad 0–7 do banco ativo; `now` = sem esperar o beat
   | { type: 'SCENE_SAVE'; index: number }
+  | { type: 'SCENE_PREVIEW'; bank?: number; index: number } // DK-043: prepara no PREVIEW (bank ausente = ativo)
+  | { type: 'SCENE_TAKE'; fade?: number }                   // manda o preview para o PROGRAM (fade ausente = transição padrão)
+  | { type: 'PREVIEW_CLEAR' }
+  | { type: 'PREVIEW_MODE'; on?: boolean }                 // ligado: pads e MIDI c:<i> fazem PREVIEW em vez de chamar
   | { type: 'BANK_STEP'; delta: number }
   | { type: 'BANK_SET'; index: number }
   | { type: 'SET_PARAMETER'; key: string; value: number }
@@ -57,8 +61,13 @@ export function validate(c: unknown): string | null {
   if (!c || typeof c !== 'object' || typeof (c as any).type !== 'string') return 'comando sem tipo';
   const x = c as any;
   switch (x.type as CommandType) {
-    case 'TAP': case 'TEMPO_HALF': case 'TEMPO_DOUBLE': case 'PANIC': case 'ROTEIRO_GO': case 'ROTEIRO_STOP': case 'ROTEIRO_AB':
+    case 'TAP': case 'TEMPO_HALF': case 'TEMPO_DOUBLE': case 'PANIC': case 'ROTEIRO_GO': case 'ROTEIRO_STOP': case 'ROTEIRO_AB': case 'PREVIEW_CLEAR':
       return null;
+    case 'SCENE_PREVIEW':
+      if (!int(x.index, 0, 7)) return 'SCENE_PREVIEW: índice de 0 a 7';
+      return x.bank === undefined || int(x.bank, 0, MAX_BANKS - 1) ? null : `SCENE_PREVIEW: banco de 0 a ${MAX_BANKS - 1}`;
+    case 'SCENE_TAKE': return x.fade === undefined || (fin(x.fade) && x.fade >= 0 && x.fade <= 32) ? null : 'SCENE_TAKE: fade de 0 a 32 beats';
+    case 'PREVIEW_MODE': return optBool(x.on) ? null : 'PREVIEW_MODE: "on" precisa ser true/false';
     case 'NUDGE': return fin(x.ms) && Math.abs(x.ms) <= 50 && x.ms !== 0 ? null : 'NUDGE: ms entre -50 e 50, diferente de 0';
     case 'BLACKOUT': case 'LOGO_ONLY': return optBool(x.on) ? null : `${x.type}: "on" precisa ser true/false`;
     case 'SCENE_RECALL':
@@ -155,6 +164,9 @@ export const LEGACY_ACTIONS: Record<string, ShowCommand> = {
   'a:ab': { type: 'ROTEIRO_AB' },
   'a:bank-': { type: 'BANK_STEP', delta: -1 },
   'a:bank+': { type: 'BANK_STEP', delta: 1 },
+  'a:take': { type: 'SCENE_TAKE' },             // DK-043
+  'a:previewMode': { type: 'PREVIEW_MODE' },
+  'a:previewClear': { type: 'PREVIEW_CLEAR' },
   ...Object.fromEntries(MACROS.map((id) => [`a:macro:${id}`, { type: 'MACRO', id } as ShowCommand])),
 };
 
@@ -173,6 +185,35 @@ export function fromTarget(t: MidiTarget, val = 127): ShowCommand | null {
   if (t.id.startsWith('c:')) return /^c:\d+$/.test(t.id) ? { type: 'SCENE_RECALL', index: +t.id.slice(2) } : null;
   const c = LEGACY_ACTIONS[t.id];
   return c ? structuredClone(c) : null;
+}
+
+/** Modo preview ligado: tocar um pad (tela ou MIDI `c:<i>`) prepara a cena em vez de chamá-la. */
+export const routePad = (c: ShowCommand, previewMode: boolean): ShowCommand =>
+  previewMode && c.type === 'SCENE_RECALL' ? { type: 'SCENE_PREVIEW', index: c.index } : c;
+
+// ---------- teclado ----------
+
+export type KeyIn = { code: string; key: string; shiftKey: boolean };
+/** Tecla → comando (null = não é comando de show). F (projetar) fica no App: abre janela, não é comando. */
+export function keyCommand(e: KeyIn): ShowCommand | null {
+  if (e.code === 'Space') return { type: 'TAP' };
+  if (e.code === 'ArrowLeft') return { type: 'NUDGE', ms: -5 };
+  if (e.code === 'ArrowRight') return { type: 'NUDGE', ms: 5 };
+  if (e.code === 'KeyB') return { type: 'BLACKOUT' };
+  if (e.code === 'KeyL') return { type: 'LOGO_ONLY' };
+  if (e.code === 'KeyP') return { type: 'PANIC' };
+  if (/^Digit[1-8]$/.test(e.code)) { const index = +e.code.slice(5) - 1; return e.shiftKey ? { type: 'SCENE_PREVIEW', index } : { type: 'SCENE_RECALL', index }; }
+  if (e.code === 'KeyT') return { type: e.shiftKey ? 'PREVIEW_CLEAR' : 'SCENE_TAKE' };
+  if (e.code === 'KeyG') return { type: e.shiftKey ? 'ROTEIRO_STOP' : 'ROTEIRO_GO' };
+  if (e.code === 'KeyR') return { type: 'ROTEIRO_AB' };
+  if (e.code === 'Comma') return { type: 'ROTEIRO_NUDGE', beats: -1 };
+  if (e.code === 'Period') return { type: 'ROTEIRO_NUDGE', beats: 1 };
+  if (e.code === 'Semicolon') return { type: 'ROTEIRO_NUDGE', beats: -4 };
+  if (e.code === 'Quote') return { type: 'ROTEIRO_NUDGE', beats: 4 };
+  // bancos: vale o caractere ([ e ] em qualquer layout, ex. ABNT2) e, se ele não for colchete, a posição física US
+  if (e.key === '[' || (e.code === 'BracketLeft' && e.key !== ']')) return { type: 'BANK_STEP', delta: -1 };
+  if (e.key === ']' || (e.code === 'BracketRight' && e.key !== '[')) return { type: 'BANK_STEP', delta: 1 };
+  return null;
 }
 
 // ---------- macros: curvas puras (o App só aplica a cada quadro) ----------

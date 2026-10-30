@@ -13,15 +13,17 @@
   import { blend, lookOf, sanitizeLook, VISUAL, type Look, type Scene, type Visual } from '../lib/settings';
   import { addBank, loadBanks, MAX_BANKS, removeBank, renameBank, saveBanks, stepBank, usedScenes, type Banks } from '../lib/banks';
   import { FACTORY_PRESETS, presetLook, presetsByStyle, STYLES } from '../lib/presets';
-  import { MACROS, type MacroId, type ShowCommand } from '../lib/commands';
+  import { MACROS, routePad, type MacroId, type ShowCommand } from '../lib/commands';
+  import { afterRemoveBank, resolve, stage, take as takeOf, type PreviewRef, type Take } from '../lib/preview';
 
   // `cmd`: pads, bancos, "Só logo" e macros passam pelo dispatcher (fonte 'ui'), que chama de volta recall/saveScene/…
-  let { vs = $bindable(), beatInfo, onstatus, cmd, macro = null }: {
+  let { vs = $bindable(), beatInfo, onstatus, cmd, macro = null, previewMode = false }: {
     vs: Visual;
     beatInfo: () => { bpm: number; ph: number } | null;
     onstatus: (s: string) => void;
     cmd: (c: ShowCommand) => unknown;
     macro?: MacroId | null; // macro rodando agora (acende o botão)
+    previewMode?: boolean;  // DK-043: tocar um pad prepara a cena em vez de chamar
   } = $props();
 
   // Bancos (DK-041): os 8 pads mostram o banco ativo; recall, gravar, renomear, MIDI c:0..7 e o roteiro agem nele.
@@ -29,6 +31,10 @@
   const scenes = $derived(bk.banks[bk.active].scenes);
   const bank = $derived(bk.banks[bk.active]);
   let editingBank = $state(false);
+  // Preview (DK-043): banco + pad preparados; o look vem sempre dos bancos de agora (regravar atualiza o preview)
+  let pref = $state<PreviewRef>(null);
+  const staged = $derived(resolve(pref, bk));
+  export const getStaged = () => staged;
   let active = $state(-1);
   let fade = $state(0);
   let editing = $state(-1);
@@ -83,6 +89,26 @@
     if (i >= bk.banks.length) return onstatus(`Não existe o banco ${i + 1} (há ${bk.banks.length}).`);
     setBanks({ ...$state.snapshot(bk), active: i }, `Banco ${i + 1}/${bk.banks.length}: ${bk.banks[i].name}`);
   }
+  /** Prepara o pad `index` do banco `bank` (padrão: o ativo) no PREVIEW. Lança com o motivo se o pad está vazio. */
+  export function previewScene(bank = bk.active, index: number) {
+    const r = stage($state.snapshot(bk), bank, index);
+    if ('error' in r) throw new Error(r.error);
+    pref = r.ref;
+    return `Cena ${index + 1} do banco ${bank + 1} em preview (${bk.banks[bank].scenes[index]!.name}): T ou TAKE manda para o telão.`;
+  }
+  /** TAKE: vai ao banco da cena preparada, chama no próximo beat (corte se fade 0) e limpa o preview. */
+  export function take(fade = trans): Take {
+    const r = takeOf(staged, fade);
+    if (!r.ok) throw new Error(r.reason);
+    const t = r.take;
+    if (t.bank !== bk.active) setBanks({ ...$state.snapshot(bk), active: t.bank }, '');
+    recall(t.index, t.fade, false);
+    pref = null;
+    return t;
+  }
+  export function clearPreview() {
+    pref = null;
+  }
   function newBank() {
     const b = addBank($state.snapshot(bk));
     if (b !== bk) setBanks(b, `Banco ${b.active + 1} criado, vazio: grave cenas nos pads.`);
@@ -91,6 +117,7 @@
     const n = usedScenes(bank);
     if (n && !confirm(`Apagar o banco "${bank.name}" e as ${n} cena(s) gravadas nele?`)) return;
     const name = bank.name;
+    pref = afterRemoveBank(pref, bk.active);
     setBanks(removeBank($state.snapshot(bk), bk.active), `Banco "${name}" apagado.`);
   }
 
@@ -101,7 +128,7 @@
   }
 
   function pad(e: MouseEvent, i: number) {
-    cmd(e.shiftKey || !scenes[i] ? { type: 'SCENE_SAVE', index: i } : { type: 'SCENE_RECALL', index: i });
+    cmd(e.shiftKey || !scenes[i] ? { type: 'SCENE_SAVE', index: i } : routePad({ type: 'SCENE_RECALL', index: i }, previewMode));
   }
 
   const MACRO_NAMES: Record<MacroId, [string, string]> = {
@@ -260,9 +287,10 @@
           use:learnable={{ id: 'c:' + i, label: sc ? sc.name : `Cena ${i + 1}` }}
           class:empty={!sc}
           class:active={active === i}
+          class:staged={staged?.bank === bk.active && staged?.index === i}
           onclick={(e) => pad(e, i)}
           ondblclick={() => sc && (editing = i)}
-          title={sc ? 'Clique: chamar · Shift+clique: gravar por cima · duplo clique: renomear' : 'Clique: gravar o visual atual aqui'}
+          title={sc ? `Clique: ${previewMode ? 'preparar no preview' : 'chamar'} · Shift+clique: gravar por cima · duplo clique: renomear` : 'Clique: gravar o visual atual aqui'}
         >
           <small>{i + 1}</small>
           {#if editing === i && sc}
@@ -282,10 +310,17 @@
       <span>Transição</span>
       <div class="seg">
         {#each [0, 1, 2, 4, 8] as b}
-          <button class:on={trans === b} onclick={() => (trans = b)}>{b ? b + ' beat' + (b > 1 ? 's' : '') : 'corte'}</button>
+          <button class:on={trans === b} onclick={() => (trans = b)} title={b ? `${b} beat${b > 1 ? 's' : ''}` : 'Sem crossfade'}>{b || 'corte'}</button>
         {/each}
+        <span class="unit">beats</span>
       </div>
-      <button class:on={vs.logoOnly} onclick={() => cmd({ type: 'LOGO_ONLY' })} title="L" use:learnable={{ id: 'a:logoOnly', label: 'Só logo' }}>Só logo</button>
+      <button class="take" class:off={!staged} aria-disabled={!staged} onclick={() => cmd({ type: 'SCENE_TAKE' })}
+        title={staged ? `T: manda "${staged.name}" para o telão` : 'Nada em preview (Shift+1..8, ou ligue o modo Preview)'}
+        use:learnable={{ id: 'a:take', label: 'TAKE' }}>TAKE · {trans ? trans + ' beat' + (trans > 1 ? 's' : '') : 'corte'}</button>
+      <button class:on={previewMode} onclick={() => cmd({ type: 'PREVIEW_MODE' })} title="Modo preview: tocar um pad (ou o MIDI dele) prepara a cena em vez de chamar" use:learnable={{ id: 'a:previewMode', label: 'Modo preview' }}>Preview</button>
+      <button class:off={!staged} onclick={() => cmd({ type: 'PREVIEW_CLEAR' })} title="Shift+T: limpa o preview" use:learnable={{ id: 'a:previewClear', label: 'Limpar preview' }}>×</button>
+    </div>
+    <div class="row">
       <button onclick={exportFile} title="Salva visual e cenas num arquivo">Exportar</button>
       <label class="btn" title="Carrega visual e cenas de um arquivo">Importar<input type="file" accept=".json,application/json" onchange={(e) => { importFile(e.currentTarget.files?.[0]); e.currentTarget.value = ''; }} /></label>
       <button class:on={catalog} onclick={() => (catalog = !catalog)} title="Presets de fábrica por estilo">Catálogo</button>
@@ -297,6 +332,7 @@
       {#each MACROS as m}
         <button class:on={macro === m} onclick={() => cmd({ type: 'MACRO', id: m })} title={MACRO_NAMES[m][1]} use:learnable={{ id: `a:macro:${m}`, label: 'Macro ' + MACRO_NAMES[m][0] }}>{MACRO_NAMES[m][0]}</button>
       {/each}
+      <button class:on={vs.logoOnly} onclick={() => cmd({ type: 'LOGO_ONLY' })} title="L" use:learnable={{ id: 'a:logoOnly', label: 'Só logo' }}>Só logo</button>
     </div>
     {#if catalog}
       <div class="row">
@@ -335,10 +371,15 @@
   .pad.empty { border-style: dashed; background: transparent; }
   .pad.empty span { color: var(--muted); font-weight: 400; }
   .pad.active { border-color: var(--accent); background: rgba(124, 92, 255, .22); box-shadow: 0 0 16px rgba(124, 92, 255, .35); }
+  .pad.staged { outline: 2px dashed #22d3ee; outline-offset: -2px; } /* preview: ciano tracejado; Program = roxo cheio */
+  .pad.staged small { color: #22d3ee; font-weight: 800; }
+  .row > .take { font-weight: 700; background: #22d3ee; color: #062a30; border-color: #22d3ee; }
+  .row > .off { opacity: .45; }
   .pad i { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--kick); }
   .pad input { width: 100%; font-size: 12px; background: rgba(0,0,0,.4); border: 1px solid var(--accent); border-radius: 4px; padding: 1px 4px; }
   .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
-  .seg { display: flex; gap: 4px; margin-right: auto; }
+  .seg { display: flex; gap: 4px; margin-right: auto; align-items: center; }
+  .seg .unit { margin-left: 2px; }
   .seg button, .row > button, .btn { padding: 4px 9px; font-size: 12px; }
   .btn { background: rgba(255,255,255,.06); border: 1px solid var(--line); border-radius: 10px; cursor: pointer; color: var(--text); }
   .btn input { display: none; }
