@@ -80,6 +80,8 @@ Renderer (WebGL2, 1 classe, telão e preview) ──► passe 1 cena: fundo (cor
 | Mapeamento MIDI (`key → {id,label,min,max,step}`) | localStorage | `doublek.midi` |
 | Lista de vídeos (`{id,name}[]`) | localStorage | `doublek.videos` |
 | Roteiros (`Roteiro[]`) | localStorage | `doublek.roteiros` |
+| Bancos de cenas (`Banks`, até 4 × 8; `doublek.scenes` espelha o banco ativo) — DK-041 | localStorage | `doublek.banks` |
+| Backups do show (`.doublekshow`, 5 mais recentes) — DK-014 | disco | `%APPDATA%\com.doublek.visuals\backups\` |
 | Logo, foto, vídeos (Blob) | IndexedDB `doublek` / store `kv` | `logo`, `bg`, `video:<id>` |
 | Músicas dos roteiros | disco | `%APPDATA%\com.doublek.visuals\tracks\<id>.<ext>` |
 | Chave do updater (pública) | `tauri.conf.json` | `plugins.updater.pubkey` |
@@ -90,7 +92,9 @@ Exportações existentes: preset JSON (visual + 8 cenas, sem mídia) e roteiro J
 
 **Comandos** (`main.rs`): `list_inputs`, `list_outputs`, `subscribe`, `start_input`, `set_params`, `beat`, `list_monitors`, `open_output`, `close_output`, `midi_devices`, `add_track` (corpo binário + header `x-ext`), `remove_track`, `load_track`, `play_track`.
 
-**Eventos:** control → output: `visual`, `assets`, `preload`; output → control: `telemetry` (fps, p50/p95/p99, drops, lost; substituiu `fps` em DK-003), `output-log`; Rust → control: `midi`, `midi-devices`.
+**Eventos:** control → output: `visual`, `assets`, `preload`; output → control: `telemetry` (fps, p50/p95/p99, drops, lost; substituiu `fps` em DK-003), `output-log`, `psy-budget` e `psy-costs` (DK-024: orçamento e custo por módulo, 1×/s); Rust → control: `midi`, `midi-devices`.
+
+**Comandos adicionados depois da baseline:** `save_backup` (corpo binário + `x-name`, `app_data/backups`, rotação de 5), `put_track` (corpo binário + `x-id`, `create_new`) — DK-014. **Dispatcher único (DK-042):** teclado, MIDI, UI, roteiro e automação passam por `src/lib/commands.ts` (18+ `ShowCommand`, 7 fontes, override manual, histórico no Diagnóstico).
 
 **Capabilities:** `core:default`, `updater:default`, `process:allow-restart` para as janelas `control` e `output`. **CSP (desde DK-005):** `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src ipc: http://ipc.localhost; object-src 'none'; frame-src 'none'` + `devCsp` liberando `localhost:5173`/`ws:`. Sem inline (o `<style>` do telão virou `output.css`). Validado no mock **e no app real** (2026-10-30: produção via `tauri build --no-bundle` e dev via Vite, WebView2 inspecionado pela porta de depuração remota): IPC, telão 1920×1080, telemetria, nada recusado. `favicon.ico` automático devolvia 500 no protocolo de assets; silenciado com `<link rel="icon" href="data:,">`.
 
@@ -101,7 +105,8 @@ Exportações existentes: preset JSON (visual + 8 cenas, sem mídia) e roteiro J
 | Camada | O que cobre | O que não cobre |
 |---|---|---|
 | Rust (`cargo test`) | detecção de kick/BPM em faixa sintética (5 BPMs), drop/breakdown, parse MIDI, grade da faixa inteira, decodificação WAV + reamostragem | áudio real, cpal, reprodução, reconexão |
-| TS (`npm run check`) | blend/crossfade, sanitize de presets, `drop`, `pickColors`, regras do roteiro (due/stateAt/ramp/snap/sanitize); **store** (migração v0→v1, inválidos, versão futura, roundtrip, ids de roteiro); **telemetry** (percentis, resumo por segundo, diário); **limits** (extensão/tipo/tamanho); **safety** (≤ 3 flashes/s em 80–220 BPM × 1/1, 1/2, 1/4; `SAFE_LOOK` ⊂ cena) | UI, renderer, IPC |
+| TS (`npm run check`) | blend/crossfade, sanitize de presets, `drop`, `pickColors`, regras do roteiro (due/stateAt/ramp/snap/sanitize); **store** (migração v0→v1, inválidos, versão futura, roundtrip, ids de roteiro); **telemetry**; **limits**; **safety** (≤ 3 flashes/s); **banks** (migração, 4 × 8); **commands** (validação, fontes, override, histórico, ids MIDI legados, macros); **preview**; **showpack** manifest/export/import (ZIP, hashes, rollback); **presets** (23 de fábrica saneáveis e dentro dos tetos); **render/music** (envelopes, fontes, strobe gating, limitador de rajadas); **render/budget** (degraus de qualidade, histerese). 14 arquivos em 2026-10-30 (v0.3.4) | UI, renderer em GPU real, IPC |
+| Rust (atualizado) | 15 testes: detecção em 5 BPMs, drop/breakdown, parse MIDI, grade da faixa inteira, WAV + reamostragem, synth determinístico, troca de música 148→175, Auto sem ½, limpo sem baixo, ruído alto, limites de upload/id; `examples/bench` com estresse 6 cenários × 10 sementes (`docs/quality/DETECCAO.md`) | áudio real |
 | Tipos | `svelte-check` sobre tudo | — |
 | Manual/mock | capturas da documentação via mock do Tauri em Edge headless (fora do repo) | app real |
 

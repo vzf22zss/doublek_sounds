@@ -756,8 +756,8 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 | Commit/branch baseline validado | `main` @ `09a7677` (v0.3.1) — ver `docs/quality/BASELINE.md` |
 | Tarefa ativa | **Em paralelo (desde 2026-10-30, coordenador: sessão doublek-sounds-68):** DK-008 → sessão d7 (`feat/dk-008-benchmark`), DK-004 governança → sessão 29 (`docs/dk-004-governanca`), DK-011 → sessão 22 (`feat/dk-011-showpack-schema`); coordenador: plano de teste do DK-141 (`docs/coordenacao-m0`). Regras: cada sessão num `git worktree` próprio, escopo de arquivos disjunto, sem push/merge, só o coordenador edita roadmap/BASELINE/README |
 | Marco ativo | M0 quase fechado (faltam DK-004 licença/1ª Release e DK-141 com o mantenedor); M1 feito em software (gate depende de validação no app real + DEC-03/09); M2 em andamento (DK-021/022/023 feitos, DK-024 a fazer); M3 iniciado (DK-041 feito, DK-042 em andamento) |
-| Tarefas do roadmap marcadas | 15 (DK-001, 002, 003, 005, 006, 008, 011, 012, 013, 014, 131, 021, 022, 023, 041) |
-| Tarefas concluídas | 15 (software); DK-009 P3/P4 parcial |
+| Tarefas do roadmap marcadas | 20 (DK-001, 002, 003, 005, 006, 008, 011, 012, 013, 014, 131, 021, 022, 023, 024, 041, 042, 043) + retoques |
+| Tarefas concluídas | 20 (software); DK-009 P1–P4 feitos, P7/P6 em andamento |
 | Bloqueios conhecidos | Licença (DEC-01); hardware de referência (DEC-02); secret de assinatura e 1ª release (DEC-10); SDK para Spout/Link/gravação |
 | Release alvo | **0.4.0** ao fechar o M0 (decisão do mantenedor, 2026-10-30) |
 
@@ -820,6 +820,7 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 | 2026-10-30 | DK-024 | DONE (software) | `feat/dk-024-psy-fechamento` @ `9c5dcea` (sessão 29) | `budget.check.ts` + checks 11/11, typecheck 0, build (coordenador); smokes com teto 1/40 ms e `psySafe` diff 0 | coordenador liga `onBudget`/`costs()` no telão; sessão 29 → **DK-051/052** (compositor de camadas) |
 | 2026-10-30 | DK-024b | DONE | `feat/dk-024b-wire` (coordenador) | `output/main.ts`: `onBudget` → evento `psy-budget`, `costs()` → `psy-costs` 1×/s; typecheck 0, build | onda 3 |
 | 2026-10-30 | DK-043 | DONE (software) | `feat/dk-043-preview` @ `550dcd5` (sessão 22) | `preview.check.ts` + checks 12/12, typecheck 0, build (coordenador); mock 19/19 | **DK-143** (efeitos/vídeo/rampas do roteiro pelo dispatcher, `cue.bank`) na mesma sessão; DK-044 vira verificação de estresse no mock |
+| 2026-10-30 | ONDA 3 → main | MERGEADA | `main` @ `ef1a66a` (v0.3.4, ff de `integ/onda-3`), push feito | DK-024(+024b), DK-043, docs; check 14/14, typecheck 0, build, `cargo test` 15/15; CI e MSI 0.3.4 em andamento | Onda 4 com DK-051/052 (29), DK-143 (22), DK-009 P7/P6 (d7) |
 | 2026-10-30 | DK-009 P2+P1 | DONE (software) | `feat/dk-009-deteccao` @ `8f748e6` (sessão d7) | `cargo test --release` 15/15 (coordenador); bench principal sem caso fora da meta; estresse 10 sementes; P6 como patch; **P7** achado (grade no contratempo) | **P7** → P6 (patch com guarda do estresse chimbal) → resíduos §4.8, mesma sessão; P5 fixtures reais dependem de DEC-01 |
 
 ### 8.4. Bloqueios e decisões pendentes
