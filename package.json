@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "tauri": "tauri",
-    "check": "node src/lib/settings.check.ts && node src/lib/store.check.ts && node src/lib/telemetry.check.ts && node src/lib/limits.check.ts && node src/lib/safety.check.ts && node src/lib/showpack/manifest.check.ts && node src/lib/showpack/export.check.ts",
+    "check": "node src/lib/settings.check.ts && node src/lib/store.check.ts && node src/lib/telemetry.check.ts && node src/lib/limits.check.ts && node src/lib/safety.check.ts && node src/lib/showpack/manifest.check.ts && node src/lib/showpack/export.check.ts && node src/lib/presets.check.ts",
     "typecheck": "svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {
