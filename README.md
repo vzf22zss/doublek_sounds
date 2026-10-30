@@ -5,7 +5,7 @@ Feito para psytrance, dark/forest e hi-tech (135–220 BPM).
 
 ![O telão pulsando no beat](docs/img/telao.gif)
 
-**📘 [Tutorial completo, do cabo ao show](docs/TUTORIAL.md)**
+**📘 [Tutorial completo, do cabo ao show](docs/TUTORIAL.md)** · 🗺️ [Roadmap e plano de evolução](docs/DOUBLEK_VISUALS_PLANO_AGENTICO_ROADMAP.md)
 
 ![Janela de controle](docs/img/controle.png)
 
