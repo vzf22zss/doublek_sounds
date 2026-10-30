@@ -118,8 +118,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 - Crossfade de cena, barra do topo em 1280px e selo MIDI nos pads.
 
-[Não lançado]: https://github.com/vzf22zss/doublek_sounds/compare/HASH035...main
-[0.3.5]: https://github.com/vzf22zss/doublek_sounds/compare/ef1a66a...HASH035
+[Não lançado]: https://github.com/vzf22zss/doublek_sounds/compare/0f3dab9...main
+[0.3.5]: https://github.com/vzf22zss/doublek_sounds/compare/ef1a66a...0f3dab9
 [0.3.4]: https://github.com/vzf22zss/doublek_sounds/compare/1c4ade7...ef1a66a
 [0.3.3]: https://github.com/vzf22zss/doublek_sounds/compare/7582b07...1c4ade7
 [0.3.2]: https://github.com/vzf22zss/doublek_sounds/compare/09a7677...7582b07
