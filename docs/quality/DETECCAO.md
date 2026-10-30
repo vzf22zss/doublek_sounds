@@ -1,8 +1,8 @@
 # Detecção de kick/BPM — benchmark sintético e latência (DK-008)
 
-> **Tarefas:** DK-008 (benchmark) e DK-009 (correções P1–P4) do [roadmap](../DOUBLEK_VISUALS_PLANO_AGENTICO_ROADMAP.md) · **Data:** 2026-10-30 · **Branches:** `feat/dk-008-benchmark`, `feat/dk-009-deteccao`  
+> **Tarefas:** DK-008 (benchmark) e DK-009 (correções P1–P4, P7 e resíduo do breakdown) do [roadmap](../DOUBLEK_VISUALS_PLANO_AGENTICO_ROADMAP.md) · **Data:** 2026-10-30 · **Branches:** `feat/dk-008-benchmark`, `feat/dk-009-deteccao`  
 > Tudo aqui vem de **faixas sintéticas** (`src-tauri/src/synth.rs`). Nenhum número abaixo foi medido com música real, interface de áudio, projetor ou pessoa: ver a seção 6.  
-> DK-008 só mediu. DK-009 corrigiu P1–P4 (seção 8, antes/depois); P6 foi medido e ficou como proposta; P7 (grade no contratempo com chimbal) é achado novo (seção 4.7).
+> DK-008 só mediu. DK-009 corrigiu P1–P4, P7 (grade no contratempo com chimbal) e o resíduo de quedas no breakdown (seção 8, antes/depois). P6 foi medido duas vezes e ficou como proposta (4.6).
 
 ## 1. Como regenerar
 
@@ -42,7 +42,7 @@ A saída é Markdown; cole-a na seção 3 deste arquivo ao regenerar. O bench é
 
 **Estresse** (desde DK-009, última tabela): os cenários limpo, baixo rolante, breakdown e ruído alto, mais **chimbal no contratempo** (`hats` = 0,15: ruído agudo de 30 ms a meio beat, junto com a 2ª nota do baixo) e chimbal + breakdown, cada um com 10 sementes × 7 BPM na faixa do gênero. Agrega precisão/recall, soma quedas de trava e grades no contratempo, e lista as faixas com problema como BPM/semente (reproduzir com `Synth { bpm, seed, .. }`).
 
-## 3. Resultados (gerado em 2026-10-30, `feat/dk-009-deteccao` após P1–P4)
+## 3. Resultados (gerado em 2026-10-30, `feat/dk-009-deteccao` após P1–P4, P7 e o resíduo do breakdown)
 
 A última tabela é o **estresse**: os mesmos cenários com 10 sementes × 7 BPM, mais o chimbal no contratempo, com as faixas problemáticas listadas como BPM/semente.
 
@@ -152,14 +152,14 @@ Nenhum.
 |---|---:|---:|---:|---:|---:|---|
 | limpo | 1.000 | 1.000 | 0 | 0 | 0.03 | — |
 | baixo rolante | 1.000 | 1.000 | 0 | 0 | 0.08 | — |
-| breakdown 10–18 s | 0.998 | 0.997 | 2 | 0 | 0.17 | 140/s8 140/s10 |
+| breakdown 10–18 s | 0.998 | 0.997 | 0 | 0 | 0.17 | — |
 | ruído alto (−14 dBFS) | 0.999 | 0.982 | 0 | 0 | 0.16 | 160/s7 175/s5 |
-| chimbal no contratempo | 0.984 | 0.982 | 0 | 1 | 0.10 | 175/s2 175/s3 |
-| chimbal + breakdown | 0.962 | 0.957 | 7 | 2 | 0.08 | 140/s4 140/s7 140/s8 140/s9 175/s1 175/s2 175/s3 175/s6 |
+| chimbal no contratempo | 1.000 | 1.000 | 0 | 0 | 0.10 | — |
+| chimbal + breakdown | 0.998 | 0.996 | 0 | 0 | 0.08 | — |
 
 ## 4. Leitura dos resultados e casos degradados
 
-Resumo (após P1–P4): na tabela principal, **nenhum caso fora da meta**. Precisão 1,00 em 82 das 84 combinações (0,99 nas outras duas), recall ≥ 0,96 em todas, erro de BPM ≤ 0,08, nenhum ½/×2, nenhuma queda de trava. A trava chega em **1,4–4,1 s** depois do primeiro kick. O atraso algorítmico mediano é **3–11 ms** (seção 5). O que resta aparece no **estresse** com 10 sementes: grade no contratempo com chimbal (4.7) e quedas de trava residuais (4.8). Cada caso abaixo foi conferido hop a hop com um exemplo descartável que imprimia `flux`, `thr`, bandas e estado da trava.
+Resumo (após P1–P4, P7 e o resíduo do breakdown): na tabela principal, **nenhum caso fora da meta**. Precisão 1,00 em 82 das 84 combinações (0,99 nas outras duas), recall ≥ 0,96 em todas, erro de BPM ≤ 0,08, nenhum ½/×2, nenhuma queda de trava. A trava chega em **1,4–4,1 s** depois do primeiro kick. O atraso algorítmico mediano é **3–11 ms** (seção 5). No **estresse** com 10 sementes: zero quedas de trava e zero grades no contratempo em todos os cenários; o único resíduo é recall 0,94 em 2 faixas com ruído alto (4.8). Cada caso abaixo foi conferido hop a hop com um exemplo descartável que imprimia `flux`, `thr`, bandas e estado da trava.
 
 ### 4.1. Ruído alto: recall 0,66–0,87 em todos os BPM (pior em 135–148) — **resolvido em DK-009 (P1)**
 
@@ -196,21 +196,50 @@ Sequência no traço: 2 s de silêncio deixam o limiar baixo; o 1º kick sobe 12
 - **Cold start nas faixas do gênero:** trava em 1,4–3,7 s após o 1º kick, recall ≥ 0,96; o problema é só na faixa Auto.
 - **Drift de relógio:** em 30 s o erro fica ≤ 0,09 BPM; o bench não mede horas de set. Para drift real é preciso música real (seção 6).
 
-### 4.6. Troca de música sem breakdown: re-trava em ~7,3 s (achado em DK-009; P6 medido, não entrou)
+### 4.6. Troca de música sem breakdown: re-trava em ~7,3 s (achado em DK-009; P6 medido duas vezes, não entrou)
 
 Teste `troca_de_musica_148_175` (148 → 175 BPM emendados, sem pausa). Com a grade de 148 travada, os kicks de 175 fora dela são recusados mesmo com click (traço: só 1 a cada ~2 s cai na grade velha e é aceito); a janela de 8 s fica só com kicks que concordam com 148 e só esvazia depois de ~7 s. Medido: **7,26 s** em Dark e em Auto (Auto era 8,29 s antes de P4). Nesse intervalo o visual pulsa pela fase prevista de 148 sobre música a 175. É o comportamento do `main`; o teste fixa 9 s como teto.
 
-**P6 medido:** soltar a trava (e esquecer os kicks da janela) quando, nos últimos 2 s, os candidatos **com click** recusados fora da grade forem ≥ 4 e mais que 2× os aceitos. Re-trava em **4,51 s** (Dark e Auto); bench principal e estresse idênticos (91 linhas). **Não entrou:** a guarda supõe que, com chimbal no contratempo, o kick continua aceito a cada beat (razão ~1); isso falha justamente quando a grade trava no contratempo (4.7), e num estresse avulso com chimbal mais alto + ruído + breakdown a P6 somou 1 queda de trava e 22 falsos (sobre 2 110). Implementar depois de P7.
+**P6 medido:** soltar a trava (e esquecer os kicks da janela) quando, nos últimos 2 s, os candidatos **com click** recusados fora da grade forem ≥ 4 e mais que 2× os aceitos. Re-trava em **4,51 s** (Dark e Auto); bench principal e estresse idênticos. **Não entrou**, nem depois de P7:
 
-### 4.7. Chimbal no contratempo: grade trava meio beat fora (achado em DK-009, não corrigido) — **prioridade**
+- Sobre P7, num estresse avulso hostil (10 sementes × 7 BPM): chimbal 0,6 + ruído alto + breakdown → quedas de trava 1 → **22**, falsos 65 → **185**, recall 0,899 → 0,842; chimbal 0,3 + ruído → quedas 0 → 1, falsos 30 → 37. No ruído, chimbal + baixo + clicks do ruído geram muitos recusados com click fora da grade, e a razão engana.
+- Refinamento testado: ignorar os recusados no contratempo exato (que P7 já trata). A guarda passa (idêntico a só P7), mas a re-trava piora para **7,94 s** — sem P6 é 7,26 s. Não serve.
 
-Cenário novo do synth (`hats`: ruído agudo de 30 ms no contratempo, coincidindo com a 2ª nota do baixo rolante). No estresse, 175 BPM semente 3: a grade trava no andamento certo (175,00) mas **meio beat fora** — o contratempo vira kick (77 falsos na fase 0,52–0,55) e os kicks reais ficam fora da grade (traço: kick real em 4,859 s com `grid Some(false)`; contratempo em 4,688 e 5,029 s com `grid Some(true)`, aceitos). Semente 2: trava só em 12,1 s. Mecanismo: antes de travar basta click para aceitar, e chimbal + nota do baixo têm click **e** subida de sub; se a âncora cai num contratempo, os kicks reais passam a exigir `click && strong` e o contratempo ganha o limiar abaixado da grade — se realimenta. No telão: a logo pulsa no contratempo a música inteira. Já existia antes de DK-009 (estresse com o detector do DK-008: 2 faixas no contratempo com chimbal; agora 1). Uma semente só não pega: a semente 1 sai limpa. Proposta P7.
+Fica como proposta: o sinal precisa distinguir "candidatos com fase deslizando" (troca de música) de "candidatos espalhados por ruído".
+
+### 4.7. Chimbal no contratempo: grade travava meio beat fora — **resolvido em DK-009 (P7)**
+
+Cenário do synth (`hats`: ruído agudo de 30 ms no contratempo, coincidindo com a 2ª nota do baixo rolante). No estresse do DK-008, 175 BPM semente 3: a grade travava no andamento certo (175,00) mas **meio beat fora** — o contratempo virava kick (77 falsos na fase 0,52–0,55) e os kicks reais ficavam fora da grade (traço: kick real em 4,859 s com `grid Some(false)`; contratempo em 4,688 e 5,029 s com `grid Some(true)`, aceitos). Mecanismo: antes de travar basta click para aceitar, e chimbal + nota do baixo têm click **e** subida de sub; se a âncora cai num contratempo, os kicks reais passam a exigir `click && strong` e, pior, caem no **refratário** (0,6 × 60/hi é maior que meio beat em todas as faixas de gênero), então nem chegam a ser candidatos; o contratempo ganha o limiar abaixado da grade — se realimenta.
+
+**O que separa kick de chimbal + baixo** (mediana por candidato rotulado, 175 BPM semente 3 e outros):
+
+| Característica | Kick | Contratempo | Razão |
+|---|---:|---:|---:|
+| pico do sub em 40 ms | 0,33 | 0,69 | 0,48 (**ao contrário**) |
+| energia do sub em 60 ms | 1,04 | 2,44 | 0,43 (**ao contrário**) |
+| energia da banda de 160 Hz em 30 ms ("punch") | 1,46 | 0,25 | **5,8** (5–11 por BPM; 2,0 com o kick a meio volume) |
+| agudos (banda ≥ 6 kHz / click) | 4,98 | 5,47 | 0,91 |
+
+A ideia inicial ("o kick tem sub mais forte") falha neste synth: a nota do baixo tem o dobro do sub do kick nessa janela. O que separa é o **punch** — a varredura do kick passa por 100–200 Hz nos primeiros 30 ms.
+
+**Correção (P7):** o `Analyzer` mede o punch de todo candidato com click (antes do refratário, porque o do contratempo cai nele) e o `Beat::score` compara as duas fases da grade atual: com ≥ 3 candidatos em cada e o contratempo com punch > 1,5× o da fase, a âncora anda meio beat e a janela do ajuste passa a ser os candidatos da fase nova. Vale também com a grade já travada errada. Testes `contratempo_com_chimbal` (175/s3 e kick a meio volume) e `contratempo_espelho` (chimbal 4× mais alto com kick a meio volume; kick fraco sem chimbal); ambos falham sem a virada (fase 0,48).
+
+**Espelho e limite** (175 BPM, 10 sementes, grade no contratempo ao fim):
+
+| Chimbal | Kick | Sem P7 | Com P7 |
+|---:|---:|---:|---:|
+| 0,15 | 1 | 1/10 | 0/10 |
+| 0,15 | 0,5 | 10/10 | **0/10** |
+| 0,6 | 0,5 | 10/10 | **0/10** |
+| 0,15 ou 0,6 | 0,3 | 10/10 | 10/10 |
+| 0 | 0,3 | não trava | não trava |
+
+Limite: com o kick a ≤ 0,3 do volume (≈ −10 dB do padrão) ele **nem é detectado** sob o baixo (sem chimbal não trava); com chimbal, o único evento com click é o contratempo e a grade vai para ele, com ou sem P7. P7 nunca piorou um caso em relação ao detector anterior. **Risco com música real:** o punch é uma característica do kick sintético (varredura 170 → 50 Hz); baixo de psy com muito médio-grave (FM, serra filtrada) pode ter punch comparável — NÃO VERIFICADO.
 
 ### 4.8. Resíduos do estresse com 10 sementes
 
-- **Breakdown:** 2 quedas de trava em 70 faixas (140 BPM, sementes 8 e 10), eram 70 antes de P3. Não investigado.
-- **Ruído alto:** 160/s7 e 175/s5 com recall < 0,95. Não investigado.
-- **Chimbal + breakdown:** 7 quedas, 2 grades no contratempo, precisão 0,962 — soma de 4.7 com os resíduos acima.
+- **Breakdown — resolvido em DK-009:** 2 quedas de trava (140 BPM, sementes 8 e 10), e 4 em chimbal + breakdown. Traço: na volta do drop os 4 kicks novos são todos inliers (4/4, desvio 3,1 %), mas o período estimado só com eles oscila mais de 3 % do travado (a detecção varia ~1 hop), então o critério de P3 falhava. Correção: com menos de 6 kicks na janela e todos na grade travada, a grade vale como está (período mantido, só a fase se reajusta). Teste `breakdown_nao_solta_a_trava`.
+- **Ruído alto — conhecido:** 160/s7 e 175/s5 com recall 0,94 (4 kicks perdidos em ~70, isolados, sem padrão). É o limite do click suave de P1 a 0,75×; 0,6× ganharia um pouco (4.1). Não corrigido.
 - **Breakdown com o detector original:** com 10 sementes já havia falsos no breakdown (precisão 0,998); a semente 1 do bench mostrava 0.
 
 ## 5. Latência captura → evento (conta analítica)
@@ -246,11 +275,11 @@ Soma do que é conhecido ou estimado por software: **≈ 14–28 ms** entre o ki
 | P2 | 4.2 limpo | **Feito em DK-009** (seção 8): cruzamento recusado só por falta de click fica pendente até o click | kick duplo se o click vier depois do refratário (0,6 beat); não visto no estresse |
 | P3 | 4.3 breakdown | **Feito em DK-009** (seção 8): mantém a trava com janela limpa e mesma grade | se a música mudar **durante** o breakdown para um andamento a ±3 % do anterior, a grade velha segue até o desvio passar de 3,5 % |
 | P4 | 4.4 ½ Auto | **Feito em DK-009** (seção 8): testa p/2 quando cabe na faixa e fica com ela se explicar mais kicks | em Auto, música real a 80–110 BPM com falsos no contratempo poderia dobrar; o teste cobre 90 e 100 BPM limpos |
-| P6 | 4.6 troca de música | **Medido, não entrou** (4.6): soltar a trava quando, em 2 s, recusados com click ≥ 4 e > 2× aceitos; re-trava 7,26 → 4,51 s, bench idêntico | depende de P7: com a grade no contratempo a razão aceitos/recusados engana |
-| P7 | 4.7 contratempo | Ao escolher a âncora (`fit` parte do último kick), comparar as duas fases candidatas (a e a + p/2) pela força média dos kicks em cada uma — o kick tem subida de sub maior que chimbal + baixo — e ficar com a mais forte; ou, antes de travar, exigir `strong` além do click quando houver candidatos nas duas fases | psy com kick fraco e baixo forte; precisa do estresse com chimbal como guarda |
+| P6 | 4.6 troca de música | **Medido duas vezes, não entrou** (4.6): soltar a trava quando, em 2 s, recusados com click ≥ 4 e > 2× aceitos; re-trava 7,26 → 4,51 s, mas com chimbal + ruído + breakdown 22 quedas e 3× os falsos; ignorando o contratempo, não ajuda mais (7,94 s) | precisa de um sinal de "fase deslizando" que o ruído não imite |
+| P7 | 4.7 contratempo | **Feito em DK-009** (seção 8): escolhe a fase da grade pelo punch (banda de 160 Hz, 30 ms) dos candidatos com click | baixo real com muito médio-grave pode ter punch de kick; kick ≤ −10 dB não é detectado |
 | P5 | drift/real | Gravar 3–4 trechos reais (line-in e mic) rotulados no Rekordbox e acrescentar ao bench como fixtures opcionais (`examples/analyze` já lê mp3/wav) | tamanho do repo; licença das faixas (DEC-01) |
 
-**Limites de regressão propostos** a partir destes dados (para o CI, quando o bench entrar como teste): precisão ≥ 0,98 em tudo; recall ≥ 0,95 em "baixo rolante", "breakdown", "−20 dB" e "cold start" (gênero **e** Auto, após P4); erro de BPM ≤ 0,2; zero ½/×2 e zero "perdeu a trava" nas 84 combinações; nenhum caso fora da meta na tabela principal (após P1–P4). No estresse: precisão ≥ 0,998 e recall ≥ 0,98 em limpo, baixo rolante, breakdown e ruído; "grade no contratempo" e as quedas em chimbal + breakdown ficam como **conhecidos** até P7.
+**Limites de regressão propostos** a partir destes dados (para o CI, quando o bench entrar como teste): tabela principal sem nenhum caso fora da meta (precisão ≥ 0,98, recall ≥ 0,95, erro ≤ 0,2 BPM, nenhum ½/×2, nenhuma queda de trava). Estresse: zero quedas de trava e zero grades no contratempo em todos os cenários; precisão ≥ 0,998; recall ≥ 0,98 por cenário (ruído alto tem 2 faixas a 0,94, conhecidas).
 
 ## 8. Antes/depois das correções (DK-009)
 
@@ -306,17 +335,32 @@ Teste novo `limpo_sem_baixo` (falha sem P2: 160 BPM → 0,87).
 
 Gênero e Auto iguais; 160 BPM: precisão 0,98 → 0,99. Atraso mediano no ruído até +1,3 ms (kick fraco recuperado dispara 1 hop depois). Estresse avulso com 280 faixas (breakdown × ruído baixo/alto × com/sem baixo): falsos 33 → 31, recall 0,903 → 0,983. Teste novo `ruido_alto` (falha sem P1: 140 BPM → 0,82).
 
+### P7 — grade no contratempo (`97ff6ea`)
+
+84 linhas principais idênticas; no estresse só os cenários com chimbal mudam.
+
+| Cenário | Precisão | Recall | Quedas de trava | Grade no contratempo |
+|---|---|---|---|---|
+| chimbal no contratempo | 0,984 → **1,000** | 0,982 → **1,000** | 0 → 0 | 1 → **0** |
+| chimbal + breakdown | 0,962 → **0,998** | 0,957 → **0,996** | 7 → **4** | 2 → **0** |
+
+Troca de música igual (7,26 s); P3 (`drop_breakdown`) verde.
+
+### Resíduo do breakdown (`0e0558c`)
+
+84 linhas principais idênticas; estresse: breakdown quedas 2 → **0**, chimbal + breakdown quedas 4 → **0**; o resto idêntico. Estresse avulso hostil (chimbal 0,3–0,6 × ruído × breakdown): quedas 3/1/1 → 0/0/0, falsos iguais.
+
 ### Estresse (10 sementes × 7 BPM), detector do DK-008 → atual
 
 | Cenário | Precisão | Recall | Quedas de trava | Grade no contratempo |
 |---|---|---|---|---|
 | limpo | 1,000 → 1,000 | 0,942 → **1,000** | 0 → 0 | 0 → 0 |
 | baixo rolante | 1,000 → 1,000 | 0,998 → **1,000** | 0 → 0 | 0 → 0 |
-| breakdown | 0,998 → 0,998 | 0,977 → **0,997** | 70 → **2** | 0 → 0 |
+| breakdown | 0,998 → 0,998 | 0,977 → **0,997** | 70 → **0** | 0 → 0 |
 | ruído alto | 0,999 → 0,999 | 0,764 → **0,982** | 2 → **0** | 0 → 0 |
-| chimbal no contratempo | 0,947 → **0,984** | 0,946 → **0,982** | 0 → 0 | 2 → **1** |
-| chimbal + breakdown | 0,939 → **0,962** | 0,913 → **0,957** | 66 → **7** | 2 → 2 |
+| chimbal no contratempo | 0,947 → **1,000** | 0,946 → **1,000** | 0 → 0 | 2 → **0** |
+| chimbal + breakdown | 0,939 → **0,998** | 0,913 → **0,996** | 66 → **0** | 2 → **0** |
 
-### P6 — medido, não entrou
+### P6 — medido duas vezes, não entrou
 
-Re-trava na troca 148 → 175: 7,26 → 4,51 s; bench principal e estresse idênticos. Motivo e riscos em 4.6.
+Re-trava na troca 148 → 175: 7,26 → 4,51 s com bench e estresse idênticos, mas reprovado na guarda com chimbal + ruído + breakdown (22 quedas, 3× os falsos); a versão que passa na guarda não ajuda (7,94 s). Detalhes em 4.6.
