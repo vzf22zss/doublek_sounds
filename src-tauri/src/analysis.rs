@@ -522,6 +522,26 @@ mod tests {
         }
     }
 
+    /// Volta do drop com 4-5 kicks: o período estimado só com eles oscila mais de 3 % (a detecção
+    /// varia ~1 hop) e a trava caía mesmo com todos os kicks na grade (140/sementes 8 e 10 do
+    /// estresse, DETECCAO.md §4.8).
+    #[test]
+    fn breakdown_nao_solta_a_trava() {
+        for seed in [8, 10] {
+            let s = Synth { bpm: 140.0, secs: 30.0, seed, breakdown: Some((10.0, 18.0)), ..Default::default() };
+            let (x, _) = s.render();
+            let mut an = Analyzer::new(s.sr);
+            let p = Params { bpm_min: 135.0, bpm_max: 150.0, ..Default::default() };
+            let (mut was, mut drops) = (false, 0);
+            for c in x.chunks_exact(HOP) {
+                an.process(c, &p);
+                drops += (was && !an.beat.locked) as usize;
+                was = an.beat.locked;
+            }
+            assert_eq!(drops, 0, "semente {seed}: a trava caiu {drops}×");
+        }
+    }
+
     #[test]
     fn psy_140() {
         check(140.0, 135.0, 150.0);

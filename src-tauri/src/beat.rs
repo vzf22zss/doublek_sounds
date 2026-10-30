@@ -53,6 +53,20 @@ impl Beat {
             let bpm = 60.0 / p;
             let in_range = freeze || (bpm >= lo * 0.97 && bpm <= hi * 1.03);
             if in_range && n * 10 >= ks.len() * 6 {
+                // volta do drop com menos de 6 kicks na janela: se todos caem na grade travada, ela
+                // vale como está — o período de 4-5 kicks é ruidoso (a detecção oscila ~1 hop), o da
+                // grade vem de muito mais tempo. Só a fase se reajusta.
+                let (a0, p0) = (self.anchor, self.period);
+                let on_old = |k: &f64| {
+                    let x = (k - a0) / p0;
+                    (x - x.round()).abs() < TOL
+                };
+                if self.locked && n < 6 && ks.iter().all(on_old) {
+                    if let Some((_, a1, _, _)) = fit(ks, p0, None, true) {
+                        self.rebase(a1, p0);
+                    }
+                    return;
+                }
                 // volta do drop: a janela tem poucos kicks (o breakdown esvaziou), mas todos caem na
                 // grade que já estava travada → mantém a trava em vez de esperar o 6º kick. Só com a
                 // janela limpa (n == todos): numa troca de música há kicks fora da grade velha.
