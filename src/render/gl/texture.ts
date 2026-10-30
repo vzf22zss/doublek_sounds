@@ -27,8 +27,13 @@ export function bind(gl: WebGL2RenderingContext, unit: number, t: WebGLTexture, 
 
 export type Target = { fb: WebGLFramebuffer; tex: WebGLTexture };
 
+let made = 0;
+/** Quantos alvos (FBO + textura) já foram criados nesta janela: prova de que reordenar camadas não aloca. */
+export const targetsMade = () => made;
+
 /** Alvo W×H, já limpo de preto. */
 export function target(gl: WebGL2RenderingContext, W: number, H: number): Target {
+  made++;
   const tex = texture(gl, W, H), fb = gl.createFramebuffer()!;
   gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);

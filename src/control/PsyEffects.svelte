@@ -5,6 +5,7 @@
   import Slider from './Slider.svelte';
   import { VISUAL, type Visual } from '../lib/settings';
   import type { BudgetInfo, Cost } from '../render/renderer';
+  import { BLEND_NAMES, BLENDS, LAYER_NAMES, moveLayer, sanitizeLayers, setLayer, type Blend, type LayerId } from '../render/layers';
 
   let { vs = $bindable() }: { vs: Visual } = $props();
   const f2 = (v: number) => v.toFixed(2);
@@ -19,6 +20,10 @@
     ];
     return () => un.forEach((p) => p.then((f) => f()).catch(() => {}));
   });
+  // camadas (DK-051): sempre a lista validada; cada mudança grava uma lista nova no visual
+  const layers = $derived(sanitizeLayers(vs.layers));
+  const name = (id: string) => LAYER_NAMES[id as LayerId] ?? id;
+
   /** "GPU 0,42 ms" com timer de GPU; senão só o CPU, que não mostra o peso real do shader. */
   const ms = (id: string) => {
     const c = costs[id];
@@ -100,6 +105,28 @@
 {/if}
 {#if budget}<p class="keys" class:warn={budget.action === 'down'}>{budget.msg}</p>{/if}
 
+<h2>Camadas</h2>
+<div class="layers">
+  {#each layers as l, i (l.id)}
+    <div class="layer" class:off={!l.enabled}>
+      <input type="checkbox" checked={l.enabled} title="Liga/desliga a camada" aria-label="Ligar {name(l.id)}"
+        onchange={(e) => (vs.layers = setLayer(vs.layers, l.id, { enabled: e.currentTarget.checked }))} />
+      <span class="name">{name(l.id)}</span>
+      <select value={l.blend} title="Como esta camada se mistura com a de baixo" aria-label="Mistura {name(l.id)}"
+        onchange={(e) => (vs.layers = setLayer(vs.layers, l.id, { blend: e.currentTarget.value as Blend }))}>
+        {#each BLENDS as b}<option value={b}>{BLEND_NAMES[b]}</option>{/each}
+      </select>
+      <input class="op" type="range" min="0" max="1" step="0.05" value={l.opacity} title="Opacidade {Math.round(l.opacity * 100)}%"
+        aria-label="Opacidade {name(l.id)}" oninput={(e) => (vs.layers = setLayer(vs.layers, l.id, { opacity: +e.currentTarget.value }))} />
+      <button class="mv" disabled={i === 0} title="Subir (desenha antes)" aria-label="Subir {name(l.id)}"
+        onclick={() => (vs.layers = moveLayer(vs.layers, l.id, -1))}>▲</button>
+      <button class="mv" disabled={i === layers.length - 1} title="Descer (desenha depois)" aria-label="Descer {name(l.id)}"
+        onclick={() => (vs.layers = moveLayer(vs.layers, l.id, 1))}>▼</button>
+    </div>
+  {/each}
+</div>
+<p class="keys">De cima para baixo = ordem em que desenham. O fundo e a logo vêm sempre antes; vinheta, strobe e blackout sempre por último. Normal a 100% não custa nada a mais; os outros modos gastam 1 passe.</p>
+
 <style>
   h2 { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 18px 0 2px; font-weight: 600; }
   .power { width: 100%; margin-top: 6px; }
@@ -112,4 +139,13 @@
   .lbl { display: block; margin-top: 12px; color: var(--muted); font-size: 12px; }
   .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 6px; }
   .seg button { text-align: center; }
+  .layers { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+  .layer { display: grid; grid-template-columns: 14px 78px 1fr 44px 20px 20px; gap: 4px; align-items: center; font-size: 12px; }
+  .layer .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .layer.off .name { color: var(--muted); text-decoration: line-through; }
+  .layer input[type='checkbox'] { accent-color: var(--accent); }
+  .layer select { font-size: 11px; padding: 1px 3px; width: 100%; min-width: 0; }
+  .layer .op { width: 44px; }
+  .mv { padding: 1px 0; font-size: 10px; }
+  .mv:disabled { opacity: .3; }
 </style>

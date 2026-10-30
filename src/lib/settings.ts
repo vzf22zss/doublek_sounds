@@ -1,5 +1,6 @@
 // Ajustes visuais: a janela de controle é a dona; a saída lê na abertura e recebe o evento 'visual'.
 import { isObj, load, save, shaped } from './store.ts';
+import { defaultLayers } from '../render/layers.ts';
 
 // De onde cada efeito tira o movimento. "Auto" = kick quando há kick, a onda quando não há.
 export const SOURCES = {
@@ -47,6 +48,9 @@ export const VISUAL = {
   psyAuto: true,    // DK-024: baixa a qualidade / desliga o módulo mais caro se o telão engasgar
   psyBudgetMs: 22,  // teto do p95 do frametime para o ajuste automático
   psySafe: false,   // interruptor: true = os módulos do Psy Engine param de desenhar, sem mexer nas cenas
+  // DK-051: ordem, liga/desliga, opacidade e mistura de cada camada. Fora das cenas por enquanto (sanitizeLook
+  // descarta arrays); o renderer valida com sanitizeLayers ao consumir.
+  layers: defaultLayers(),
   renderScale: 1, blackout: false, logoOnly: false,
   react: true, // false = "só roteiro": o visual muda só nos pontos marcados, sem reagir ao som
   safeFlash: true, // limita strobe/flash a 3 por segundo (fotossensibilidade); fora das cenas, ligado por padrão
@@ -72,7 +76,7 @@ export function saveVisual(v: Visual) {
 
 // ---------- cenas ----------
 // Uma cena é o "visual" sem os ajustes de operação (sincronia, desempenho, blackout, recorte da logo).
-const NOT_IN_SCENE = ['renderScale', 'psyQuality', 'psyAuto', 'psyBudgetMs', 'psySafe', 'offset', 'predict', 'blackout', 'logoOnly', 'rmWhite', 'white', 'react', 'safeFlash'] as const;
+const NOT_IN_SCENE = ['renderScale', 'psyQuality', 'psyAuto', 'psyBudgetMs', 'psySafe', 'layers', 'offset', 'predict', 'blackout', 'logoOnly', 'rmWhite', 'white', 'react', 'safeFlash'] as const;
 export type Look = Omit<Visual, (typeof NOT_IN_SCENE)[number]>;
 export type Scene = { name: string; look: Look } | null;
 

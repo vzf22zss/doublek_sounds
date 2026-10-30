@@ -14,6 +14,11 @@
 //   túnel          1                        2/3/5 camadas × 2 cossenos              3 / 4 / 6
 //   caleidoscópio  1 + 1/2/4                 1/2/4 amostras                          2 / 3 / 5
 //   glitch         4 (fixo)                 — (só desenha nos 120 ms da rajada)     4 / 4 / 4
+//   + mistura      2 por camada não-normal ou translúcida (1 passe; 2 alvos do compositor, criados uma vez)
+//
+// Camadas (DK-051/052, layers.ts): a ordem dos módulos entre a cena e o pós vem de `visual.layers`; cada camada
+// pode ser desligada (não desenha) e misturada com a de baixo (normal/somar/tela/multiplicar + opacidade).
+// Reordenar não aloca nada: cada módulo guarda o seu alvo, e o compositor usa os mesmos dois o tempo todo.
 //
 // Medição: `costs()` dá a média de ~1 s de cada passe — CPU sempre; GPU só com EXT_disjoint_timer_query_webgl2
 // (lida 2–3 quadros depois, nunca bloqueia; sem a extensão, como no swiftshader, `gpuMs` = null).
@@ -39,6 +44,8 @@ import { KaleidoEffect } from './effects/kaleido';
 import { OrganicEffect } from './effects/organic';
 import { ParticlesEffect } from './effects/particles';
 import { GlitchEffect } from './effects/glitch';
+import { Compose } from './effects/compose';
+import { needsCompose, sanitizeLayers, type Layer } from './layers';
 
 export type Cost = { id: string; cpuMs: number; gpuMs: number | null };
 export type { BudgetInfo };
@@ -74,6 +81,12 @@ export class Renderer {
   private win: number[] = []; private winStart = -1; private born = -1;
   private drew = new Set<string>();
 
+  // camadas (DK-051/052): ordem e mistura dos módulos entre a cena e o pós
+  private byId = new Map<string, Effect>();
+  private compose = new Compose(); private composeOk = true;
+  private layersRaw: unknown = Symbol(); // força validar na 1ª vez
+  private chain: { e: Effect; layer?: Layer }[] = [];
+
   constructor(private canvas: HTMLCanvasElement, v: Visual, private onEffectError?: (id: string, e: Error) => void) {
     this.v = v;
     const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, powerPreference: 'high-performance' });
@@ -98,6 +111,12 @@ export class Renderer {
       new FeedbackEffect(), new GlitchEffect(), new PostEffect(),
     ];
     for (const e of this.effects) this.guard(e, () => e.init(gl, h));
+    this.byId = new Map(this.effects.map((e) => [e.id, e]));
+    try { this.compose.init(h); } catch (err) {
+      this.composeOk = false; // sem compositor, toda camada desenha como `normal` (a imagem de hoje)
+      console.error('Renderer: compositor desligado:', err);
+      this.onEffectError?.('compose', err instanceof Error ? err : new Error(String(err)));
+    }
     quad(gl);
     this.tex = { logo: texture(gl), glow: texture(gl), bg: texture(gl), vid: texture(gl) };
   }
@@ -172,6 +191,18 @@ export class Renderer {
     }
   }
 
+  /** Cena → camadas na ordem do visual → pós. Só recalcula quando a lista muda (cada evento 'visual' traz uma nova). */
+  private chainFor(raw: unknown) {
+    if (raw === this.layersRaw) return this.chain;
+    this.layersRaw = raw;
+    const mid = sanitizeLayers(raw).flatMap((layer) => {
+      const e = this.byId.get(layer.id);
+      return e ? [{ e, layer }] : [];
+    });
+    this.chain = [{ e: this.byId.get('scene')! }, ...mid, { e: this.byId.get('post')! }];
+    return this.chain;
+  }
+
   /** Junta o intervalo entre quadros e, a cada segundo, manda o p95 para o orçamento. */
   private sampleBudget(now: number, dt: number) {
     if (!this.onBudget) return;
@@ -201,9 +232,9 @@ export class Renderer {
     const W = Math.max(2, Math.round(this.canvas.clientWidth * devicePixelRatio * v.renderScale));
     const H = Math.max(2, Math.round(this.canvas.clientHeight * devicePixelRatio * v.renderScale));
     if (this.canvas.width !== W || this.canvas.height !== H) { this.canvas.width = W; this.canvas.height = H; }
-    const active = this.effects.filter((e) => !this.off.has(e.id));
     if (W !== this.fbW || H !== this.fbH) {
-      for (const e of active) this.guard(e, () => e.resize(W, H));
+      for (const e of this.effects) if (!this.off.has(e.id)) this.guard(e, () => e.resize(W, H));
+      this.compose.resize(W, H);
       this.fbW = W; this.fbH = H;
     }
 
@@ -219,15 +250,22 @@ export class Renderer {
         bgAspect: vid ? vid.videoHeight / vid.videoWidth : this.bgAspect, logoAspect: this.logoAspect, video: !!vid,
       },
     };
-    for (const e of active) {
-      if (this.off.has(e.id)) continue; // desligado no resize deste quadro
-      if (e.psy && (v.psySafe || this.budget.off.includes(e.id))) { this.cost.delete(e.id); continue; } // interruptor ou orçamento: não desenha
+    for (const { e, layer } of this.chainFor(v.layers)) {
+      if (this.off.has(e.id)) continue; // módulo quebrado (desligado no init, no resize ou num quadro anterior)
+      // interruptor, orçamento ou camada desligada/transparente: não desenha
+      if ((e.psy && (v.psySafe || this.budget.off.includes(e.id))) || (layer && (!layer.enabled || layer.opacity <= 0))) {
+        this.cost.delete(e.id);
+        continue;
+      }
       const t0 = performance.now();
       const qy = this.timer ? this.pool.pop() ?? gl.createQuery() : null;
       if (qy) gl.beginQuery(this.timer!.TIME_ELAPSED_EXT, qy);
       let out: WebGLTexture | null = null;
       try {
+        const base = ctx.src;
         out = this.guard(e, () => e.render(ctx));
+        // camada não-normal ou translúcida: mistura com o de baixo (o custo entra na conta da própria camada)
+        if (out && base && layer && this.composeOk && needsCompose(layer)) out = this.compose.apply(gl, base, out, layer.opacity, layer.blend);
       } finally {
         if (qy) {
           gl.endQuery(this.timer!.TIME_ELAPSED_EXT);
