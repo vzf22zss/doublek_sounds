@@ -408,7 +408,7 @@ Campos aditivos no `Frame` (TS: `energy?`, `contrast?`, `stability?`, `kickRate?
 | estabilidade na troca 148 → 175 | cai e volta | 1,00 → **0** → 0,92 |
 | contraste depois de 1 s de silêncio | zera | 1,0 |
 
-O blocos parciais importavam: antes de descartá-los, o groove a 135 BPM chegava a contraste 1,10 (na troca de blocos de 2 s para compassos, quando a grade trava, o primeiro compasso começa no meio).
+Os blocos parciais importavam: antes de descartá-los, o groove a 135 BPM chegava a contraste 1,10 (na troca de blocos de 2 s para compassos, quando a grade trava, o primeiro compasso começa no meio).
 
 **Custo:** `Trend::step` isolado = **40,8 ns por hop** (1 milhão de chamadas, mínimo de 7), ~1 % dos ~4 µs do `Analyzer::process`. O A/B do `process` inteiro (40 rodadas intercaladas, base × nova) ficou abaixo do ruído desta máquina carregada: mínimo +5,4 %, percentil 10 −1,4 %, mediana −10 %. O hop dura 5 333 µs; o `process` usa < 0,1 % dele.
 
