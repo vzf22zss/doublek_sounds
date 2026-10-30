@@ -680,7 +680,7 @@ Audio Engine (Rust) ──► Music Features ──► Show Engine / Dispatcher
 
 ### Marco M2 — Psy Engine V1 (semanas 5–6)
 
-- [ ] **DK-021** Refatorar interface de shaders, cache e fallback.
+- [x] **DK-021** Refatorar interface de shaders, cache e fallback. — 2026-10-30, sessão 29, `feat/dk-021-renderer` @ `bb12f61`: `src/render/` em módulos — `renderer.ts` (orquestrador, API pública intacta + `onEffectError`), `music.ts` (toda a lógica de CPU, TS puro, com `music.check.ts`), `gl/program.ts`, `gl/texture.ts`, `effects/{types,scene,feedback,post}.ts` com os GLSL idênticos; cache de programas; módulo opcional que falha é desligado sozinho (cena e pós são `required`). **Imagem idêntica pixel a pixel** antes/depois em 5 cenas no Edge headless determinístico; isolamento de falha provado. Checks, typecheck e build verdes, conferidos pelo coordenador. Desempenho em GPU real, preview e vídeo: NÃO VERIFICADO. Entra na onda 2 de integração.
 - [ ] **DK-022** Implementar kaleidoscópio, mandala e fractal tunnel.
 - [ ] **DK-023** Implementar partículas, organic/forest e hi-tech glitch.
 - [ ] **DK-024** Adicionar UI, qualidade, modulação, presets e benchmark.
@@ -804,6 +804,8 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 | 2026-10-30 | DK-008 | DONE (software) | `feat/dk-008-benchmark` @ `9a06838` (sessão d7) | `cargo test --release` 11/11 e bench rodados pelo coordenador no worktree; 84 linhas, 4 casos degradados com mecanismo; latência analítica 14–28 ms; música real NÃO VERIFICADO | **DK-009** P3 e P4 (mesma sessão, antes/depois pelo bench); P1/P2 depois; fixtures reais dependem de DEC-01/mp3 do mantenedor |
 | 2026-10-30 | DK-013 | DONE (biblioteca) | `feat/dk-013-showpack-import` @ `1222300` (sessão 22) | `import.check.ts` + todos os checks ok e typecheck 0, rodados pelo coordenador; decisões a confirmar: modo `new` substitui visual/cenas (posições únicas), `replace` não apaga músicas antigas (DK-142), versão futura recusa o pacote | **DK-014** UI Salvar/Abrir show (mesma sessão, a partir de `integ/onda-1`) |
 | 2026-10-30 | INTEG | PRONTA | `integ/onda-1` (worktree wt-integ) | 7 branches + DK-013 mergeadas; único conflito: linha "check" do package.json (união); check 9/9, typecheck 0, build, `cargo test` 11/11 | Autorização do mantenedor para `main` ← fast-forward + push; depois remover worktrees concluídos |
+| 2026-10-30 | RELEASE local | 0.3.2 instalada | `integ/onda-1` @ `7582b07` (v0.3.2) | MSI assinado gerado da integração e instalado no PC do mantenedor a pedido; `main` ainda em 443a8a4 até autorização | Push/merge da onda 1 |
+| 2026-10-30 | DK-021 | DONE (software) | `feat/dk-021-renderer` @ `bb12f61` (sessão 29) | diff pixel a pixel = 0 em 5 cenas; `music.check.ts` + checks ok, typecheck 0, build ok (coordenador); GPU real NÃO VERIFICADO | **DK-022** (1º módulo novo) na mesma sessão; onda 2 de integração |
 
 ### 8.4. Bloqueios e decisões pendentes
 
