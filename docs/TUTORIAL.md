@@ -123,7 +123,7 @@ Funciona no improviso: pode ser o microfone do notebook ou um microfone USB pert
 | 7 | **Analisador** | Mostra o que o app está ouvindo e cada kick que ele aceitou (seção 6). |
 | 8 | **Abas de ajuste** | Áudio, Logo, Fundo, Efeitos, Saída e **Roteiro** (seção 16). |
 | 9 | **Knobs de performance** | Os 10 efeitos mais usados ao vivo, sempre à mão. |
-| 10 | **Cenas** | 8 visuais prontos para trocar com crossfade no beat (seção 15). |
+| 10 | **Cenas e barra de performance** | 8 pads por banco (até 4 bancos), transição, **TAKE**/Preview, **Macros**, Catálogo de presets, Exportar/Importar e **Salvar/Abrir show** (seção 15). |
 
 **As 4 bolinhas de saúde** (passe o mouse para ver o nome de cada uma):
 
