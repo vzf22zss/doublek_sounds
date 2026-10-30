@@ -13,6 +13,7 @@ export type Frame = {
   thr: number;
   spectrum: number[];
   low: number; // 1 = grave tocando (drop), 0 = breakdown sem grave
+  pos: number; // posição na faixa tocada pelo app (s); -1 = entrada ao vivo
 };
 
 export type Msg = { t: 'frame'; v: Frame } | { t: 'status'; v: string };

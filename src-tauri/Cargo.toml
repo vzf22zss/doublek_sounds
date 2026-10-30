@@ -24,6 +24,8 @@ realfft = "3"
 midir = "0.11.1"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+rubato = "5.0.1"
+symphonia = { version = "0.5", features = ["mp3", "aac", "isomp4", "flac", "wav", "pcm", "ogg", "vorbis"] }
 
 [dev-dependencies]
 hound = "3"

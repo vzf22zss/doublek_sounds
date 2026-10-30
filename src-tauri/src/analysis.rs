@@ -59,6 +59,7 @@ pub struct Frame {
     pub thr: f32,
     pub spectrum: Vec<f32>,
     pub low: f32, // 1 = grave tocando (drop), 0 = breakdown sem grave
+    pub pos: f64, // posição na faixa tocada pelo app (s); -1 = entrada ao vivo
 }
 
 #[derive(Clone, Copy)]
@@ -305,6 +306,7 @@ impl Analyzer {
             thr: self.thr,
             spectrum,
             low: if self.low_on { 1.0 } else { 0.0 },
+            pos: -1.0,
         }
     }
 }

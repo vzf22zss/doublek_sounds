@@ -17,11 +17,15 @@ pub struct Beat {
     pub locked: bool,
     last: f64,
     count: i64, // mantém o índice do beat contínuo quando a âncora muda
+    fixed: bool, // grade vinda da análise do arquivo: os kicks não mexem nela
 }
 
 impl Beat {
     pub fn on_kick(&mut self, t: f64, lo: f64, hi: f64, freeze: bool) {
         self.last = t;
+        if self.fixed {
+            return;
+        }
         self.kicks.push_back(t);
         while self.kicks.front().is_some_and(|&k| k < t - WINDOW) {
             self.kicks.pop_front();
@@ -33,7 +37,7 @@ impl Beat {
         // primeiro tenta manter o andamento atual; se a música mudou, recomeça pela mediana
         let tries = [(self.period > 0.0).then_some(self.period), median_ioi(ks, lo, hi)];
         for p0 in tries.into_iter().flatten() {
-            let Some((p, a, n, sd)) = fit(ks, p0, freeze) else { continue };
+            let Some((p, a, n, sd)) = fit(ks, p0, None, freeze) else { continue };
             let bpm = 60.0 / p;
             let in_range = freeze || (bpm >= lo * 0.97 && bpm <= hi * 1.03);
             if in_range && n * 10 >= ks.len() * 6 {
@@ -46,7 +50,7 @@ impl Beat {
 
     /// Chamar a cada hop: solta a grade depois de muito tempo sem kick.
     pub fn tick(&mut self, t: f64) {
-        if self.locked && t - self.last > HOLD {
+        if self.locked && !self.fixed && t - self.last > HOLD {
             self.locked = false;
         }
     }
@@ -61,7 +65,12 @@ impl Beat {
     }
 
     pub fn holding(&self, t: f64) -> bool {
-        self.locked && t - self.last > 1.5 * self.period
+        self.locked && !self.fixed && t - self.last > 1.5 * self.period
+    }
+
+    /// Grade conhecida (análise do arquivo inteiro): trava e não se ajusta mais pelos kicks.
+    pub fn set_grid(&mut self, anchor: f64, period: f64) {
+        *self = Self { anchor, period, locked: true, fixed: true, ..Default::default() };
     }
 
     /// (bpm, fase 0..1 dentro do beat, índice do beat)
@@ -91,7 +100,7 @@ impl Beat {
         }
         let mut d: Vec<f64> = self.taps.windows(2).map(|w| w[1] - w[0]).collect();
         d.sort_by(f64::total_cmp);
-        if let Some((p, a, _, _)) = fit(&self.taps, d[d.len() / 2], false) {
+        if let Some((p, a, _, _)) = fit(&self.taps, d[d.len() / 2], None, false) {
             self.rebase(a, p);
             self.locked = true;
             self.last = t;
@@ -129,8 +138,9 @@ fn median_ioi(ks: &[f64], lo: f64, hi: f64) -> Option<f64> {
 }
 
 /// Ajusta t = a + p·n aos instantes que caem na grade. Devolve (p, a, inliers, desvio).
-fn fit(ts: &[f64], p0: f64, freeze: bool) -> Option<(f64, f64, usize, f64)> {
-    let (mut p, mut a) = (p0, *ts.last()?);
+/// Sem âncora inicial, parte do último instante.
+pub(crate) fn fit(ts: &[f64], p0: f64, a0: Option<f64>, freeze: bool) -> Option<(f64, f64, usize, f64)> {
+    let (mut p, mut a) = (p0, a0.or(ts.last().copied())?);
     let mut pts = Vec::with_capacity(ts.len());
     for _ in 0..3 {
         pts.clear();

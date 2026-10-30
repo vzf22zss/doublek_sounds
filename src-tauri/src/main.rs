@@ -1,8 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use doublek_lib::analysis::{BeatCmd, Params};
-use doublek_lib::{audio, midi};
+use doublek_lib::{audio, midi, track};
 use serde::Serialize;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
 use std::sync::{mpsc, Arc, Mutex};
 use tauri::{ipc::Channel, AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
@@ -15,6 +16,81 @@ struct Engine {
     run: Mutex<Option<(Arc<AtomicBool>, mpsc::Sender<BeatCmd>)>>,
     subs: Subs, // uma assinatura por janela (controle, saída)
     midi_devices: Arc<Mutex<Vec<String>>>,
+    track: Mutex<Option<Arc<track::Track>>>, // faixa do roteiro carregada (pronta para tocar)
+}
+
+impl Engine {
+    /// Para o que estiver tocando/ouvindo e devolve o novo par (stop, comandos) já registrado.
+    fn restart(&self) -> (Arc<AtomicBool>, mpsc::Receiver<BeatCmd>) {
+        let stop = Arc::new(AtomicBool::new(false));
+        let (tx, rx) = mpsc::channel();
+        if let Some((old, _)) = self.run.lock().unwrap().replace((stop.clone(), tx)) {
+            old.store(true, Relaxed);
+        }
+        (stop, rx)
+    }
+
+    fn broadcast(&self) -> impl FnMut(audio::Msg) -> bool {
+        let subs = self.subs.clone();
+        move |m| {
+            subs.lock().unwrap().retain(|(_, c)| c.send(m.clone()).is_ok());
+            true
+        }
+    }
+}
+
+/// As músicas do roteiro ficam copiadas na pasta do app: o roteiro não quebra se o original sumir.
+fn track_path(app: &AppHandle, id: &str) -> Result<PathBuf, String> {
+    if id.is_empty() || id.contains("..") || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '.') {
+        return Err("Faixa inválida".into());
+    }
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?.join("tracks");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir.join(id))
+}
+
+/// Corpo = bytes do arquivo; cabeçalho `x-ext` = extensão. Devolve o id (nome do arquivo guardado).
+#[tauri::command]
+fn add_track(app: AppHandle, request: tauri::ipc::Request<'_>) -> Result<String, String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else { return Err("Envie o arquivo como bytes".into()) };
+    let ext: String = request.headers().get("x-ext").and_then(|v| v.to_str().ok()).unwrap_or("mp3").chars().filter(char::is_ascii_alphanumeric).take(5).collect();
+    let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
+    let id = format!("{stamp:x}.{}", ext.to_lowercase());
+    std::fs::write(track_path(&app, &id)?, bytes).map_err(|e| e.to_string())?;
+    Ok(id)
+}
+
+#[tauri::command]
+fn remove_track(app: AppHandle, id: String) -> Result<(), String> {
+    std::fs::remove_file(track_path(&app, &id)?).map_err(|e| e.to_string())
+}
+
+/// Decodifica, reamostra para a saída escolhida e analisa (BPM, 1º beat, forma de onda).
+#[tauri::command]
+async fn load_track(engine: State<'_, Engine>, app: AppHandle, id: String, lo: f32, hi: f32, output: Option<String>) -> Result<track::Info, String> {
+    let path = track_path(&app, &id)?;
+    if !path.exists() {
+        return Err("A música deste roteiro não está mais no app: suba o arquivo de novo".into());
+    }
+    let sr = audio::output_rate(output.as_deref())?;
+    let (t, info) = tauri::async_runtime::spawn_blocking(move || track::load(&path, sr, lo, hi)).await.map_err(|e| e.to_string())??;
+    *engine.track.lock().unwrap() = Some(Arc::new(t));
+    Ok(info)
+}
+
+/// O app toca a faixa carregada a partir de `from` (s), com a grade (âncora, período) do roteiro.
+#[tauri::command]
+fn play_track(engine: State<Engine>, from: f64, anchor: f64, period: f64, output: Option<String>) -> Result<(), String> {
+    let t = engine.track.lock().unwrap().clone().ok_or("Carregue a faixa primeiro")?;
+    let (stop, rx) = engine.restart();
+    let (params, emit) = (engine.params.clone(), engine.broadcast());
+    std::thread::spawn(move || audio::play(t, from, output, Some((anchor, period)), params, rx, stop, emit));
+    Ok(())
+}
+
+#[tauri::command]
+async fn list_outputs() -> Vec<String> {
+    audio::list_outputs()
 }
 
 #[derive(Serialize)]
@@ -38,18 +114,9 @@ fn subscribe(engine: State<Engine>, window: WebviewWindow, on_msg: Channel<audio
 
 #[tauri::command]
 fn start_input(engine: State<Engine>, device: Option<String>, channel: usize) {
-    let stop = Arc::new(AtomicBool::new(false));
-    let (tx, rx) = mpsc::channel();
-    if let Some((old, _)) = engine.run.lock().unwrap().replace((stop.clone(), tx)) {
-        old.store(true, Relaxed);
-    }
-    let (params, subs) = (engine.params.clone(), engine.subs.clone());
-    std::thread::spawn(move || {
-        audio::run(device, channel, params, rx, stop, move |m| {
-            subs.lock().unwrap().retain(|(_, c)| c.send(m.clone()).is_ok());
-            true
-        })
-    });
+    let (stop, rx) = engine.restart();
+    let (params, emit) = (engine.params.clone(), engine.broadcast());
+    std::thread::spawn(move || audio::run(device, channel, params, rx, stop, emit));
 }
 
 #[tauri::command]
@@ -130,6 +197,11 @@ fn main() {
             list_inputs,
             subscribe,
             start_input,
+            add_track,
+            remove_track,
+            load_track,
+            play_track,
+            list_outputs,
             set_params,
             beat,
             list_monitors,
