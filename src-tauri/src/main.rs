@@ -109,6 +109,8 @@ fn close_output(app: AppHandle) {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .manage(Engine::default())
         .setup(|app| {
             let (h1, h2) = (app.handle().clone(), app.handle().clone());

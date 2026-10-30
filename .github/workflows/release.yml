@@ -1,0 +1,49 @@
+# Push na branch prod → compila, assina e publica a Release v<versão do package.json>.
+# O latest.json da Release é o que o app instalado consulta para se atualizar.
+# Fluxo: na main, npm version patch (ou minor) + commit; depois main → prod.
+name: release
+
+on:
+  push:
+    branches: [prod]
+
+permissions:
+  contents: write
+
+concurrency: release
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Versão ainda não publicada?
+        shell: bash
+        run: |
+          v=$(node -p "require('./package.json').version")
+          if git ls-remote --exit-code --tags origin "refs/tags/v$v" > /dev/null; then
+            echo "::error::A v$v já foi publicada. Na main: npm version patch, commit, e mande para prod de novo."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: v__VERSION__
+          releaseName: DoubleK Visuals v__VERSION__
+          releaseBody: Baixe o .msi abaixo. Quem já tem o app instalado recebe o aviso de atualização ao abrir.
+          releaseDraft: false
+          prerelease: false

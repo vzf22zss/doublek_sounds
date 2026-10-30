@@ -1,7 +1,7 @@
 {
   "name": "doublek-visuals",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,7 +11,9 @@
     "typecheck": "svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.12.4"
+    "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/plugin-process": "^2.4.0",
+    "@tauri-apps/plugin-updater": "^2.14.1"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.1",

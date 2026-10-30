@@ -64,6 +64,17 @@ projetar no telão e operar ao vivo (inclusive com controlador MIDI).
 
 Precisa de Windows 10 ou 11 (64 bits). Não precisa instalar mais nada.
 
+### Atualizações
+
+Quando sai uma versão nova, aparece no rodapé da janela, ao abrir o app, o botão
+**"Nova versão X — atualizar"**. Um clique baixa, instala e reabre o app, com as suas
+configurações, cenas, logo e MIDI preservados.
+
+- O app **nunca atualiza sozinho**. Você escolhe a hora.
+- Com o **telão aberto**, o botão fica bloqueado, para ninguém derrubar a projeção no meio
+  do set. Atualize antes do show, em casa.
+- Sem internet, nada acontece: o app funciona normalmente.
+
 ---
 
 ## 3. Ligar os cabos

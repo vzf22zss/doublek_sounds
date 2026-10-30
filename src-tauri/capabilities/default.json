@@ -1,6 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "windows": ["control", "output"],
-  "permissions": ["core:default"]
+  "windows": [
+    "control",
+    "output"
+  ],
+  "permissions": [
+    "core:default",
+    "updater:default",
+    "process:allow-restart"
+  ]
 }

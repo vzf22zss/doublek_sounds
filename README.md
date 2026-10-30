@@ -81,6 +81,34 @@ npm run tauri build
 
 Gera `src-tauri/target/release/bundle/msi/DoubleK Visuals_<versão>_x64_pt-BR.msi`.
 
+### Publicar uma versão (atualização automática)
+
+A branch **`prod`** é o que está publicado. Cada push nela roda o
+[workflow de release](.github/workflows/release.yml): ele compila, assina e publica a Release
+`v<versão>`, com o `.msi` e o `latest.json`. Ao abrir, o app instalado consulta esse arquivo e
+mostra **"Nova versão … — atualizar"** no rodapé. Ele nunca instala sozinho e não instala
+com o telão aberto.
+
+```
+# na main, com tudo commitado
+npm version patch            # 0.2.0 → 0.2.1 (ou minor); só altera package.json
+git commit -am "v0.2.1"
+git push
+
+git checkout prod
+git merge --ff-only main
+git push                     # publica
+git checkout main
+```
+
+Se a versão já tiver sido publicada, o workflow falha e pede para subir a versão.
+
+**Chave de assinatura:** o app só aceita atualização assinada com a chave privada
+(`C:\Users\Work\.tauri\doublek.key`, fora do repositório). Ela fica no GitHub como secret
+`TAURI_SIGNING_PRIVATE_KEY`, e `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` fica vazio.
+**Guarde uma cópia da chave em lugar seguro.** Se ela for perdida, os apps já instalados
+não aceitam mais nenhuma atualização e precisam ser reinstalados à mão.
+
 ### Checagens
 
 ```

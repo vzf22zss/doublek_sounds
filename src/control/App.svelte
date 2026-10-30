@@ -9,6 +9,8 @@
   import { VISUAL, loadVisual, saveVisual } from '../lib/settings';
   import { assetSync, imageColors, setAsset } from '../lib/assets';
   import type { Frame, Msg } from '../lib/types';
+  import { check, type Update } from '@tauri-apps/plugin-updater';
+  import { relaunch } from '@tauri-apps/plugin-process';
 
   const RANGES: Record<string, [number, number]> = {
     Psy: [135, 150],
@@ -43,6 +45,28 @@
   let sync: ReturnType<typeof assetSync> | null = null;
   let perf: ReturnType<typeof Performance>;
   let midiLit = $state(false);
+
+  // ---------- atualização (Releases do GitHub) ----------
+  // Só avisa ao abrir; instalar é sempre um clique, e nunca com o telão aberto (o app reinicia).
+  let upd = $state.raw<Update | null>(null);
+  let updPct = $state(-1);
+  check().then((u) => (upd = u)).catch(() => {}); // sem internet ou sem release: segue a vida
+
+  async function installUpdate() {
+    if (!upd || fps) return;
+    let total = 0, got = 0;
+    updPct = 0;
+    try {
+      await upd.downloadAndInstall((e) => {
+        if (e.event === 'Started') total = e.data.contentLength ?? 0;
+        else if (e.event === 'Progress') { got += e.data.chunkLength; updPct = total ? Math.round((got / total) * 100) : 0; }
+      });
+      await relaunch();
+    } catch (e) {
+      updPct = -1;
+      status = 'Não consegui atualizar: ' + e;
+    }
+  }
 
   // ajustes de áudio → motor (e salvos)
   $effect(() => {
@@ -444,7 +468,15 @@
 
   <Performance bind:this={perf} bind:vs {beatInfo} onstatus={(m) => (status = m)} />
 
-  <footer class="status">{status}</footer>
+  <footer class="status">
+    <span>{status}</span>
+    {#if upd}
+      <button class="upd" onclick={installUpdate} disabled={fps > 0 || updPct >= 0}
+        title={fps ? 'Feche o telão para atualizar (o app reinicia)' : upd.body || 'Baixa, instala e reinicia o app'}>
+        {updPct >= 0 ? `Baixando ${updPct}%` : `Nova versão ${upd.version} — atualizar`}
+      </button>
+    {/if}
+  </footer>
 </main>
 
 <style>
@@ -520,5 +552,7 @@
   .color { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
   .color input { width: 34px; height: 26px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; cursor: pointer; }
   .keys { color: var(--muted); font-size: 11px; margin-top: 12px; }
-  .status { grid-column: 1 / -1; color: var(--muted); font-size: 12px; padding: 0 4px; }
+  .status { grid-column: 1 / -1; color: var(--muted); font-size: 12px; padding: 0 4px; display: flex; align-items: center; gap: 12px; }
+  .upd { margin-left: auto; padding: 2px 10px; font-size: 11px; font-weight: 600; background: var(--accent); border-color: var(--accent); color: var(--accent-ink, #fff); }
+  .upd:disabled { opacity: .55; cursor: default; }
 </style>
