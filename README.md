@@ -26,8 +26,30 @@ Feito para psytrance, dark/forest e hi-tech (135–220 BPM).
 - **Roteiro por música.** Você sobe a faixa, marca os pontos na timeline (cena, strobe, vídeo,
   knob) e roda com o app tocando o arquivo ou com o DJ nos decks (GO). Funciona no modo
   "roteiro + ao vivo" ou "só roteiro"; com a tecla R dá para comparar na hora com "só o som".
-- **MIDI learn:** clique num controle da tela e mexa no knob do controlador.
-- **Instalador `.msi`** em português.
+- **Psy Engine:** caleidoscópio, túnel fractal, mandala, partículas, padrão orgânico e glitch
+  como módulos do renderer, cada um com fonte de modulação, "só no drop", qualidade
+  baixa/média/alta e orçamento automático de frametime (rebaixa a qualidade sozinho se o
+  telão engasgar). 23 presets de fábrica no **Catálogo**.
+- **Operação de show:** até 4 **bancos** de 8 cenas, **Preview/TAKE** (prepare a cena sem o
+  público ver e mande no beat), 4 **macros** (Build-up, Drop, Caos, Reset), **PÂNICO**
+  separado do **BLACKOUT**, limite de **3 flashes/s** ligado por padrão.
+- **Show Pack (`.doublekshow`):** salva e abre o show inteiro (cenas, bancos, roteiros, logo,
+  foto, vídeos, MIDI) com backup automático antes de substituir.
+- **Saúde e diagnóstico:** 4 bolinhas (áudio · BPM · MIDI · telão) e um JSON de diagnóstico
+  sem áudio para relatar problemas; telão sobrevive a perda da placa de vídeo.
+- **MIDI learn:** clique num controle da tela e mexa no knob do controlador. Todo comando
+  (teclado, MIDI, botões, roteiro) passa por um dispatcher único com histórico.
+- **Instalador `.msi`** em português, com atualização automática pelas Releases (quando
+  publicadas).
+
+## Requisitos
+
+- Windows 10/11 64 bits com WebView2 (já vem no Windows 11; no 10 o instalador do Edge o traz).
+- Qualquer GPU com WebGL2; para os 6 módulos do Psy Engine em qualidade alta a 1080p, uma GPU
+  dedicada é recomendada — o app mede o custo e rebaixa a qualidade sozinho se precisar.
+- Entrada de áudio: line-in da mesa por interface USB (recomendado) ou microfone.
+- Controlador MIDI opcional (qualquer um com knobs/pads).
+- Funciona offline; o único acesso externo é a consulta de versão nova ao abrir.
 
 ![Roteiro: timeline com os pontos marcados na música](docs/img/roteiro-controle.png)
 

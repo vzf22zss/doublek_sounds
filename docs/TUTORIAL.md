@@ -308,6 +308,31 @@ tocando, então trocar de cena pode trocar o vídeo.
 | **Linhas de TV / Granulado** | Textura de tela antiga e de filme. |
 | **Tremor** | A imagem treme no kick. |
 
+### Psy Engine
+
+Abaixo dos efeitos clássicos, a aba Efeitos tem a seção **Psy Engine**: seis módulos que
+desenham por cima ou por baixo da logo, cada um com o próprio knob (0 = desligado, custo zero),
+fonte de modulação e chip **drop**.
+
+| Módulo | O que faz | O que a fonte de modulação move |
+|---|---|---|
+| **Caleidoscópio** | Dobra o quadro inteiro em N fatias simétricas (3–12), com giro e zoom. A logo entra na dobra. | Empurrão no giro |
+| **Túnel fractal** | Túnel procedural por baixo da logo, com velocidade e densidade. | Velocidade |
+| **Mandala** | Anéis e pétalas geométricas em volta da logo, abrindo no compasso. | Brilho |
+| **Partículas** | Campo de partículas com direção e turbulência. | Velocidade e brilho |
+| **Orgânico** | Padrão orgânico/floresta por baixo da logo, cores do fundo, matiz pelo knob **Matiz**. | Acende a cor da logo nos picos |
+| **Glitch** | Fatias deslocadas, blocos e separação RGB em rajadas curtas (≤ 120 ms). | **Disparo** da rajada |
+
+- **Qualidade** (baixa/média/alta) é ajuste da máquina, não da cena. Com **Ajuste automático**
+  ligado, se o telão engasgar (p95 acima do **Teto do quadro**, 22 ms por padrão) por 3 s, o
+  app desce um degrau sozinho e, em baixa, desliga o módulo mais caro; volta devagar quando
+  sobra folga. A linha de status avisa.
+- Abaixo de cada knob aparece o **custo medido** (ms de GPU, ou de CPU quando a placa não
+  informa).
+- **Psy Engine: ligado/desligado** é um interruptor que pausa os seis módulos sem mexer nos
+  valores das cenas. **PÂNICO** e **Reset** zeram os módulos.
+- O glitch respeita o limite de flashes: com ele ligado, no máximo 3 rajadas por segundo.
+
 Exemplos de cenas que já vêm prontas:
 
 | Dark túnel | Radial | Strobe |

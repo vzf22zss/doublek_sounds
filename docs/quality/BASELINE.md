@@ -161,6 +161,11 @@ Tudo isso foi corrigido no roadmap em `e011daf`.
 | Perda de contexto WebGL, GPU reset | **simulado no mock** com `WEBGL_lose_context` (bolinha vermelha, diário, renderer recriado ao restaurar); GPU real: forçar via driver | DK-003 (software ✓; hardware NÃO VERIFICADO) |
 | Wake lock no Windows (tela não apaga) | deixar 15 min | DK-003 |
 
+| Psy Engine em GPU real: custo por módulo (`EXT_disjoint_timer_query_webgl2`), orçamento automático disparando por engasgo de verdade, teto padrão de 22 ms | abrir o telão a 1080p com os 6 módulos em Alta, ler os custos na aba Efeitos e o Diagnóstico | DK-024 → DK-141/DEC-02 |
+| Show Pack no app real: `save_backup`/`put_track` no disco, rotação de 5, download do `.doublekshow` no WebView2, abrir em perfil limpo | salvar → abrir em outro perfil de usuário do Windows | DK-014 → Gate M1 |
+| Macros, Preview/TAKE e bancos com controlador MIDI físico e no telão (sensação do DROP) | ensaio com controlador | DK-042/043/041 |
+| Detecção P1–P4 e o achado P7 (grade no contratempo) com música real | `cargo run --release --example analyze -- faixa.mp3` em 3–4 faixas + teste ao vivo | DK-009/DK-141 |
+
 ## 13. Modelo da matriz de máquinas (DEC-02, a preencher)
 
 | Papel | CPU | GPU | RAM | Windows | Áudio | Resultado FPS 1080p | Observações |
