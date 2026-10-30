@@ -24,6 +24,7 @@ export const SCHEMA = {
   'doublek.midi': 1,
   'doublek.videos': 1,
   'doublek.roteiros': 1,
+  'doublek.banks': 1, // DK-041: até 4 bancos de 8 cenas; doublek.scenes segue = banco ativo
 } as const;
 export type Key = keyof typeof SCHEMA;
 
@@ -38,6 +39,7 @@ const MIGRATIONS: Record<Key, Migration[]> = {
   'doublek.midi': [(d) => d],
   'doublek.videos': [(d) => d],
   'doublek.roteiros': [(d) => d],
+  'doublek.banks': [(d) => d], // nasceu na v1; o v0 nunca existiu
 };
 
 export type Envelope = { v: number; data: unknown };

@@ -184,6 +184,8 @@
     'beat+': () => roteiroNudge(1),
     'bar-': () => roteiroNudge(-4),
     'bar+': () => roteiroNudge(4),
+    'bank-': () => perf.stepBankBy(-1), // DK-041: os pads c:0..7 agem no banco ativo
+    'bank+': () => perf.stepBankBy(1),
   };
   const lastVal = new Map<string, number>();
 
@@ -361,6 +363,8 @@
     else if (e.code === 'Period') ACTIONS['beat+']();
     else if (e.code === 'Semicolon') ACTIONS['bar-']();
     else if (e.code === 'Quote') ACTIONS['bar+']();
+    else if (e.code === 'BracketLeft') ACTIONS['bank-']();
+    else if (e.code === 'BracketRight') ACTIONS['bank+']();
   }
 
   function beatInfo() {

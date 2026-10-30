@@ -11,7 +11,8 @@ Um Show Pack é **um arquivo ZIP** com extensão `.doublekshow` que leva tudo o 
 meu-show.doublekshow
 ├── manifest.json      obrigatório — metadados, versão e inventário dos assets (seção 2)
 ├── visual.json        obrigatório — doublek.visual, doublek.trans, doublek.videos
-├── scenes.json        obrigatório — doublek.scenes (8 cenas)
+├── scenes.json        obrigatório — doublek.scenes (as 8 cenas do banco ativo)
+├── banks.json         opcional    — doublek.banks (até 4 bancos de 8 cenas; DK-041)
 ├── roteiros.json      obrigatório — doublek.roteiros (pode ser lista vazia)
 ├── midi.json          opcional    — doublek.midi (só se o DJ marcar "incluir MIDI")
 └── assets/            opcional    — um arquivo por asset do manifesto, sem subpastas
@@ -104,7 +105,8 @@ Cada chave `doublek.*` (ver `docs/quality/BASELINE.md` §6 e `src/lib/store.ts`)
 | `doublek.visual` | localStorage | `visual.json` → `"doublek.visual"` | `blackout`/`logoOnly` entram como `false` (já é o comportamento de `validVisual`). |
 | `doublek.trans` | localStorage | `visual.json` → `"doublek.trans"` | Transição padrão (beats). |
 | `doublek.videos` | localStorage | `visual.json` → `"doublek.videos"` | Biblioteca `{id, name}[]`; cada `id` deve ter um asset `video` com `refId = id`. |
-| `doublek.scenes` | localStorage | `scenes.json` → `"doublek.scenes"` | 8 posições, `null` permitido. |
+| `doublek.scenes` | localStorage | `scenes.json` → `"doublek.scenes"` | 8 posições, `null` permitido. Desde a DK-041 é o espelho do banco ativo. |
+| `doublek.banks` | localStorage | `banks.json` → `"doublek.banks"` | `{ active, banks: [{ name, scenes[8] }] }`, 1 a 4 bancos. O app sempre exporta. Na importação, **`banks.json` manda**; pacote sem ele (gerado antes da DK-041) vira um banco "Principal" com o `scenes.json`. `doublek.scenes` é regravado com o banco ativo. |
 | `doublek.roteiros` | localStorage | `roteiros.json` → `"doublek.roteiros"` | `Roteiro.track` aponta para o asset `track` com `refId = track` **se** `includeTracks`; senão fica como está e o app pede "Trocar música". |
 | `doublek.midi` | localStorage | `midi.json` → `"doublek.midi"` | Opcional. Chaves são `cc:<canal>:<nº>`, independentes do nome do dispositivo. |
 | `doublek.settings` | localStorage | **não vai** | Dispositivo de áudio, ganho, gate: são da máquina, não do show. |
@@ -123,7 +125,7 @@ Formato de cada arquivo de estado: objeto `{ "<chave>": { "v": n, "data": … } 
 }
 ```
 
-Referências cruzadas que o importador precisa checar (etapa 6 da seção 6): `visual.bgVideo`, `scene.look.bgVideo`, `cue.video` e `doublek.videos[].id` → asset `video`; `roteiro.track` → asset `track` quando `includeTracks`. Referência sem asset é erro de pacote, não silencioso.
+Referências cruzadas que o importador precisa checar (etapa 6 da seção 6): `visual.bgVideo`, `scene.look.bgVideo` (em todos os bancos), `cue.video` e `doublek.videos[].id` → asset `video`; `roteiro.track` → asset `track` quando `includeTracks`. Referência sem asset é erro de pacote, não silencioso.
 
 ## 6. Ordem de validação (importação)
 
@@ -157,7 +159,7 @@ O backup é um `.doublekshow` do estado atual (`collectShowPack`, com o MIDI atu
 Músicas do pacote entram pelo comando `put_track` com o id já definido. Ele **nunca sobrescreve**: se o id já existe em `tracks/`, não grava e devolve `false`, e o rollback não apaga esse arquivo. Como o backup não leva músicas, isso garante que nenhuma música local se perde.
 
 - **Substituir show atual (padrão).** Troca chaves `doublek.*` (exceto `doublek.settings`), `logo`, `bg` e a biblioteca de vídeos, mantendo os ids do pacote. `logo`/`bg` ausentes no pacote são removidos (volta a logo padrão). Vídeos do show antigo que o novo não usa são removidos do IndexedDB (estão no backup). Músicas antigas em `app_data/tracks/` **não** são apagadas (limpeza fica para DK-142).
-- **Importar como novo.** Vídeos e músicas do pacote recebem **ids novos** e todas as referências são reescritas (`visual.bgVideo`, `scene.look.bgVideo`, `cue.video`, `roteiro.track`). Roteiros e cues ganham ids novos. A biblioteca de vídeos e a lista de roteiros são **somadas** às atuais. `logo`/`bg` só substituem os atuais se `plan.replaceLogoBg` (o DJ confirma). Visual, transição e as 8 cenas são posições únicas: as do pacote **substituem** as atuais, que ficam no backup.
+- **Importar como novo.** Vídeos e músicas do pacote recebem **ids novos** e todas as referências são reescritas (`visual.bgVideo`, `scene.look.bgVideo`, `cue.video`, `roteiro.track`). Roteiros e cues ganham ids novos. A biblioteca de vídeos e a lista de roteiros são **somadas** às atuais. `logo`/`bg` só substituem os atuais se `plan.replaceLogoBg` (o DJ confirma). Visual, transição e os bancos de cenas são substituídos pelos do pacote; os atuais ficam no backup.
 - Em ambos: inspeção completa primeiro, aplicar por último; falha em qualquer etapa → nada muda (ADR 0001, item 2). `doublek.midi` só é aplicado se o pacote tiver `midi.json` **e** `plan.applyMidi` (o DJ marca "aplicar MIDI"). Pacote com música exige `deps.addTrack`; sem ele, a aplicação recusa antes de escrever.
 
 ## 9. Compatibilidade com os JSONs atuais

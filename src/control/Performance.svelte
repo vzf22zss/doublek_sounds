@@ -10,7 +10,8 @@
   import { collectShowPack, downloadShowPack, importDeps } from '../lib/showpack/collect';
   import { showPackFileName } from '../lib/showpack/export';
   import { applyShowPack, inspectShowPack, type ApplyMode } from '../lib/showpack/import';
-  import { blend, loadScenes, lookOf, saveScenes, sanitizeLook, VISUAL, type Look, type Scene, type Visual } from '../lib/settings';
+  import { blend, lookOf, sanitizeLook, VISUAL, type Look, type Scene, type Visual } from '../lib/settings';
+  import { addBank, loadBanks, MAX_BANKS, removeBank, renameBank, saveBanks, stepBank, usedScenes, type Banks } from '../lib/banks';
   import { FACTORY_PRESETS, presetLook, presetsByStyle, STYLES } from '../lib/presets';
 
   let { vs = $bindable(), beatInfo, onstatus }: {
@@ -19,14 +20,18 @@
     onstatus: (s: string) => void;
   } = $props();
 
-  let scenes = $state<Scene[]>(loadScenes());
+  // Bancos (DK-041): os 8 pads mostram o banco ativo; recall, gravar, renomear, MIDI c:0..7 e o roteiro agem nele.
+  let bk = $state<Banks>(loadBanks());
+  const scenes = $derived(bk.banks[bk.active].scenes);
+  const bank = $derived(bk.banks[bk.active]);
+  let editingBank = $state(false);
   let active = $state(-1);
   let fade = $state(0);
   let editing = $state(-1);
   let trans = $state(storeLoad('doublek.trans', (r) => { if (![0, 1, 2, 4, 8].includes(r as number)) throw new Error('transição'); return r as number; }, () => 4));
   let token = 0;
 
-  $effect(() => saveScenes($state.snapshot(scenes)));
+  $effect(() => saveBanks($state.snapshot(bk)));
   $effect(() => storeSave('doublek.trans', trans));
 
   /** Chama a cena i: começa no próximo beat e dura `fade` beats. O roteiro já dispara no beat (`now`). */
@@ -57,6 +62,29 @@
 
   export const sceneNames = () => scenes.map((s, i) => s?.name ?? `Cena ${i + 1}`);
 
+  function setBanks(b: Banks, msg: string) {
+    bk = b;
+    active = -1;
+    editing = -1;
+    onstatus(msg);
+  }
+  /** Banco anterior/seguinte (‹ ›, teclas [ ], MIDI a:bank-/a:bank+). Dá a volta. */
+  export function stepBankBy(d: number) {
+    if (bk.banks.length < 2) return onstatus('Só há um banco. Crie outro com "+".');
+    const b = stepBank($state.snapshot(bk), d);
+    setBanks(b, `Banco ${b.active + 1}/${b.banks.length}: ${b.banks[b.active].name}`);
+  }
+  function newBank() {
+    const b = addBank($state.snapshot(bk));
+    if (b !== bk) setBanks(b, `Banco ${b.active + 1} criado, vazio: grave cenas nos pads.`);
+  }
+  function dropBank() {
+    const n = usedScenes(bank);
+    if (n && !confirm(`Apagar o banco "${bank.name}" e as ${n} cena(s) gravadas nele?`)) return;
+    const name = bank.name;
+    setBanks(removeBank($state.snapshot(bk), bk.active), `Banco "${name}" apagado.`);
+  }
+
   function save(i: number) {
     scenes[i] = { name: scenes[i]?.name ?? `Cena ${i + 1}`, look: lookOf($state.snapshot(vs) as Visual) };
     active = i;
@@ -86,7 +114,7 @@
       if (d?.app !== 'doublek') throw new Error('não é um preset do DoubleK');
       const base = lookOf(VISUAL);
       if (Array.isArray(d.scenes) && d.scenes.length === 8) {
-        scenes = d.scenes.map((s: any, i: number): Scene =>
+        bk.banks[bk.active].scenes = d.scenes.map((s: any, i: number): Scene =>
           s && typeof s === 'object' ? { name: String(s.name ?? `Cena ${i + 1}`).slice(0, 24), look: { ...base, ...sanitizeLook(s.look) } as Look } : null);
       }
       Object.assign(vs, sanitizeLook(d.look));
@@ -131,7 +159,7 @@
       const head = `Abrir "${m.name}" (${m.assets.length} arquivo(s) de mídia, salvo no DoubleK ${m.appVersion}).${warn}`;
       let mode: ApplyMode;
       if (confirm(`${head}\n\nOK = SUBSTITUIR o show atual (um backup dele é salvo antes).\nCancelar = outras opções.`)) mode = 'replace';
-      else if (confirm(`Importar "${m.name}" como NOVO?\n\nVídeos e roteiros do arquivo são somados aos atuais. Visual, transição e as 8 cenas são trocados (o atual vai para o backup).\n\nCancelar = não abrir.`)) mode = 'new';
+      else if (confirm(`Importar "${m.name}" como NOVO?\n\nVídeos e roteiros do arquivo são somados aos atuais. Visual, transição e bancos de cenas são trocados (os atuais vão para o backup).\n\nCancelar = não abrir.`)) mode = 'new';
       else return onstatus('Abertura cancelada; nada mudou.');
       if (mode === 'new' && plan.assets.some((a) => a.entry.kind === 'logo' || a.entry.kind === 'bg')) plan.replaceLogoBg = confirm('Trocar a logo e a foto de fundo atuais pelas do arquivo?');
       if (plan.midi) plan.applyMidi = confirm('Aplicar o mapeamento MIDI do arquivo? Os controladores desta máquina podem ser diferentes.');
@@ -191,6 +219,25 @@
   </div>
 
   <div class="scenes">
+    <div class="bankrow">
+    <div class="bank" title="Banco de cenas · duplo clique no nome: renomear · [ e ]: trocar de banco">
+      <small>Banco {bk.active + 1}/{bk.banks.length}</small>
+      {#if editingBank}
+        <!-- svelte-ignore a11y_autofocus -->
+        <input bind:value={bk.banks[bk.active].name} maxlength="24" autofocus
+          onblur={() => { bk = renameBank($state.snapshot(bk), bk.active, bank.name); editingBank = false; }}
+          onkeydown={(e) => { e.stopPropagation(); if (e.key === 'Enter' || e.key === 'Escape') e.currentTarget.blur(); }} />
+      {:else}
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <span ondblclick={() => (editingBank = true)}>{bank.name}</span>
+      {/if}
+      <div class="bk">
+        <button onclick={() => stepBankBy(-1)} title="Banco anterior ([)" use:learnable={{ id: 'a:bank-', label: 'Banco anterior' }}>‹</button>
+        <button onclick={() => stepBankBy(1)} title="Banco seguinte (])" use:learnable={{ id: 'a:bank+', label: 'Banco seguinte' }}>›</button>
+        <button onclick={newBank} disabled={bk.banks.length >= MAX_BANKS} title="Novo banco vazio (até {MAX_BANKS})">+</button>
+        <button onclick={dropBank} disabled={bk.banks.length < 2} title="Apagar este banco">×</button>
+      </div>
+    </div>
     <div class="pads">
       {#each scenes as sc, i}
         <button
@@ -214,6 +261,7 @@
           {#if active === i && fade > 0}<i style:width="{fade * 100}%"></i>{/if}
         </button>
       {/each}
+    </div>
     </div>
     <div class="row">
       <span>Transição</span>
@@ -252,7 +300,14 @@
   .perf { grid-column: 1 / -1; display: flex; gap: 18px; padding: 10px 14px; align-items: center; flex-wrap: wrap; }
   .knobs { display: flex; gap: 2px; flex-wrap: wrap; }
   .scenes { flex: 1; min-width: 420px; display: flex; flex-direction: column; gap: 8px; }
-  .pads { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+  .pads { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; flex: 1; min-width: 0; }
+  .bankrow { display: flex; gap: 6px; }
+  .bank { flex: none; width: 92px; height: 54px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; justify-content: space-between; background: rgba(124, 92, 255, .08); }
+  .bank small { font-size: 10px; color: var(--muted); }
+  .bank span { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: text; }
+  .bank input { width: 100%; font-size: 12px; background: rgba(0,0,0,.4); border: 1px solid var(--accent); border-radius: 4px; padding: 0 4px; }
+  .bk { display: flex; gap: 2px; }
+  .bk button { flex: 1; min-width: 0; padding: 0 2px; font-size: 11px; line-height: 14px; border-radius: 5px; }
   .pad { position: relative; height: 54px; padding: 6px 8px; text-align: left; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; background: rgba(255,255,255,.05); }
   .pad small { font-size: 10px; color: var(--muted); }
   .pad span { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

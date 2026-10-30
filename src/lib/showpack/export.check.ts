@@ -74,6 +74,12 @@ const input = (): ShowPackInput => ({
   const semMidi = await buildShowPack({ ...input(), state: { ...input().state, midi: null }, assets: [] });
   assert.deepEqual([...readZip(semMidi.bytes).keys()], ['manifest.json', 'visual.json', 'scenes.json', 'roteiros.json']);
   assert.equal(semMidi.manifest.assets.length, 0);
+
+  // bancos (DK-041): banks.json entra quando vem no estado (o app sempre manda); scenes.json continua
+  const banks = { v: 1, data: { active: 0, banks: [{ name: 'Principal', scenes: [null, null, null, null, null, null, null, null] }] } };
+  const comBancos = readZip((await buildShowPack({ ...input(), state: { ...input().state, banks } })).bytes);
+  assert.deepEqual([...comBancos.keys()].slice(0, 6), ['manifest.json', 'visual.json', 'scenes.json', 'roteiros.json', 'banks.json', 'midi.json']);
+  assert.deepEqual(json(comBancos.get('banks.json')!), { 'doublek.banks': banks });
 }
 
 // --- (3) erros antes de montar ---

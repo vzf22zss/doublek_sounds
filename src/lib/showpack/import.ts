@@ -8,6 +8,7 @@ import { validVideos, type VideoInfo } from '../assets.ts';
 import { sanitizeRoteiro, uid, validRoteiros, type Roteiro } from '../roteiro.ts';
 import { validScenes, validVisual, type Scene, type Visual } from '../settings.ts';
 import { isObj, migrate, SCHEMA, type Envelope, type Key } from '../store.ts';
+import { fromScenes, validBanks, type Banks } from '../banks.ts';
 import { sha256 } from './export.ts';
 import { FILES, validateManifest, type AssetEntry, type Manifest, type ValidateOpts } from './manifest.ts';
 import { readZip } from './zip.ts';
@@ -30,7 +31,9 @@ export function validMidi(raw: unknown): Record<string, MidiTarget> {
 export type PlanAsset = { entry: AssetEntry; bytes: Uint8Array };
 export type Plan = {
   manifest: Manifest;
-  visual: Visual; trans: number; videos: VideoInfo[]; scenes: Scene[]; roteiros: Roteiro[];
+  visual: Visual; trans: number; videos: VideoInfo[]; roteiros: Roteiro[];
+  /** Todos os bancos (DK-041). Pacote sem banks.json: um banco com o scenes.json. `doublek.scenes` = banco ativo. */
+  banks: Banks;
   midi: Record<string, MidiTarget> | null;
   assets: PlanAsset[];
   warnings: string[];
@@ -88,6 +91,8 @@ export async function inspectShowPack(bytes: Uint8Array, opts: ValidateOpts = {}
     const trans = state(FILES.visual, vj, 'doublek.trans', (x) => (TRANS.includes(x as number) ? (x as number) : 4));
     const videos = state(FILES.visual, vj, 'doublek.videos', validVideos);
     const scenes = state(FILES.scenes, sj, 'doublek.scenes', validScenes);
+    const bj = files.get(FILES.banks);
+    const banks = bj ? state(FILES.banks, parseJson(FILES.banks, bj), 'doublek.banks', validBanks) : fromScenes(scenes);
     const roteiros = state(FILES.roteiros, rj, 'doublek.roteiros', validRoteiros);
     const midi = mj ? state(FILES.midi, parseJson(FILES.midi, mj), 'doublek.midi', validMidi) : null;
 
@@ -97,7 +102,9 @@ export async function inspectShowPack(bytes: Uint8Array, opts: ValidateOpts = {}
     const warnings: string[] = [];
     for (const v of videos) if (!vids.has(v.id)) throw new Error(`vídeo "${v.name}" (${v.id}) está na lista mas não no pacote`);
     if (visual.bgVideo && !vids.has(visual.bgVideo)) throw new Error(`visual usa o vídeo ${visual.bgVideo}, que não está no pacote`);
-    scenes.forEach((s, i) => { if (s?.look.bgVideo && !vids.has(s.look.bgVideo)) throw new Error(`cena ${i + 1} usa o vídeo ${s.look.bgVideo}, que não está no pacote`); });
+    banks.banks.forEach((b, j) => b.scenes.forEach((s, i) => {
+      if (s?.look.bgVideo && !vids.has(s.look.bgVideo)) throw new Error(`${banks.banks.length > 1 ? `banco ${j + 1}, ` : ''}cena ${i + 1} usa o vídeo ${s.look.bgVideo}, que não está no pacote`);
+    }));
     for (const r of roteiros) {
       for (const c of r.cues) if (c.kind === 'video' && c.video && !vids.has(c.video)) throw new Error(`roteiro "${r.name}" usa o vídeo ${c.video}, que não está no pacote`);
       if (r.track && !tracks.has(r.track)) {
@@ -107,7 +114,7 @@ export async function inspectShowPack(bytes: Uint8Array, opts: ValidateOpts = {}
     }
     for (const id of vids) if (!videos.some((v) => v.id === id)) warnings.push(`vídeo ${id} está no pacote mas não na lista; será ignorado`);
 
-    return { ok: true, plan: { manifest, visual, trans, videos, scenes, roteiros, midi, assets, warnings } };
+    return { ok: true, plan: { manifest, visual, trans, videos, banks, roteiros, midi, assets, warnings } };
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }
@@ -151,7 +158,9 @@ export async function applyShowPack(plan: Plan, mode: ApplyMode, deps: ApplyDeps
   }
   const map = (id: string) => idMap[id] ?? id;
   const visual: Visual = { ...plan.visual, bgVideo: map(plan.visual.bgVideo) };
-  const scenes: Scene[] = plan.scenes.map((s) => (s ? { ...s, look: { ...s.look, bgVideo: map(s.look.bgVideo) } } : null));
+  const banks: Banks = { active: plan.banks.active, banks: plan.banks.banks.map((b) => ({
+    ...b, scenes: b.scenes.map((s): Scene => (s ? { ...s, look: { ...s.look, bgVideo: map(s.look.bgVideo) } } : null)),
+  })) };
   const videos: VideoInfo[] = plan.videos.map((v) => ({ ...v, id: map(v.id) }));
   const roteiros: Roteiro[] = plan.roteiros.map((r) => {
     const o = { ...r, track: map(r.track), cues: r.cues.map((c) => ({ ...c, video: map(c.video ?? '') })) };
@@ -190,7 +199,8 @@ export async function applyShowPack(plan: Plan, mode: ApplyMode, deps: ApplyDeps
 
     putText('doublek.visual', visual);
     putText('doublek.trans', plan.trans);
-    putText('doublek.scenes', scenes);
+    putText('doublek.banks', banks);
+    putText('doublek.scenes', banks.banks[banks.active].scenes); // compatibilidade: banco ativo
     if (mode === 'replace') {
       putText('doublek.videos', videos);
       putText('doublek.roteiros', roteiros);

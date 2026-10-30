@@ -2,6 +2,7 @@
 // Só roda no navegador; a lógica testável fica em export.ts. Sem músicas nesta versão (DEC-09 pendente).
 import { invoke } from '@tauri-apps/api/core';
 import { getAsset, listVideos, setAsset, type VideoInfo } from '../assets.ts';
+import { loadBanks } from '../banks.ts';
 import { loadRoteiros } from '../roteiro.ts';
 import { loadScenes, loadVisual } from '../settings.ts';
 import { load, SCHEMA, type Envelope } from '../store.ts';
@@ -46,7 +47,7 @@ export async function collectShowPack(o: CollectOpts) {
     name: o.name, appVersion: o.appVersion,
     state: {
       visual: env('doublek.visual', loadVisual()), trans: env('doublek.trans', trans), videos: env('doublek.videos', videos),
-      scenes: env('doublek.scenes', loadScenes()), roteiros: env('doublek.roteiros', loadRoteiros()),
+      scenes: env('doublek.scenes', loadScenes()), banks: env('doublek.banks', loadBanks()), roteiros: env('doublek.roteiros', loadRoteiros()),
       midi: o.midi ? env('doublek.midi', o.midi) : null,
     },
     assets,

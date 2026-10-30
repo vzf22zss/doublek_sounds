@@ -84,8 +84,10 @@ const plan = (insp as { ok: true; plan: Plan }).plan;
 assert.equal(plan.visual.size, 61);
 assert.equal(plan.visual.bgVideo, 'v1');
 assert.equal(plan.trans, 8);
-assert.equal(plan.scenes.length, 8);
-assert.equal(plan.scenes[0]!.look.bgVideo, 'v1');
+// pacote sem banks.json (como os gerados antes da DK-041): um banco "Principal" com o scenes.json
+assert.deepEqual([plan.banks.active, plan.banks.banks.length, plan.banks.banks[0].name], [0, 1, 'Principal']);
+assert.equal(plan.banks.banks[0].scenes.length, 8);
+assert.equal(plan.banks.banks[0].scenes[0]!.look.bgVideo, 'v1');
 assert.equal(plan.roteiros[0].cues.length, 2);
 assert.equal(plan.midi!['cc:1:7'].id, 'v:size');
 assert.equal(plan.assets.length, 2);
@@ -194,6 +196,32 @@ await bad(tamper(pack, (e) => editJson(e, 'manifest.json', (o) => (o.includeTrac
   removed.length = 0;
   await assert.rejects(applyShowPack(p, 'replace', { ...m3.deps, addTrack: async () => false, removeTrack: async (id) => { removed.push(id); } }), /desfeita/);
   assert.deepEqual(removed, []);
+}
+
+// --- bancos (DK-041): banks.json manda; doublek.scenes = banco ativo; ids reescritos em todos os bancos ---
+{
+  const eight = (s0: unknown) => [s0, null, null, null, null, null, null, null];
+  const banks = { v: 1, data: { active: 1, banks: [
+    { name: 'Principal', scenes: eight({ name: 'Um', look: {} }) },
+    { name: 'Drops', scenes: eight({ name: 'Drop', look: { bgVideo: 'v1' } }) },
+  ] } };
+  const bp = (await buildShowPack({ ...input(), state: { ...input().state, banks } })).bytes;
+  const r = await inspectShowPack(bp);
+  assert.ok(r.ok, (r as any).error);
+  const p = (r as { ok: true; plan: Plan }).plan;
+  assert.deepEqual([p.banks.active, p.banks.banks.map((b) => b.name).join()], [1, 'Principal,Drops']);
+  const m = mk(); seed(m);
+  await applyShowPack(p, 'replace', m.deps);
+  assert.deepEqual(m.key('doublek.banks').data.banks.map((b: any) => b.name), ['Principal', 'Drops']);
+  assert.equal(m.key('doublek.banks').v, 1);
+  assert.equal(m.key('doublek.scenes').data[0].name, 'Drop');                // banco ativo espelhado
+  const m2 = mk(); seed(m2);
+  const rep = await applyShowPack(p, 'new', m2.deps);
+  assert.equal(m2.key('doublek.banks').data.banks[1].scenes[0].look.bgVideo, rep.idMap['v1']);
+  assert.equal(m2.key('doublek.scenes').data[0].look.bgVideo, rep.idMap['v1']);
+  await bad(tamper(bp, (e) => editJson(e, 'banks.json', (o) => (o['doublek.banks'].data.banks[1].scenes[0].look.bgVideo = 'zz'))), /banco 2, cena 1 usa o vídeo zz/);
+  await bad(tamper(bp, (e) => editJson(e, 'banks.json', (o) => (o['doublek.banks'].data = { banks: [] }))), /banks\.json: bancos: nenhum banco/);
+  await bad(tamper(bp, (e) => editJson(e, 'banks.json', (o) => (o['doublek.banks'].v = 2))), /banks\.json: doublek\.banks: versão 2 é mais nova/);
 }
 
 console.log('showpack/import: ok');
