@@ -681,7 +681,7 @@ Audio Engine (Rust) ──► Music Features ──► Show Engine / Dispatcher
 ### Marco M2 — Psy Engine V1 (semanas 5–6)
 
 - [x] **DK-021** Refatorar interface de shaders, cache e fallback. — 2026-10-30, sessão 29, `feat/dk-021-renderer` @ `bb12f61`: `src/render/` em módulos — `renderer.ts` (orquestrador, API pública intacta + `onEffectError`), `music.ts` (toda a lógica de CPU, TS puro, com `music.check.ts`), `gl/program.ts`, `gl/texture.ts`, `effects/{types,scene,feedback,post}.ts` com os GLSL idênticos; cache de programas; módulo opcional que falha é desligado sozinho (cena e pós são `required`). **Imagem idêntica pixel a pixel** antes/depois em 5 cenas no Edge headless determinístico; isolamento de falha provado. Checks, typecheck e build verdes, conferidos pelo coordenador. Desempenho em GPU real, preview e vídeo: NÃO VERIFICADO. Entra na onda 2 de integração.
-- [ ] **DK-022** Implementar kaleidoscópio, mandala e fractal tunnel.
+- [x] **DK-022** Implementar kaleidoscópio, mandala e fractal tunnel. — 2026-10-30, sessão 29, `feat/dk-022-psy-modulos` @ `1c5ecb9` (base `integ/onda-1`): módulos `effects/{kaleido,tunnel,mandala}.ts` (1 passe cada, laços com teto, FBO só no 1º uso, intensidade 0 = custo zero), chaves novas em `VISUAL` (`kaleido*`, `tunnel*`, `mandala*`, `psyQuality`), `ModTarget`/`DropTarget` ampliados, `PsyEffects.svelte` na aba Efeitos, 6 presets. Ordem: cena → túnel → mandala → caleidoscópio → rastro → pós. Smoke: módulos em 0 = **0 pixels diferentes** vs DK-021; ligados, imagens distintas sem NaN/preto; módulo quebrado cai sozinho. Checks 10/10, typecheck 0, build ok (coordenador). Retoques pedidos: `SAFE_LOOK` zera os 3; `psyQuality` em `NOT_IN_SCENE`. GPU real NÃO VERIFICADO.
 - [ ] **DK-023** Implementar partículas, organic/forest e hi-tech glitch.
 - [ ] **DK-024** Adicionar UI, qualidade, modulação, presets e benchmark.
 
@@ -689,7 +689,7 @@ Audio Engine (Rust) ──► Music Features ──► Show Engine / Dispatcher
 
 ### Marco M3 — Performance e automação V1 (semanas 7–8)
 
-- [ ] **DK-041** Migrar cenas 8→32 e adicionar bancos.
+- [x] **DK-041** Migrar cenas 8→32 e adicionar bancos. — 2026-10-30, sessão 22, `feat/dk-041-bancos` @ `9bf0358` (base DK-014): `src/lib/banks.ts` (até 4 bancos × 8, `doublek.banks` v1 com migração automática de `doublek.scenes`, que continua espelhando o banco ativo), seletor à esquerda dos pads (‹ › + ×, renomear), teclas `[ ]`, ações MIDI `a:bank-`/`a:bank+` (os `c:0..7` salvos continuam válidos: pad do banco ativo), `banks.json` no Show Pack com compatibilidade para pacotes sem ele. Mock 21/21; checks 10/10, typecheck 0, build ok (coordenador). Decisões: `stepBank` dá a volta; modo "novo" substitui bancos; `cue.scene` = pad do banco ativo (DK-143 pode ganhar `cue.bank`). Retoque pedido: aceitar também `e.key` `[`/`]` (ABNT2). Pads ficaram em 51 px.
 - [ ] **DK-042** Criar dispatcher único e macros seguras.
 - [ ] **DK-043** Criar Program/Preview e fluxo TAKE.
 - [ ] **DK-044** Integrar bancos/macros ao MIDI/teclado e testar stress.
@@ -808,6 +808,8 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 | 2026-10-30 | DK-021 | DONE (software) | `feat/dk-021-renderer` @ `bb12f61` (sessão 29) | diff pixel a pixel = 0 em 5 cenas; `music.check.ts` + checks ok, typecheck 0, build ok (coordenador); GPU real NÃO VERIFICADO | **DK-022** (1º módulo novo) na mesma sessão; onda 2 de integração |
 | 2026-10-30 | DK-009 P3+P4 | DONE (software) | `feat/dk-009-deteccao` @ `30cb355` (sessão d7) | bench: nenhuma linha piorou; `cargo test --release` 13/13 (coordenador); trade-offs em DETECCAO §7; música real NÃO VERIFICADO | P2 → P1 → P6 na mesma sessão; onda 2 |
 | 2026-10-30 | DK-014 | DONE (software) | `feat/dk-014-showpack-ui` @ `05222d5` (sessão 22) | mock 16/16; checks 9/9, typecheck 0, build, `cargo check` ok (coordenador); `put_track` usa header `x-id` (corpo Raw não aceita args); app real NÃO VERIFICADO | **Gate M1** depende de validação no app real (mantenedor) + DEC-03/DEC-09; DK-142 espera DEC-09; sessão 22 → **DK-041** (bancos de cenas) |
+| 2026-10-30 | DK-022 | DONE (software) | `feat/dk-022-psy-modulos` @ `1c5ecb9` (sessão 29) | diff 0 com módulos em 0; smoke (a)(b)(c); checks 10/10, typecheck 0, build (coordenador); custo por módulo documentado (1 passe, 1–8 iterações/pixel) | retoques SAFE_LOOK + NOT_IN_SCENE na mesma branch; depois **DK-023** (partículas, orgânico, glitch) |
+| 2026-10-30 | DK-041 | DONE (software) | `feat/dk-041-bancos` @ `9bf0358` (sessão 22) | `banks.check.ts` + checks 10/10, typecheck 0, build (coordenador); mock 21/21 com migração real e MIDI salvo; app real/ABNT2 NÃO VERIFICADO | retoque `e.key` para `[ ]`; depois **DK-042** (dispatcher único + macros, ADR 0003) na mesma sessão |
 
 ### 8.4. Bloqueios e decisões pendentes
 
