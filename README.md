@@ -25,7 +25,7 @@ Feito para psytrance, dark/forest e hi-tech (135–220 BPM).
 - **8 cenas** com crossfade que começa no próximo beat. Presets exportáveis em `.json`.
 - **Roteiro por música.** Você sobe a faixa, marca os pontos na timeline (cena, strobe, vídeo,
   knob) e roda com o app tocando o arquivo ou com o DJ nos decks (GO). Funciona no modo
-  "roteiro + ao vivo" ou "só roteiro".
+  "roteiro + ao vivo" ou "só roteiro"; com a tecla R dá para comparar na hora com "só o som".
 - **MIDI learn:** clique num controle da tela e mexa no knob do controlador.
 - **Instalador `.msi`** em português.
 
