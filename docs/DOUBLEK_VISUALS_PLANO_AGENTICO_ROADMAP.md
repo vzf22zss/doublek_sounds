@@ -120,7 +120,7 @@ Uma tarefa só pode ficar **DONE** se satisfizer todos os critérios relevantes:
 3. O renderer examinado usa um pipeline **cena → feedback → pós-processamento**, sem compositor geral com múltiplas camadas independentes (o vídeo de fundo é uma textura a mais no passe de cena).
 4. Não foram identificadas implementações de edição livre de shaders, gravação de performance, OSC, Spout, Ableton Link, MIDI Clock externo e controle pelo celular. O vídeo de fundo **existe**, mas sem detecção de codec, início/fim, fallback para imagem nem pacote portátil (ver DK-060).
 5. O repositório público **não tem licença declarada, Release publicada nem descrição/topics**. Workflows: **release** (push em `prod`) e, desde DK-002, **ci** (push/PR). O secret `TAURI_SIGNING_PRIVATE_KEY` foi cadastrado em 2026-10-30; falta autorizar a 1ª Release (DEC-10).
-6. A configuração inclui `csp: null`: requer revisão antes da importação de conteúdo e de serviços remotos.
+6. ~~`csp: null`~~ **resolvido em DK-005** (CSP de produção sem inline + `devCsp`); confirmar no app real antes da 1ª Release.
 7. Não há testes automatizados de UI nem de render; as capturas da documentação foram feitas com um mock do Tauri no Edge headless, fora do repositório.
 
 ### 1.4. Princípios técnicos
@@ -528,6 +528,8 @@ A **música** do roteiro é **opt-in** no pacote (direitos autorais e tamanho; D
 
 **Aceite:** testes negativos de entradas malformadas e nenhuma operação nativa exposta sem necessidade.
 
+**Feito (2026-10-30):** `tauri.conf.json` ganhou `csp` e `devCsp` (lista acima); o único inline era o `<style>` do telão, movido para `src/output/output.css`. Capabilities continuam no mínimo (`core:default`, `updater:default`, `process:allow-restart`); os 14 comandos nativos são todos usados pela UI e `add_track`/`remove_track`/`load_track` validam id e extensão/tamanho na borda Rust, não só no front. `limits.ts` + `limits.check.ts` (18 asserts) e `track::limites_de_upload_e_id` cobrem os casos negativos (`.exe`, vazio, acima do teto, `../`, `\`, id sem ponto, > 64 chars). Auditoria: `npm audit` 0 em produção; OSV sobre 529 crates → `glib` RUSTSEC-2024-0429 (só Linux, não compilado) e `proc-macro-error` RUSTSEC-2024-0370 (sem manutenção, transitivo) — aceitos, revisar a cada atualização do Tauri. **Fora do escopo ainda:** política de logs e segredos de pareamento (não há rede nem extensões; entram com DK-080/DK-120).
+
 ### DK-006 — Segurança visual e experiência em palco — P0
 
 - Modo de efeitos sensíveis a flashes **reduzidos por padrão**, aviso de fotossensibilidade e opção de configuração.
@@ -644,7 +646,7 @@ Audio Engine (Rust) ──► Music Features ──► Show Engine / Dispatcher
 - [x] **DK-002** Introduzir contratos/migrações e testes JS/TS. — 2026-10-30, branch `feat/dk-002-schemas`: `src/lib/store.ts` (envelope `{v, data}` por chave `doublek.*`, migrações v0→v1, validadores, `.bak` para dado inválido/versão futura), `src/lib/store.check.ts` (migração, inválidos, roundtrip), `.github/workflows/ci.yml`. `typecheck` 0 erros · `npm run check` ok · build ok. Nenhum dado existente é perdido: o formato da v0.3.1 é lido como v0 e migrado.
 - [x] **DK-003** Criar telemetria local, health indicators e teste longo inicial. — 2026-10-30, branch `feat/dk-003-telemetria`: `src/lib/telemetry.ts` (frametime p50/p95/p99, drops, diário de 200 eventos), telão emite `telemetry` 1×/s e sobrevive a perda/volta do contexto WebGL e a shader que não compila; controle mostra 4 bolinhas de saúde (áudio · BPM · MIDI · telão) e exporta **Diagnóstico** JSON sem áudio; motor avisa saída de áudio perdida. Mock: contexto perdido → bolinha vermelha + log → restaurado e renderer recriado. **Teste de 2 h e matriz de máquinas: NÃO VERIFICADO** (precisam do mantenedor; BASELINE §12).
 - [ ] **DK-004** Configurar CI, versionamento, licença pendente e plano de Release.
-- [ ] **DK-005** Revisar CSP, permissões e regras de arquivo.
+- [x] **DK-005** Revisar CSP, permissões e regras de arquivo. — 2026-10-30, branch `feat/dk-005-seguranca`: CSP de produção (`default-src 'self'`, `img-src blob: data:`, `media-src blob:`, `connect-src ipc: http://ipc.localhost`, sem inline) + `devCsp`; estilos do telão saíram do HTML para `output.css`; `src/lib/limits.ts` (extensão/tipo/tamanho: imagem 25 MB, vídeo 600 MB, música 300 MB, JSON 2 MB) em todas as entradas de arquivo; Rust `track::check_upload`/`check_id` e teto de 20 min por faixa (antes e durante a decodificação); OSV/RustSec sobre o `Cargo.lock`: 3 avisos, nenhum aplicável ao Windows. Mock com a CSP injetada: **nada recusado**. **NÃO VERIFICADO no app real** (`connect-src ipc:` e `devCsp` só se provam com o Tauri rodando).
 - [ ] **DK-006** Fortalecer blackout e reduzir riscos de strobe.
 - [ ] **DK-008** Criar suite inicial de áudio e métricas de latência.
 - [ ] **DK-141** Validar o roteiro com música real, saída de som e GO (hoje NÃO VERIFICADO).
@@ -738,10 +740,10 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 |---|---|
 | Última revisão do planejamento | 2026-10-30 (alinhado à v0.3.1) |
 | Commit/branch baseline validado | `main` @ `09a7677` (v0.3.1) — ver `docs/quality/BASELINE.md` |
-| Tarefa ativa | DK-141 (validação real, exige o mantenedor) · DK-005 (segurança: CSP/limites, próxima READY para o agente) |
-| Marco ativo | M0 |
-| Tarefas do roadmap marcadas | 3 (DK-001, DK-002, DK-003) |
-| Tarefas concluídas | 3 |
+| Tarefa ativa | DK-141 (validação real, exige o mantenedor) · DK-006 (segurança visual/strobe) e DK-008 (benchmark de detecção) READY para o agente |
+| Marco ativo | M0 (faltam DK-004 restante, DK-006, DK-008, DK-141) |
+| Tarefas do roadmap marcadas | 4 (DK-001, DK-002, DK-003, DK-005) |
+| Tarefas concluídas | 4 |
 | Bloqueios conhecidos | Licença (DEC-01); hardware de referência (DEC-02); secret de assinatura e 1ª release (DEC-10); SDK para Spout/Link/gravação |
 | Release alvo | **0.4.0** ao fechar o M0 (decisão do mantenedor, 2026-10-30) |
 
@@ -778,6 +780,7 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 | 2026-10-30 | DK-001 | DONE | `docs/dk-001-baseline` (commit seguinte) | `cargo test --release` 9/9 · `npm run check` 43 asserts · typecheck 0 erros · build ok · `npm audit` 0 em prod · licenças: 527 crates, sem GPL; 6 com `AND` permissivo · BASELINE.md + 3 ADRs | **DK-141** (validar roteiro com áudio real, exige o mantenedor) e **DK-002** (schemas/migrações) em paralelo; DEC-10 destrava a 1ª release |
 | 2026-10-30 | DK-002 | DONE | `feat/dk-002-schemas` | `store.ts` + `store.check.ts` (migração v0→v1, inválidos → padrão + `.bak`, versão futura, roundtrip de cenas/roteiros, ids mantidos) · `npm run check` ok · typecheck 0 erros · build ok · Rust inalterado (9/9 hoje) · `ci.yml` criado | **DK-003** (telemetria/saúde/fail-safe) para o agente; **DK-141** com o mantenedor; CI **verde** no 1º push para `main` (run 41108914633) |
 | 2026-10-30 | DK-003 | DONE (software) | `feat/dk-003-telemetria` | `telemetry.check.ts` ok · typecheck 0 · build ok · `cargo test` 9/9 · mock Edge headless: header cabe em 1280, telemetria chega, `WEBGL_lose_context` → bolinha vermelha + "contexto perdido" no diário → `restoreContext` → renderer recriado; Diagnóstico JSON com 12 seções | **DK-005** (CSP, limites de arquivo em `add_track`, capabilities); teste de 2 h e matriz de máquinas com o mantenedor (NÃO VERIFICADO) |
+| 2026-10-30 | DK-005 | DONE (software) | `feat/dk-005-seguranca` | `limits.check.ts` 18 asserts · `cargo test` 10/10 (novo `limites_de_upload_e_id`) · typecheck 0 · build ok · OSV 529 crates: 2 avisos não aplicáveis · mock com CSP injetada nas duas janelas: nada recusado, vídeo blob: e logo data: ok, `.exe` recusado com mensagem | Rodar o app real uma vez para confirmar `connect-src ipc:` (bloqueante para a 1ª Release); depois **DK-006** ou **DK-008** |
 
 ### 8.4. Bloqueios e decisões pendentes
 

@@ -2,6 +2,7 @@
   // Barra de performance: knobs dos efeitos mais mexidos ao vivo + 8 cenas com crossfade no beat.
   import Knob from './Knob.svelte';
   import { load as storeLoad, save as storeSave } from '../lib/store';
+  import { checkFile } from '../lib/limits';
   import { learnable } from './midi.svelte';
   import { blend, loadScenes, lookOf, saveScenes, sanitizeLook, VISUAL, type Look, type Scene, type Visual } from '../lib/settings';
 
@@ -72,6 +73,8 @@
   async function importFile(f: File | undefined) {
     if (!f) return;
     try {
+      const bad = checkFile('json', f);
+      if (bad) throw new Error(bad);
       const d = JSON.parse(await f.text());
       if (d?.app !== 'doublek') throw new Error('não é um preset do DoubleK');
       const base = lookOf(VISUAL);

@@ -15,6 +15,7 @@
   import { load as storeLoad, save as storeSave, shaped } from '../lib/store';
   import { getVersion } from '@tauri-apps/api/app';
   import { captureErrors, log, logEntries, NO_TELEMETRY, type Telemetry } from '../lib/telemetry';
+  import { checkFile, EXT, ext } from '../lib/limits';
   import type { Frame, Msg } from '../lib/types';
   import { check, type Update } from '@tauri-apps/plugin-updater';
   import { relaunch } from '@tauri-apps/plugin-process';
@@ -268,7 +269,11 @@
   }
 
   async function pick(kind: 'logo' | 'bg', file: File | undefined | null) {
-    if (kind === 'bg' && file?.type.startsWith('video/')) {
+    if (!file) return;
+    const isVideo = kind === 'bg' && (file.type.startsWith('video/') || (EXT.video as readonly string[]).includes(ext(file.name)));
+    const bad = checkFile(isVideo ? 'video' : 'image', file);
+    if (bad) { status = `Não aceitei "${file.name}": ${bad}.`; log('warn', status); return; }
+    if (isVideo) {
       status = 'Guardando o vídeo…';
       vs.bgVideo = await addVideo(file);
       videoList = listVideos();
@@ -276,7 +281,6 @@
       setTimeout(() => autoColors('bg'), 800); // espera o primeiro quadro
       return;
     }
-    if (!file || !file.type.startsWith('image/')) return;
     await setAsset(kind, file);
     sync?.($state.snapshot(vs), true);
     emitTo('output', 'assets');

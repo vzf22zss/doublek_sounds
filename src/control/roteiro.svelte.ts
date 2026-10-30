@@ -4,6 +4,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { emitTo } from '@tauri-apps/api/event';
 import { getVideo } from '../lib/assets';
+import { checkFile, ext } from '../lib/limits';
 import { lookOf, type Look, type Visual } from '../lib/settings';
 import type { Frame } from '../lib/types';
 import { beatAt, due, loadRoteiros, newCue, rampAt, sanitizeRoteiro, stateAt, timeAt, uid, type Cue, type CueKind, type Roteiro } from '../lib/roteiro';
@@ -59,9 +60,10 @@ export async function load(r: Roteiro) {
 }
 
 async function upload(file: File) {
+  const bad = checkFile('audio', file);
+  if (bad) throw new Error(bad);
   rt.busy = 'Guardando a música…';
-  const ext = file.name.split('.').pop()?.toLowerCase() || 'mp3';
-  return invoke<string>('add_track', new Uint8Array(await file.arrayBuffer()), { headers: { 'x-ext': ext } });
+  return invoke<string>('add_track', new Uint8Array(await file.arrayBuffer()), { headers: { 'x-ext': ext(file.name) } });
 }
 
 export async function create(file: File) {
@@ -118,6 +120,8 @@ export function exportFile() {
 
 export async function importFile(f: File) {
   try {
+    const bad = checkFile('json', f);
+    if (bad) throw new Error(bad);
     const d = JSON.parse(await f.text());
     const r = sanitizeRoteiro(d?.app === 'doublek-roteiro' ? d.roteiro : null);
     if (!r) throw new Error('não é um roteiro do DoubleK');

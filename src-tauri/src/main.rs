@@ -41,9 +41,7 @@ impl Engine {
 
 /// As músicas do roteiro ficam copiadas na pasta do app: o roteiro não quebra se o original sumir.
 fn track_path(app: &AppHandle, id: &str) -> Result<PathBuf, String> {
-    if id.is_empty() || id.contains("..") || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '.') {
-        return Err("Faixa inválida".into());
-    }
+    track::check_id(id)?;
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?.join("tracks");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir.join(id))
@@ -53,9 +51,10 @@ fn track_path(app: &AppHandle, id: &str) -> Result<PathBuf, String> {
 #[tauri::command]
 fn add_track(app: AppHandle, request: tauri::ipc::Request<'_>) -> Result<String, String> {
     let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else { return Err("Envie o arquivo como bytes".into()) };
-    let ext: String = request.headers().get("x-ext").and_then(|v| v.to_str().ok()).unwrap_or("mp3").chars().filter(char::is_ascii_alphanumeric).take(5).collect();
+    let ext = request.headers().get("x-ext").and_then(|v| v.to_str().ok()).unwrap_or("");
+    let ext = track::check_upload(ext, bytes.len())?; // extensão aceita + tamanho (o front já filtrou, mas o comando é a borda)
     let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
-    let id = format!("{stamp:x}.{}", ext.to_lowercase());
+    let id = format!("{stamp:x}.{ext}");
     std::fs::write(track_path(&app, &id)?, bytes).map_err(|e| e.to_string())?;
     Ok(id)
 }

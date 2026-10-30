@@ -1,0 +1,3 @@
+/* Telão: tela cheia, preta, sem cursor. Em arquivo (não inline) por causa da CSP `style-src 'self'`. */
+html, body { margin: 0; height: 100%; background: #000; overflow: hidden; cursor: none; }
+canvas { width: 100%; height: 100%; display: block; }

@@ -1,6 +1,7 @@
 // Janela do telão: só desenha. Recebe features do motor e ajustes da janela de controle.
 // Fail-safe (DK-003): perda do contexto WebGL recria o renderer; shader que não compila deixa a tela
 // preta e avisa o controle em vez de derrubar a janela. Telemetria (frametime) vai para o controle 1×/s.
+import './output.css';
 import { Channel, invoke } from '@tauri-apps/api/core';
 import { emitTo, listen } from '@tauri-apps/api/event';
 import { Renderer } from '../render/renderer';

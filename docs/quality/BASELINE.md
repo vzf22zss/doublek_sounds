@@ -92,7 +92,9 @@ Exportações existentes: preset JSON (visual + 8 cenas, sem mídia) e roteiro J
 
 **Eventos:** control → output: `visual`, `assets`, `preload`; output → control: `telemetry` (fps, p50/p95/p99, drops, lost; substituiu `fps` em DK-003), `output-log`; Rust → control: `midi`, `midi-devices`.
 
-**Capabilities:** `core:default`, `updater:default`, `process:allow-restart` para as janelas `control` e `output`. **CSP: `null`** (lacuna, DK-005).
+**Capabilities:** `core:default`, `updater:default`, `process:allow-restart` para as janelas `control` e `output`. **CSP (desde DK-005):** `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src ipc: http://ipc.localhost; object-src 'none'; frame-src 'none'` + `devCsp` liberando `localhost:5173`/`ws:`. Sem inline (o `<style>` do telão virou `output.css`). Validado no mock; **no Tauri real: NÃO VERIFICADO**.
+
+**Limites de entrada (DK-005):** front `src/lib/limits.ts` (imagem 25 MB png/jpg/jpeg/webp/gif/bmp/svg; vídeo 600 MB mp4/webm/mov/m4v; música 300 MB mp3/wav/flac/m4a/aac/ogg; JSON 2 MB) em logo, foto, vídeo, música, preset e roteiro; Rust `track::check_upload` (mesma lista e teto, na borda do comando), `check_id` (nome de arquivo seguro) e `MAX_SECS` = 20 min por faixa, checado antes (`n_frames`) e durante a decodificação.
 
 ## 8. Inventário de testes
 
@@ -110,6 +112,8 @@ CI em push/PR: `.github/workflows/ci.yml` (desde DK-002); release: `release.yml`
 **npm (produção, 3 pacotes):** todos `MIT OR Apache-2.0`.
 
 **Rust (527 crates sem dev-deps):** 242 `MIT OR Apache-2.0`, 114 `MIT`, 36 `Apache-2.0 OR MIT`, 19 `MPL-2.0`, 18 `Unicode-3.0`, demais permissivas. Sem GPL/AGPL. Casos com `AND` (a revisar em DK-004, todos permissivos): `brotli` (BSD-3 AND MIT), `dpi` (Apache AND MIT), `encoding_rs` ((Apache OR MIT) AND BSD-3), `ring` (Apache AND ISC), `unicode-ident`, `webpki-root-certs` (CDLA-Permissive-2.0). `MPL-2.0` (19 crates, via symphonia e option-ext) exige disponibilizar modificações **desses** arquivos, não do app.
+
+**Vulnerabilidades (OSV/RustSec via API, 2026-10-30, 529 crates):** `glib 0.18.5` → RUSTSEC-2024-0429 / GHSA-wrw7-89jp-8q8g (só compila em Linux; o alvo é Windows) e `proc-macro-error 1.0.4` → RUSTSEC-2024-0370 (crate sem manutenção, transitivo do Tauri; não é falha de segurança). Aceitos; reavaliar a cada bump do Tauri. `cargo-audit` não está instalado nesta máquina (instalação negada pela política da sessão); o comando equivalente é a consulta a `https://api.osv.dev/v1/querybatch` com o `Cargo.lock`.
 
 **O repositório em si não tem licença** (DEC-01).
 
@@ -132,7 +136,7 @@ Tudo isso foi corrigido no roadmap em `e011daf`.
 2. **Nenhuma Release publicada; secret de assinatura não cadastrado** → updater inerte (DEC-10).
 3. ~~Sem CI~~ **resolvido em DK-002** (`ci.yml`; 1ª execução verde: run 41108914633, 2026-10-30).
 4. ~~Sem schema versionado~~ **resolvido em DK-002** (`src/lib/store.ts`: envelope `{v, data}`, migrações por chave, validadores, `.bak`).
-5. **CSP null**; comandos nativos sem limite de tamanho (`add_track` aceita qualquer arquivo).
+5. ~~CSP null; `add_track` sem limites~~ **resolvido em DK-005** (CSP sem inline, limites de tipo/tamanho/duração no front e no Rust). Pendente: confirmar a CSP com o app real rodando.
 6. **Vídeo decodificado duas vezes** (telão + preview) e sem detecção de codec.
 7. **Cenas fixas em 8**; `Performance.svelte` e `settings.ts` assumem o tamanho.
 8. **Sem licença no repositório.**

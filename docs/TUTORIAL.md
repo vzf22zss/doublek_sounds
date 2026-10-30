@@ -647,6 +647,7 @@ DoubleK. Para o visual, use um **controlador separado** (um pequeno e barato já
 | "A saída está em … Hz" ao tocar o roteiro | A saída de áudio mudou: escolha a saída de novo na aba Roteiro (a música é preparada de novo). |
 | Telão ficou preto e a bolinha do telão está vermelha | A placa de vídeo "sumiu" por um instante (driver, monitor trocado). O app recria o telão sozinho quando ela volta; se não voltar em alguns segundos, **F** duas vezes (fecha e reabre). |
 | Quer relatar um problema | Clique nas **4 bolinhas** no topo: salva um `.json` de diagnóstico sem áudio. Mande esse arquivo junto com o que aconteceu. |
+| "Não aceitei …: tipo não aceito / grande demais" | Limites do app: **imagem** até 25 MB (png, jpg, webp, gif, bmp, svg); **vídeo** até 600 MB (mp4, webm, mov); **música** até 300 MB e 20 min (mp3, wav, flac, m4a, aac, ogg); **preset ou roteiro** até 2 MB. Converta ou corte o arquivo. |
 | Controlador aparece como "(ocupado)" | Outro programa está com ele (Rekordbox, Serato…). Use outro controlador ou feche o programa. |
 | O controlador não aparece | Desplugue e plugue de novo. O app reconecta em até 2 s. |
 

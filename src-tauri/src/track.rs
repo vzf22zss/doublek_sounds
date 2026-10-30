@@ -31,6 +31,39 @@ pub struct Info {
 
 pub const WAVE_DT: f64 = 0.02;
 
+// ---------- limites de entrada (DK-005) ----------
+pub const MAX_UPLOAD: usize = 300 << 20; // bytes
+pub const MAX_SECS: f64 = 20.0 * 60.0; // uma faixa; um set inteiro não cabe na memória (f32 estéreo ≈ 20 MB/min)
+pub const EXTS: [&str; 6] = ["mp3", "wav", "flac", "m4a", "aac", "ogg"]; // o que o symphonia está compilado para abrir
+
+/// Extensão e tamanho do upload. Devolve a extensão normalizada.
+pub fn check_upload(ext: &str, len: usize) -> Result<String, String> {
+    let e = ext.trim().trim_start_matches('.').to_ascii_lowercase();
+    if !EXTS.contains(&e.as_str()) {
+        return Err(format!("Formato .{e} não aceito; use {}", EXTS.join(", ")));
+    }
+    if len == 0 {
+        return Err("Arquivo vazio".into());
+    }
+    if len > MAX_UPLOAD {
+        return Err(format!("Arquivo grande demais ({} MB; máximo {} MB)", len >> 20, MAX_UPLOAD >> 20));
+    }
+    Ok(e)
+}
+
+/// Id de faixa = "<hex>.<ext>": só alfanumérico e ponto, sem `..`, curto. É o nome do arquivo em disco.
+pub fn check_id(id: &str) -> Result<(), String> {
+    let ok = (1..=64).contains(&id.len())
+        && id.contains('.')
+        && !id.contains("..")
+        && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '.');
+    if ok { Ok(()) } else { Err("Faixa inválida".into()) }
+}
+
+fn too_long(secs: f64) -> String {
+    format!("Faixa longa demais ({:.0} min; máximo {:.0} min)", secs / 60.0, MAX_SECS / 60.0)
+}
+
 /// Qualquer formato que o symphonia conhece (mp3, wav, flac, m4a/aac, ogg) → estéreo f32 + taxa.
 pub fn decode(path: &Path) -> Result<(Vec<f32>, u32), String> {
     let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
@@ -44,6 +77,13 @@ pub fn decode(path: &Path) -> Result<(Vec<f32>, u32), String> {
     let mut fmt = probed.format;
     let tr = fmt.default_track().ok_or("O arquivo não tem áudio")?;
     let (id, mut sr) = (tr.id, tr.codec_params.sample_rate.unwrap_or(44100));
+    // duração conhecida (wav/flac/m4a): recusa antes de decodificar; mp3 VBR cai na checagem do laço
+    if let Some(n) = tr.codec_params.n_frames {
+        let secs = n as f64 / sr as f64;
+        if secs > MAX_SECS {
+            return Err(too_long(secs));
+        }
+    }
     let mut dec = symphonia::default::get_codecs().make(&tr.codec_params, &DecoderOptions::default()).map_err(|e| e.to_string())?;
     let mut out = Vec::new();
     loop {
@@ -68,6 +108,10 @@ pub fn decode(path: &Path) -> Result<(Vec<f32>, u32), String> {
         for fr in b.samples().chunks_exact(ch) {
             out.push(fr[0]);
             out.push(if ch > 1 { fr[1] } else { fr[0] });
+        }
+        let secs = out.len() as f64 / 2.0 / sr as f64;
+        if secs > MAX_SECS {
+            return Err(too_long(secs));
         }
     }
     if out.is_empty() {
@@ -179,6 +223,22 @@ mod tests {
             t0 += beat;
         }
         m.iter().flat_map(|&s| [s, s]).collect()
+    }
+
+    #[test]
+    fn limites_de_upload_e_id() {
+        assert_eq!(check_upload("MP3", 1000).unwrap(), "mp3");
+        assert_eq!(check_upload(".Flac", 1000).unwrap(), "flac");
+        assert!(check_upload("exe", 1000).unwrap_err().contains("não aceito"));
+        assert!(check_upload("mp3", 0).unwrap_err().contains("vazio"));
+        assert!(check_upload("mp3", MAX_UPLOAD + 1).unwrap_err().contains("máximo 300 MB"));
+        assert!(check_upload("mp3", MAX_UPLOAD).is_ok());
+
+        assert!(check_id("18f3a2b.mp3").is_ok());
+        for bad in ["", "..", "../x.mp3", "a/b.mp3", "a\\b.mp3", "semponto", "x.mp3\0", &"a".repeat(70)] {
+            assert!(check_id(bad).is_err(), "{bad:?} deveria ser recusado");
+        }
+        assert!(too_long(1500.0).contains("25 min"));
     }
 
     #[test]
