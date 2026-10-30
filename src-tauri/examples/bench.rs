@@ -1,6 +1,8 @@
 //! Benchmark de detecção de kick/BPM em faixas sintéticas (DK-008):
 //!   cargo run --release --example bench            → tabelas Markdown no stdout
 //!   cargo run --release --example bench -- 30      → duração de cada faixa em segundos (padrão 30)
+//! No fim, um estresse com 10 sementes por cenário: uma semente só esconde casos que dependem
+//! de quais kicks se perdem no aquecimento (ex.: grade no contratempo com chimbal).
 //! Só mede; não muda parâmetros nem algoritmo. O relatório fica em docs/quality/DETECCAO.md.
 
 use doublek_lib::analysis::{Analyzer, Params, HOP};
@@ -42,6 +44,8 @@ struct Res {
     delay_ms: f64,           // mediana de (detectado − real) nos acertos
     unlocks: usize,          // quantas vezes a trava caiu
     false_in_break: usize,
+    offbeat: bool,                     // travou com a grade meio beat fora dos kicks reais
+    counts: (usize, usize, usize, usize), // detectados, falsos, acertos, kicks reais (após WARMUP)
 }
 
 fn measure(s: &Synth, lo: f32, hi: f32) -> Res {
@@ -63,6 +67,10 @@ fn measure(s: &Synth, lo: f32, hi: f32) -> Res {
         }
         was_locked = an.beat.locked;
     }
+    let offbeat = an.beat.locked && an.beat.period > 0.0 && {
+        let x = (truth[0] - an.beat.anchor) / an.beat.period;
+        (x - x.round()).abs() > 0.35
+    };
     let truth: Vec<f64> = truth.into_iter().filter(|&t| t > WARMUP).collect();
     let det: Vec<f64> = det.into_iter().filter(|&d| d > WARMUP).collect();
     let near = |a: f64, b: f64| (a - b).abs() < TOL;
@@ -79,6 +87,49 @@ fn measure(s: &Synth, lo: f32, hi: f32) -> Res {
         delay_ms: delays.get(hits / 2).copied().unwrap_or(f64::NAN),
         unlocks,
         false_in_break: s.breakdown.map_or(0, |(a, b)| falses.iter().filter(|&&d| d >= a && d < b).count()),
+        offbeat,
+        counts: (det.len(), falses.len(), hits, truth.len()),
+    }
+}
+
+/// Mesmos cenários com 10 sementes × 7 BPM, faixa do gênero. Conta tudo junto e lista as faixas
+/// com problema como BPM/semente (para reproduzir: `Synth { bpm, seed, .. }`).
+fn stress(secs: f64) {
+    const SEEDS: u32 = 10;
+    type Fam = (&'static str, fn(Synth) -> Synth);
+    let fams: [Fam; 6] = [
+        ("limpo", |s| Synth { rolling: false, ..s }),
+        ("baixo rolante", |s| s),
+        ("breakdown 10–18 s", |s| Synth { breakdown: Some(BREAK), ..s }),
+        ("ruído alto (−14 dBFS)", |s| Synth { noise: 0.2, ..s }),
+        ("chimbal no contratempo", |s| Synth { hats: 0.15, ..s }),
+        ("chimbal + breakdown", |s| Synth { hats: 0.15, breakdown: Some(BREAK), ..s }),
+    ];
+    println!("\n### Estresse: {SEEDS} sementes × {} BPM por cenário (faixa do gênero)\n", BPMS.len());
+    println!("| Cenário | Precisão | Recall | Quedas de trava | Grade no contratempo | Pior erro BPM | Faixas com problema (BPM/semente) |");
+    println!("|---|---:|---:|---:|---:|---:|---|");
+    for (name, f) in fams {
+        let (mut c, mut unl, mut off, mut worst_err, mut bad) = ((0, 0, 0, 0), 0, 0, 0f64, vec![]);
+        for &bpm in &BPMS {
+            let (_, lo, hi) = genre(bpm);
+            for seed in 1..=SEEDS {
+                let r = measure(&f(Synth { bpm, secs, seed, ..Default::default() }), lo, hi);
+                c = (c.0 + r.counts.0, c.1 + r.counts.1, c.2 + r.counts.2, c.3 + r.counts.3);
+                unl += r.unlocks;
+                off += r.offbeat as usize;
+                worst_err = worst_err.max((r.est - bpm).abs());
+                if r.precision < 0.95 || r.recall < 0.95 || r.unlocks > 0 || r.offbeat || (r.est - bpm).abs() > 0.5 {
+                    bad.push(format!("{bpm:.0}/s{seed}"));
+                }
+            }
+        }
+        let more = if bad.len() > 12 { format!(" … (+{})", bad.len() - 12) } else { String::new() };
+        println!(
+            "| {name} | {:.3} | {:.3} | {unl} | {off} | {worst_err:.2} | {}{more} |",
+            (c.0 - c.1) as f64 / c.0.max(1) as f64,
+            c.2 as f64 / c.3.max(1) as f64,
+            if bad.is_empty() { "—".to_string() } else { bad.iter().take(12).cloned().collect::<Vec<_>>().join(" ") }
+        );
     }
 }
 
@@ -125,7 +176,10 @@ fn main() {
                 if r.false_in_break > 0 {
                     obs.push(format!("{} falsos no breakdown", r.false_in_break));
                 }
-                let bad = r.precision < 0.95 || r.recall < 0.95 || err.abs() > 0.5 || r.lock_after.is_none() || ratio != "não";
+                if r.offbeat {
+                    obs.push("**grade no contratempo**".to_string());
+                }
+                let bad = r.precision < 0.95 || r.recall < 0.95 || err.abs() > 0.5 || r.lock_after.is_none() || ratio != "não" || r.offbeat;
                 if bad {
                     worst.push(format!("{bpm:.0} BPM · {name} · {scen}: precisão {:.2}, recall {:.2}, erro {err:+.2} BPM, ½/×2 {ratio}", r.precision, r.recall));
                 }
@@ -147,4 +201,5 @@ fn main() {
     for w in worst {
         println!("- {w}");
     }
+    stress(secs);
 }
