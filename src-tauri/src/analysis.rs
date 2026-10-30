@@ -411,6 +411,24 @@ mod tests {
         }
     }
 
+    /// Auto (80–220) com 2 s de silêncio antes: a mediana dos intervalos caía em 2 beats e
+    /// travava em 87,5 (DETECCAO.md §4.4). E o inverso: 90 BPM de verdade não pode dobrar.
+    #[test]
+    fn auto_sem_meio_tempo() {
+        for (bpm, start) in [(175.0, 2.0), (90.0, 0.05), (100.0, 2.0)] {
+            let s = Synth { bpm, secs: 30.0, start, ..Default::default() };
+            let (x, _) = s.render();
+            let mut an = Analyzer::new(s.sr);
+            let p = Params { bpm_min: 80.0, bpm_max: 220.0, ..Default::default() };
+            for c in x.chunks_exact(HOP) {
+                an.process(c, &p);
+            }
+            let (est, _, _) = an.beat.at(30.0);
+            println!("Auto {bpm} (início {start} s): {est:.2}");
+            assert!(an.beat.locked && (est as f64 - bpm).abs() < 0.5, "Auto {bpm}: estimou {est}");
+        }
+    }
+
     #[test]
     fn psy_140() {
         check(140.0, 135.0, 150.0);
