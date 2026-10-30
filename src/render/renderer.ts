@@ -1,176 +1,60 @@
-// Renderer WebGL2 em 3 passes: cena → rastro (feedback) → pós. Usado pela janela de saída e pelo preview.
-// Tudo que é por quadro roda na GPU; o CPU só calcula envelopes e uniforms.
+// Renderer WebGL2: orquestra os módulos cena → rastro (feedback) → pós. Usado pela janela de saída e pelo preview.
+// Tudo que é por quadro roda na GPU; o CPU só calcula envelopes e uniforms (em music.ts, testável no Node).
+// Módulo que falha ao compilar ou ao desenhar é desligado sozinho (log + onEffectError); a cena e o pós são
+// a base: erro neles sobe para quem chamou, como antes (o telão mostra preto e avisa o controle).
 import type { Frame } from '../lib/types';
-import type { DropTarget, ModTarget, Source, Visual } from '../lib/settings';
-import { LOGO_PAD, type Prepared } from '../lib/assets';
-import { SAFE_FLASH_MAX, SAFE_STROBE_MAX, strobeAllowed, strobeEvery } from '../lib/safety';
-
-const VS = `#version 300 es
-in vec2 p; out vec2 uv;
-void main() { uv = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }`;
-
-const SCENE = `#version 300 es
-precision highp float;
-in vec2 uv; out vec4 o;
-uniform vec2 uRes;
-uniform vec3 uC1, uC2, uColor, uGlowColor;
-uniform float uGrad, uAngle, uHasBg, uBgBias, uBgOpacity, uBgDim, uHue, uBgZoom, uBgBright, uFlash;
-uniform vec2 uBgScale, uLogoSize;
-uniform sampler2D uBg, uLogo, uGlow;
-uniform float uGlowAmt, uChroma, uBars, uRadial, uLogoR;
-uniform vec4 uRings[16];
-uniform int uNRings;
-uniform float uSpec[64];
-
-vec3 hue(vec3 c, float a) {
-  const mat3 toYIQ = mat3(0.299, 0.596, 0.211, 0.587, -0.274, -0.523, 0.114, -0.322, 0.312);
-  const mat3 toRGB = mat3(1.0, 1.0, 1.0, 0.956, -0.272, -1.106, 0.621, -0.647, 1.703);
-  vec3 y = toYIQ * c;
-  float s = sin(a), k = cos(a);
-  y.yz = mat2(k, s, -s, k) * y.yz;
-  return toRGB * y;
-}
-
-void main() {
-  vec2 d = uv * uRes - uRes * 0.5;
-  float r = length(d);
-
-  // fundo: cor/degradê + foto, com zoom e brilho na batida
-  vec2 buv = (uv - 0.5) / uBgZoom + 0.5;
-  float a = radians(uAngle);
-  float t = clamp(0.5 + dot(buv - 0.5, vec2(sin(a), cos(a))), 0.0, 1.0);
-  vec3 col = mix(uC1, mix(uC1, uC2, t), uGrad);
-  if (uHasBg > 0.5) {
-    vec2 iuv = (buv - 0.5) * uBgScale + 0.5;
-    iuv.y = 1.0 - iuv.y;
-    float inside = step(0.0, iuv.x) * step(iuv.x, 1.0) * step(0.0, iuv.y) * step(iuv.y, 1.0);
-    vec4 im = texture(uBg, iuv, uBgBias); // vídeo: desfoque barato pelo mipmap
-    col = mix(col, im.rgb * uBgDim, im.a * uBgOpacity * inside);
-  }
-  col = hue(col, uHue) * uBgBright;
-
-  // flash radial
-  col += uColor * uFlash * (1.0 - smoothstep(0.0, 0.6 * length(uRes * 0.5), r));
-
-  // anéis a cada kick
-  for (int i = 0; i < 16; i++) {
-    if (i >= uNRings) break;
-    vec4 g = uRings[i];
-    col += uColor * g.y * (1.0 - smoothstep(0.0, g.z, abs(r - g.x)));
-  }
-
-  // espectro em barras (embaixo)
-  if (uBars > 0.0) {
-    float fx = fract(uv.x * 64.0);
-    if (uv.y < uSpec[int(min(63.0, uv.x * 64.0))] * 0.35 && fx > 0.08 && fx < 0.92) col = mix(col, uColor, uBars);
-  }
-  // espectro radial em volta da logo (espelhado: graves embaixo, agudos em cima)
-  if (uRadial > 0.0) {
-    float m = abs(atan(d.x, -d.y)) / 3.14159265;
-    float lvl = uSpec[int(min(63.0, m * 64.0))];
-    float seg = fract(m * 64.0), r0 = uLogoR * 1.08;
-    if (r > r0 && r < r0 + lvl * uLogoR * 0.8 && seg > 0.15 && seg < 0.85) col = mix(col, uColor, uRadial);
-  }
-
-  // logo: glow pré-borrado + aberração cromática
-  vec2 luv = d / uLogoSize + 0.5;
-  luv.y = 1.0 - luv.y;
-  col += uGlowColor * min(1.0, texture(uGlow, luv).a * 1.5) * uGlowAmt;
-  vec4 lc = texture(uLogo, luv);
-  if (uChroma > 0.0) {
-    vec2 off = vec2(uChroma / uLogoSize.x, 0.0);
-    col = mix(col, vec3(1.0, 0.0, 0.27), texture(uLogo, luv + off).a * (1.0 - lc.a) * 0.85);
-    col = mix(col, vec3(0.0, 0.9, 1.0), texture(uLogo, luv - off).a * (1.0 - lc.a) * 0.85);
-  }
-  col = mix(col, lc.rgb, lc.a);
-  o = vec4(col, 1.0);
-}`;
-
-const FEEDBACK = `#version 300 es
-precision highp float;
-in vec2 uv; out vec4 o;
-uniform sampler2D uScene, uPrev;
-uniform float uDecay, uZoom, uRot;
-void main() {
-  vec2 q = uv - 0.5;
-  float s = sin(uRot), c = cos(uRot);
-  q = mat2(c, s, -s, c) * q / uZoom;
-  o = vec4(max(texture(uScene, uv).rgb, texture(uPrev, q + 0.5).rgb * uDecay), 1.0);
-}`;
-
-const POST = `#version 300 es
-precision highp float;
-in vec2 uv; out vec4 o;
-uniform sampler2D uSrc;
-uniform vec2 uRes, uShake;
-uniform float uVig, uScan, uGrain, uStrobe, uTime, uBlack, uPx;
-float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
-void main() {
-  vec3 col = texture(uSrc, uv + uShake / uRes).rgb;
-  col *= 1.0 - smoothstep(0.4, 1.0, length(uv - 0.5) / 0.7071) * 0.95 * uVig;
-  if (mod(gl_FragCoord.y, 3.0 * uPx) < uPx) col *= 1.0 - 0.6 * uScan;
-  col += (hash(floor(gl_FragCoord.xy / uPx) + fract(uTime) * 100.0) - 0.5) * uGrain * 0.35;
-  col = mix(col, vec3(1.0), uStrobe);
-  o = vec4(col * (1.0 - uBlack), 1.0);
-}`;
-
-type Prog = { p: WebGLProgram; u: (n: string) => WebGLUniformLocation | null };
-
-const hex = (h: string) => {
-  const n = parseInt(h.slice(1), 16);
-  return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255] as const;
-};
+import type { Visual } from '../lib/settings';
+import type { Prepared } from '../lib/assets';
+import { music, musicFrame, musicState } from './music';
+import { program, quad, use, type Prog } from './gl/program';
+import { bind, dropTarget, target, texture, upload } from './gl/texture';
+import type { Ctx, Effect, Helpers } from './effects/types';
+import { SceneEffect } from './effects/scene';
+import { FeedbackEffect } from './effects/feedback';
+import { PostEffect } from './effects/post';
 
 export class Renderer {
   private gl: WebGL2RenderingContext;
-  private scene: Prog; private feedback: Prog; private post: Prog;
+  private effects: Effect[];
+  private off = new Set<string>();
+  private progs = new Map<string, Prog>(); // cache por código-fonte do fragment shader
   private tex: Record<'logo' | 'glow' | 'bg' | 'vid', WebGLTexture>;
-  private fbs: { fb: WebGLFramebuffer; tex: WebGLTexture }[] = [];
-  private fbW = 0; private fbH = 0; private ping = 0;
+  private fbW = 0; private fbH = 0;
   private logoAspect = 1; private bgAspect = 0;
   private video: HTMLVideoElement | null = null; private vidFresh = false;
 
   private v: Visual;
-  private frame: Frame | null = null;
-  private rxAt = 0; private lastT = 0; private lastKickRx = -1e9; private strength = 0.8;
-  private kickEnv = 0; private waveEnv = 0; private presence = 0; private black = 0; private dropEnv = 1;
-  private prevPh = 0; private lastTrig = -1e9; private absBeat = 0;
-  private rings: { t: number; s: number }[] = [];
-  private spec = new Float32Array(64);
+  private st = musicState();
 
-  constructor(private canvas: HTMLCanvasElement, v: Visual) {
+  constructor(private canvas: HTMLCanvasElement, v: Visual, private onEffectError?: (id: string, e: Error) => void) {
     this.v = v;
     const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, powerPreference: 'high-performance' });
     if (!gl) throw new Error('WebGL2 indisponível');
     this.gl = gl;
-    this.scene = this.prog(SCENE);
-    this.feedback = this.prog(FEEDBACK);
-    this.post = this.prog(POST);
-    const vao = gl.createVertexArray();
-    gl.bindVertexArray(vao);
-    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-    gl.enableVertexAttribArray(0);
-    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-    this.tex = { logo: this.texture(), glow: this.texture(), bg: this.texture(), vid: this.texture() };
+    const h: Helpers = {
+      program: (fs, name) => {
+        let p = this.progs.get(fs);
+        if (!p) this.progs.set(fs, (p = program(gl, fs, name)));
+        return p;
+      },
+      use: (pr, fb, W, H) => use(gl, pr, fb, W, H),
+      bind: (unit, t, loc) => bind(gl, unit, t, loc),
+      target: (W, H) => target(gl, W, H),
+      dropTarget: (t) => dropTarget(gl, t),
+    };
+    this.effects = [new SceneEffect(), new FeedbackEffect(), new PostEffect()];
+    for (const e of this.effects) this.guard(e, () => e.init(gl, h));
+    quad(gl);
+    this.tex = { logo: texture(gl), glow: texture(gl), bg: texture(gl), vid: texture(gl) };
   }
 
   setVisual(v: Visual) { this.v = v; }
 
-  setFrame(f: Frame) {
-    const now = performance.now();
-    this.frame = f;
-    this.rxAt = now;
-    if (f.kick > 0) {
-      this.lastKickRx = now;
-      this.strength = f.kick;
-      if (!this.predicting() && this.v.react !== false) this.trigger(now, f.kick);
-    }
-  }
+  setFrame(f: Frame) { musicFrame(this.st, f, this.v, performance.now()); }
 
   setLogo(p: Prepared) {
-    this.upload(this.tex.logo, p.image);
-    if (p.glow) this.upload(this.tex.glow, p.glow);
+    upload(this.gl, this.tex.logo, p.image);
+    if (p.glow) upload(this.gl, this.tex.glow, p.glow);
     this.logoAspect = p.aspect;
   }
 
@@ -187,229 +71,54 @@ export class Renderer {
   }
 
   setBg(p: Prepared | null) {
-    if (p) this.upload(this.tex.bg, p.image);
+    if (p) upload(this.gl, this.tex.bg, p.image);
     this.bgAspect = p ? p.aspect : 0;
   }
 
-  /** Com o andamento travado, o pulso sai da fase prevista (adiantada pelo offset), não do kick detectado. */
-  private predicting() {
-    const f = this.frame;
-    return !!f && this.v.predict && f.locked && !f.holding && f.bpm > 0;
-  }
-
-  private trigger(now: number, s: number) {
-    this.kickEnv = Math.max(this.kickEnv, s);
-    this.lastTrig = now;
-    this.rings.push({ t: now, s });
-    if (this.rings.length > 16) this.rings.shift();
+  /** Roda `fn` no módulo; se ele não for base, um erro o desliga em vez de derrubar o quadro. */
+  private guard<T>(e: Effect, fn: () => T): T | null {
+    try {
+      return fn();
+    } catch (err) {
+      if (e.required) throw err;
+      this.off.add(e.id);
+      try { e.dispose(); } catch { /* já está quebrado */ }
+      const error = err instanceof Error ? err : new Error(String(err));
+      console.error(`Renderer: módulo "${e.id}" desligado:`, error);
+      this.onEffectError?.(e.id, error);
+      return null;
+    }
   }
 
   render(now = performance.now()) {
     const { gl, v } = this;
-    const dt = Math.min(0.1, (now - this.lastT) / 1000);
-    this.lastT = now;
-    const f = this.frame;
-    const stale = !f || now - this.rxAt > 3000;
-    const period = f?.bpm ? 60000 / f.bpm : 420;
-
-    const live = v.react !== false; // "só roteiro": ignora o som (o relógio do beat continua)
-    // fase do beat extrapolada, já com o offset visual (negativo = adiantado)
-    let ph = 0, bar = (now / 2000) % 1;
-    if (f?.bpm) {
-      const x = f.beatPhase + ((now - this.rxAt - v.offset) / 1000) * (f.bpm / 60);
-      ph = x - Math.floor(x);
-      this.absBeat = f.beat + Math.floor(x);
-      bar = ((((this.absBeat % 4) + 4) % 4) + ph) / 4;
-      if (live && this.predicting() && ph < this.prevPh - 0.5 && now - this.lastTrig > period * 0.5) this.trigger(now, this.strength);
-    }
-    this.prevPh = ph;
-
-    // envelopes (independem da taxa de quadros)
-    this.kickEnv *= Math.exp(-dt / Math.max(0.01, v.rel));
-    const b = !stale && f && live ? f.bands : [0, 0, 0, 0, 0];
-    const w = Math.max(b[0], b[1]) * 0.6 + b[2] * 0.4;
-    this.waveEnv += (w - this.waveEnv) * (1 - Math.exp(-dt / (w > this.waveEnv ? 0.012 : Math.max(0.02, v.rel * 0.8))));
-    const target = this.predicting() || now - this.lastKickRx < period * 1.6 ? 1 : 0;
-    this.presence += (target - this.presence) * (1 - Math.exp(-dt / (target > this.presence ? 0.04 : 0.3)));
-    const kick = this.presence * this.kickEnv;
-    let p = live ? kick + (1 - this.presence) * this.waveEnv * v.wave : 0;
-    if (stale) p = 0.12 * (0.5 + 0.5 * Math.sin(now / 1000 * 1.6)); // sem sinal: respira devagar
-
-    // matriz de modulação: cada efeito escolhe a fonte do movimento
-    const S: Record<Source, number> = {
-      auto: p, kick, sub: b[0], bass: b[1], mid: b[2], hats: b[3],
-      beat: f?.bpm ? (1 - ph) ** 2 : 0, bar: f?.bpm ? 1 - bar : 0, lfo: 0.5 + 0.5 * Math.sin(2 * Math.PI * bar),
-    };
-    const m = (k: ModTarget) => (stale ? p : S[v.mod[k]] ?? p);
-    const fx = v.logoOnly ? 0 : 1; // L = só a logo, sem efeitos
-    // "só no drop": some no breakdown sem grave e entra quando o grave volta, em dropFade beats
-    const lowT = !live ? 1 : f && !stale ? f.low ?? 1 : 0;
-    this.dropEnv += (lowT - this.dropEnv) * (1 - Math.exp(-dt / Math.max(0.02, (v.dropFade * period) / 3000)));
-    const d = (k: DropTarget) => (v.drop?.[k] ? this.dropEnv : 1);
-    this.black += ((v.blackout ? 1 : 0) - this.black) * (1 - Math.exp(-dt / 0.08));
-    if (f && !stale) for (let i = 0; i < 64; i++) {
-      const s = live ? f.spectrum[i] ?? 0 : 0;
-      this.spec[i] += (s - this.spec[i]) * (s > this.spec[i] ? 0.6 : 0.15);
-    }
+    const u = music(this.st, v, now);
 
     // tamanho do canvas (escala de render para notebook fraco)
     const W = Math.max(2, Math.round(this.canvas.clientWidth * devicePixelRatio * v.renderScale));
     const H = Math.max(2, Math.round(this.canvas.clientHeight * devicePixelRatio * v.renderScale));
     if (this.canvas.width !== W || this.canvas.height !== H) { this.canvas.width = W; this.canvas.height = H; }
-    if (W !== this.fbW || H !== this.fbH) this.resizeFbs(W, H);
-    const px = H / 1080; // ajustes em "px" são relativos a 1080p
-    const mn = Math.min(W, H);
+    const active = this.effects.filter((e) => !this.off.has(e.id));
+    if (W !== this.fbW || H !== this.fbH) {
+      for (const e of active) this.guard(e, () => e.resize(W, H));
+      this.fbW = W; this.fbH = H;
+    }
 
-    // ---- passe 1: cena ----
-    let u = this.use(this.scene, this.fbs[0].fb, W, H);
-    gl.uniform2f(u('uRes'), W, H);
-    gl.uniform3f(u('uC1'), ...hex(v.bgc1));
-    gl.uniform3f(u('uC2'), ...hex(v.bgc2));
-    gl.uniform3f(u('uColor'), ...hex(v.color));
-    gl.uniform3f(u('uGlowColor'), ...hex(v.color));
-    gl.uniform1f(u('uGrad'), v.bgGrad ? 1 : 0);
-    gl.uniform1f(u('uAngle'), v.bgAngle);
     const vid = this.video && this.video.videoWidth ? this.video : null;
-    if (vid && this.vidFresh) { this.upload(this.tex.vid, vid); this.vidFresh = false; }
-    const bgAspect = vid ? vid.videoHeight / vid.videoWidth : this.bgAspect;
-    gl.uniform1f(u('uHasBg'), bgAspect ? 1 : 0);
-    gl.uniform1f(u('uBgBias'), vid ? Math.log2(1 + v.bgBlur * 0.6) : 0); // a foto já vem borrada
-    gl.uniform1f(u('uBgOpacity'), v.bgOpacity * d('bgMedia'));
-    gl.uniform1f(u('uBgDim'), v.bgDim / 100);
-    gl.uniform1f(u('uHue'), ((now / 1000) * v.bgHue * Math.PI) / 180);
-    gl.uniform1f(u('uBgZoom'), 1 + m('bgPulse') * v.bgPulse * d('bgPulse'));
-    gl.uniform1f(u('uBgBright'), 1 + m('bgFlash') * v.bgFlash * d('bgFlash'));
-    const flashAmt = v.safeFlash ? Math.min(v.fxFlash, SAFE_FLASH_MAX) : v.fxFlash;
-    gl.uniform1f(u('uFlash'), m('fxFlash') * flashAmt * fx * d('fxFlash'));
-    const A = W / H, B = bgAspect ? 1 / bgAspect : A; // aspecto largura/altura
-    const wide = B > A;
-    gl.uniform2f(u('uBgScale'), ...((v.bgFit === 'cover') === wide ? [A / B, 1] : [1, B / A]) as [number, number]);
-    const logoW = (v.size / 100) * mn * (1 + m('amount') * v.amount);
-    gl.uniform2f(u('uLogoSize'), logoW * (1 + 2 * LOGO_PAD), logoW * this.logoAspect * (1 + 2 * LOGO_PAD));
-    gl.uniform1f(u('uLogoR'), (v.size / 100) * mn * 0.5 * Math.max(1, this.logoAspect));
-    gl.uniform1f(u('uGlowAmt'), v.glow * (0.15 + m('glow') * 1.5));
-    gl.uniform1f(u('uChroma'), m('chroma') * v.chroma * px * d('chroma'));
-    gl.uniform1f(u('uBars'), v.fxBars * fx * d('fxBars'));
-    gl.uniform1f(u('uRadial'), v.fxRadial * fx * d('fxRadial'));
-    gl.uniform1fv(u('uSpec'), this.spec);
-    const r0 = (mn * v.size) / 200, rMax = Math.max(W, H) * 0.75, rings = new Float32Array(64);
-    this.rings = this.rings.filter((r) => now - r.t < 900);
-    this.rings.forEach((r, i) => {
-      const q = (now - r.t) / 900;
-      rings.set([r0 + (rMax - r0) * (1 - (1 - q) ** 2), (1 - q) ** 1.5 * r.s * v.fxRings * d('fxRings'), (2 + 7 * (1 - q) * r.s) * px, 0], i * 4);
-    });
-    gl.uniform4fv(u('uRings'), rings);
-    gl.uniform1i(u('uNRings'), v.fxRings > 0 && fx ? this.rings.length : 0);
-    this.bind(0, vid ? this.tex.vid : this.tex.bg, u('uBg'));
-    this.bind(1, this.tex.logo, u('uLogo'));
-    this.bind(2, this.tex.glow, u('uGlow'));
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
-    let src = this.fbs[0].tex;
-
-    // ---- passe 2: rastro (só se ligado) ----
-    const trail = v.trail * d('trail');
-    if (trail > 0.01 && fx) {
-      const cur = 1 + this.ping, prev = 2 - this.ping;
-      u = this.use(this.feedback, this.fbs[cur].fb, W, H);
-      gl.uniform1f(u('uDecay'), 0.6 + 0.38 * trail);
-      gl.uniform1f(u('uZoom'), 1 + v.trailZoom * 0.03 * (1 + m('trailZoom')));
-      gl.uniform1f(u('uRot'), v.trailRot * 0.01);
-      this.bind(0, src, u('uScene'));
-      this.bind(1, this.fbs[prev].tex, u('uPrev'));
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
-      src = this.fbs[cur].tex;
-      this.ping ^= 1;
-    }
-
-    // ---- passe 3: pós ----
-    u = this.use(this.post, null, W, H);
-    const shake = m('fxShake') * v.fxShake * px * fx * d('fxShake');
-    gl.uniform2f(u('uRes'), W, H);
-    gl.uniform2f(u('uShake'), (Math.random() * 2 - 1) * shake, (Math.random() * 2 - 1) * shake);
-    gl.uniform1f(u('uVig'), v.fxVig);
-    gl.uniform1f(u('uScan'), v.fxScan * fx);
-    gl.uniform1f(u('uGrain'), v.fxGrain * fx);
-    gl.uniform1f(u('uTime'), now / 1000);
-    gl.uniform1f(u('uPx'), Math.max(1, px));
-    let strobe = 0;
-    if (v.strobe > 0 && fx) {
-      const sub = (ph * v.strobeDiv) % 1;
-      // safeFlash: acende 1 em cada `every` pulsos para não passar de 3 flashes/s (ex.: 1/4 a 148 BPM = 9,9 Hz → 2,5 Hz)
-      const every = v.safeFlash ? strobeEvery(f?.bpm ?? 0, v.strobeDiv) : 1;
-      const allowed = strobeAllowed(Math.floor((this.absBeat + ph) * v.strobeDiv), every);
-      strobe = this.predicting() ? (allowed && sub < 0.15 ? 1 - sub / 0.15 : 0) : this.kickEnv;
-      strobe *= (v.safeFlash ? Math.min(v.strobe, SAFE_STROBE_MAX) : v.strobe) * d('strobe');
-    }
-    gl.uniform1f(u('uStrobe'), strobe);
-    gl.uniform1f(u('uBlack'), this.black);
-    this.bind(0, src, u('uSrc'));
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
-    return p;
-  }
-
-  // ---------- helpers WebGL ----------
-  private prog(fs: string): Prog {
-    const gl = this.gl;
-    const sh = (type: number, src: string) => {
-      const s = gl.createShader(type)!;
-      gl.shaderSource(s, src);
-      gl.compileShader(s);
-      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) ?? 'shader');
-      return s;
+    if (vid && this.vidFresh) { upload(gl, this.tex.vid, vid); this.vidFresh = false; }
+    const ctx: Ctx = {
+      gl, uniforms: u, visual: v, W, H,
+      px: H / 1080, // ajustes em "px" são relativos a 1080p
+      textures: {
+        logo: this.tex.logo, glow: this.tex.glow, bg: vid ? this.tex.vid : this.tex.bg,
+        bgAspect: vid ? vid.videoHeight / vid.videoWidth : this.bgAspect, logoAspect: this.logoAspect, video: !!vid,
+      },
     };
-    const p = gl.createProgram()!;
-    gl.attachShader(p, sh(gl.VERTEX_SHADER, VS));
-    gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs));
-    gl.bindAttribLocation(p, 0, 'p');
-    gl.linkProgram(p);
-    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p) ?? 'link');
-    const cache = new Map<string, WebGLUniformLocation | null>();
-    return { p, u: (n) => (cache.has(n) ? cache.get(n)! : (cache.set(n, gl.getUniformLocation(p, n)), cache.get(n)!)) };
-  }
-
-  private use(pr: Prog, fb: WebGLFramebuffer | null, W: number, H: number) {
-    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, fb);
-    this.gl.viewport(0, 0, W, H);
-    this.gl.useProgram(pr.p);
-    return pr.u;
-  }
-
-  private bind(unit: number, t: WebGLTexture, loc: WebGLUniformLocation | null) {
-    this.gl.activeTexture(this.gl.TEXTURE0 + unit);
-    this.gl.bindTexture(this.gl.TEXTURE_2D, t);
-    this.gl.uniform1i(loc, unit);
-  }
-
-  private texture(w = 1, h = 1) {
-    const gl = this.gl, t = gl.createTexture()!;
-    gl.bindTexture(gl.TEXTURE_2D, t);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    return t;
-  }
-
-  private upload(t: WebGLTexture, img: TexImageSource) {
-    const gl = this.gl;
-    gl.bindTexture(gl.TEXTURE_2D, t);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
-    gl.generateMipmap(gl.TEXTURE_2D);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-  }
-
-  private resizeFbs(W: number, H: number) {
-    const gl = this.gl;
-    this.fbs.forEach(({ fb, tex }) => { gl.deleteFramebuffer(fb); gl.deleteTexture(tex); });
-    this.fbs = [0, 1, 2].map(() => {
-      const tex = this.texture(W, H), fb = gl.createFramebuffer()!;
-      gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
-      gl.clearColor(0, 0, 0, 1);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-      return { fb, tex };
-    });
-    this.fbW = W; this.fbH = H;
+    for (const e of active) {
+      if (this.off.has(e.id)) continue; // desligado no resize deste quadro
+      const out = this.guard(e, () => e.render(ctx));
+      if (out) ctx.src = out;
+    }
+    return u.p;
   }
 }
