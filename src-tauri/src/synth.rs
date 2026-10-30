@@ -18,12 +18,13 @@ pub struct Synth {
     pub gain: f32,                     // volume da faixa inteira (0,1 = −20 dB)
     pub breakdown: Option<(f64, f64)>, // [início, fim) sem kick nem baixo, só um pad em 880 Hz
     pub jitter_ms: f64,                // cada kick desloca ± até isto (uniforme)
+    pub hats: f32,                     // chimbal no contratempo (ruído agudo de 30 ms): pico; 0 = sem
     pub seed: u32,
 }
 
 impl Default for Synth {
     fn default() -> Self {
-        Self { bpm: 140.0, secs: 20.0, sr: 48000.0, start: 0.05, rolling: true, noise: 0.02, gain: 1.0, breakdown: None, jitter_ms: 0.0, seed: 1 }
+        Self { bpm: 140.0, secs: 20.0, sr: 48000.0, start: 0.05, rolling: true, noise: 0.02, gain: 1.0, breakdown: None, jitter_ms: 0.0, hats: 0.0, seed: 1 }
     }
 }
 
@@ -51,6 +52,16 @@ impl Synth {
                     let tt = i as f32 / sr;
                     ph += 2.0 * PI * (50.0 + 120.0 * (-tt / 0.03).exp()) / sr;
                     out[s0 + i] += 0.9 * ph.sin() * (-tt / 0.2).exp() + 0.4 * noise() * (-tt / 0.004).exp();
+                }
+                if self.hats > 0.0 {
+                    let h0 = ((t0 + beat / 2.0) * sr as f64) as usize;
+                    let mut prev = 0f32;
+                    for i in 0..((0.03 * sr) as usize).min(out.len() - h0) {
+                        let n = noise();
+                        // diferença de ruído = passa-altas: chimbal sem grave
+                        out[h0 + i] += self.hats * (n - prev) * (-(i as f32 / sr) / 0.01).exp();
+                        prev = n;
+                    }
                 }
                 if self.rolling {
                     for j in 1..4 {
