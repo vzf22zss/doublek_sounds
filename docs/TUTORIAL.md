@@ -23,14 +23,16 @@ projetar no telão e operar ao vivo (inclusive com controlador MIDI).
 9. [Fundo](#9-fundo)
 10. [Efeitos](#10-efeitos)
 11. [O que no som move cada efeito](#11-o-que-no-som-move-cada-efeito)
-12. [Projetar no telão](#12-projetar-no-telão)
-13. [Acertar o atraso do projetor (offset)](#13-acertar-o-atraso-do-projetor-offset)
-14. [Cenas: trocar o visual no meio do set](#14-cenas-trocar-o-visual-no-meio-do-set)
-15. [Controlador MIDI](#15-controlador-midi)
-16. [Atalhos do teclado](#16-atalhos-do-teclado)
-17. [Checklist do dia do show](#17-checklist-do-dia-do-show)
-18. [Problemas e soluções](#18-problemas-e-soluções)
-19. [Plano B](#19-plano-b)
+12. [Efeitos só no drop (quando o grave entra)](#12-efeitos-só-no-drop-quando-o-grave-entra)
+13. [Projetar no telão](#13-projetar-no-telão)
+14. [Acertar o atraso do projetor (offset)](#14-acertar-o-atraso-do-projetor-offset)
+15. [Cenas: trocar o visual no meio do set](#15-cenas-trocar-o-visual-no-meio-do-set)
+16. [Roteiro: efeitos marcados numa música](#16-roteiro-efeitos-marcados-numa-música)
+17. [Controlador MIDI](#17-controlador-midi)
+18. [Atalhos do teclado](#18-atalhos-do-teclado)
+19. [Checklist do dia do show](#19-checklist-do-dia-do-show)
+20. [Problemas e soluções](#20-problemas-e-soluções)
+21. [Plano B](#21-plano-b)
 
 ---
 
@@ -114,14 +116,14 @@ Funciona no improviso: pode ser o microfone do notebook ou um microfone USB pert
 |---|---|---|
 | 1 | **Entrada de áudio** + **Ouvir** | Escolhe de onde vem o som (interface, mic) e o canal. *Ouvir* liga a escuta. |
 | 2 | **Medidor** | Nível do sinal. Verde é bom; **CLIP** vermelho quer dizer que está alto demais. |
-| 3 | **BPM** + bolinhas | O andamento detectado e o estado (*procurando / ajustando / travado / segurando*). As 4 bolinhas andam no compasso. |
+| 3 | **BPM** + bolinhas | O andamento detectado e o estado (*procurando / ajustando / travado / segurando*). As 4 bolinhas andam no compasso; a pílula **DROP** acende quando há grave (seção 12). |
 | 4 | **TAP ½ ×2 ◀ ▶** | Ajuste manual do andamento (seção 7). |
-| 5 | **MIDI** e **BLACKOUT** | Liga o modo de mapear o controlador (seção 15) e apaga o telão na hora. Ao lado aparece o fps do telão. |
+| 5 | **MIDI** e **BLACKOUT** | Liga o modo de mapear o controlador (seção 17) e apaga o telão na hora. Ao lado aparece o fps do telão. |
 | 6 | **Preview** | O mesmo visual que está no telão, em tamanho pequeno. |
 | 7 | **Analisador** | Mostra o que o app está ouvindo e cada kick que ele aceitou (seção 6). |
-| 8 | **Abas de ajuste** | Áudio, Logo, Fundo, Efeitos e Saída. |
+| 8 | **Abas de ajuste** | Áudio, Logo, Fundo, Efeitos, Saída e **Roteiro** (seção 16). |
 | 9 | **Knobs de performance** | Os 10 efeitos mais usados ao vivo, sempre à mão. |
-| 10 | **Cenas** | 8 visuais prontos para trocar com crossfade no beat (seção 14). |
+| 10 | **Cenas** | 8 visuais prontos para trocar com crossfade no beat (seção 15). |
 
 ![A janela de controle funcionando](img/controle.gif)
 
@@ -249,13 +251,30 @@ os kicks. Use quando o BPM estiver certo e você não quiser que ele oscile.
 - **Cor 1 / Cor 2 / Degradê:** um fundo liso ou em degradê, com ângulo ajustável.
 - **Foto de fundo:** escolha uma imagem, ou **arraste a imagem para cima da janela**.
   *Preencher* corta para cobrir a tela toda; *Caber inteira* mostra a foto inteira.
-- **Cores da foto (automático):** ao escolher a foto, o app tira dela a cor mais viva para o
-  **brilho** (glow, anéis, flash e espectro) e as **Cor 1 / Cor 2** do fundo. Mudou as cores
-  na mão e quer voltar às da foto? Clique em **Cores da foto**.
-- **Opacidade, Desfoque e Brilho da foto:** para a foto não brigar com a logo.
+- **Cores do fundo (automático):** ao escolher a foto ou o vídeo, o app tira dele a cor mais
+  viva para o **brilho** (glow, anéis, flash e espectro) e as **Cor 1 / Cor 2** do fundo. Mudou
+  as cores na mão e quer voltar às do fundo? Clique em **Cores do fundo**.
+- **Opacidade, Desfoque e Brilho da foto/vídeo:** para a foto não brigar com a logo.
   Escurecer e desfocar um pouco costuma ficar ótimo.
 - **Girar matiz:** as cores do fundo giram sem parar (graus por segundo).
 - **Zoom do fundo / Brilho do fundo:** o fundo "respira" junto com o beat.
+
+### Vídeo em loop
+
+![Vídeo no fundo, com a logo na frente](img/video-telao.png)
+
+1. Em **Vídeo em loop**, clique em **Adicionar vídeo** (mp4 ou webm), ou **arraste o vídeo
+   para cima da janela**. Ele fica guardado no app, na sua biblioteca de vídeos.
+2. Clique no nome de um vídeo para usá-lo, ou em **Sem vídeo** para voltar à foto ou cor.
+   O **×** tira o vídeo da biblioteca.
+3. **Velocidade do vídeo:** de 0,25× (câmera lenta) a 2×.
+
+O vídeo usa os mesmos ajustes da foto (opacidade, desfoque, brilho, matiz, zoom e brilho no
+beat). Ele também pode ficar **só no drop** (seção 12). As **cenas** guardam qual vídeo está
+tocando, então trocar de cena pode trocar o vídeo.
+
+> Para o notebook não sofrer, prefira vídeos em **1080p ou menos**. Loops curtos (10 a 30 s)
+> feitos para VJ funcionam muito bem.
 
 ---
 
@@ -309,7 +328,36 @@ Ideias: **Glow → Bass** (a aura vibra com o baixo rolante), **Aberração → 
 
 ---
 
-## 12. Projetar no telão
+## 12. Efeitos só no drop (quando o grave entra)
+
+No psytrance, o breakdown tira o kick e o baixo; quando o grave volta, é o **drop**. O app
+percebe isso sozinho, e cada efeito pode ficar **só no drop**: no breakdown fica só a logo,
+limpa, e no drop os efeitos entram.
+
+| Breakdown (sem grave) | Drop (grave de volta) |
+|---|---|
+| ![Breakdown: só a logo](img/drop-breakdown.png) | ![Drop: anéis, espectro e rastro entram](img/drop-drop.png) |
+
+**Como usar:**
+
+1. Nos sliders de efeito (Flash, Anéis, Espectros, Rastro, Strobe, Aberração, Tremor, Zoom e
+   Brilho do fundo, Opacidade da foto/vídeo) há um chip **drop**.
+2. Clique nele para ligar (fica rosa). Aquele efeito passa a sumir no breakdown e entrar no drop.
+3. No topo, ao lado das bolinhas do compasso, a pílula **DROP** acende quando o app ouve grave.
+
+**Regulagem** (aba **Áudio**, seção *Drop*):
+
+- **Limiar do grave:** se a pílula DROP apaga com o grave tocando, **baixe**. Se ela acende
+  no breakdown, **suba**.
+- **Entrada/saída do drop:** quantos beats o efeito leva para aparecer e sumir. Com 1 beat o
+  drop "explode"; com 4 a 8 beats ele entra suave.
+
+> O app compara o grave de agora com o grave do último minuto. Por isso funciona igual numa
+> pista alta ou baixa, e não confunde uma faixa mais "magra" com um breakdown.
+
+---
+
+## 13. Projetar no telão
 
 ![Aba Saída](img/aba-saida.png)
 
@@ -326,7 +374,7 @@ Ideias: **Glow → Bass** (a aura vibra com o baixo rolante), **Aberração → 
 
 ---
 
-## 13. Acertar o atraso do projetor (offset)
+## 14. Acertar o atraso do projetor (offset)
 
 Todo projetor atrasa a imagem (30 a 80 ms é comum). Se nada for feito, o pulso parece
 chegar "depois" do kick. Como o app prevê o beat, dá para **adiantar** o pulso.
@@ -346,7 +394,7 @@ Para o ajuste fino durante o set, use **◀ ▶** (ou as setas do teclado). Cada
 
 ---
 
-## 14. Cenas: trocar o visual no meio do set
+## 15. Cenas: trocar o visual no meio do set
 
 ![Knobs e cenas](img/cenas.png)
 
@@ -375,7 +423,89 @@ backup, levar para outro notebook ou ter um arquivo para cada tipo de festa.
 
 ---
 
-## 15. Controlador MIDI
+## 16. Roteiro: efeitos marcados numa música
+
+Para as músicas que você conhece de cor (a abertura do set, a faixa autoral), dá para
+**marcar na música** o que acontece em cada ponto: troca de cena no drop, um strobe de 4
+beats no build, outro vídeo no breakdown, o rastro subindo devagar até o clímax.
+
+![Aba Roteiro e a timeline](img/roteiro-controle.png)
+
+### Criar um roteiro
+
+1. Abra a aba **Roteiro** e clique em **Nova música**. Escolha o arquivo (mp3, wav, flac, m4a
+   ou ogg). Ele fica **guardado dentro do app**.
+2. O app analisa a música, acha o **BPM** e o **1º beat** e desenha a música na timeline (no
+   lugar do analisador). Em **rosa** aparece o grave, então dá para ver onde estão os drops e
+   os breakdowns.
+3. Confira a grade. As linhas são os beats, e as numeradas são os compassos.
+   - Se o "1" do compasso não cai no tempo forte, use **1º tempo − / +**.
+   - Se as linhas estão um pouco antes ou depois dos kicks, use **−5ms / +5ms**.
+   - Se o BPM saiu errado, digite o BPM certo, ou confira a faixa de andamento na aba Áudio e
+     clique em **Analisar de novo**.
+
+### Marcar os pontos
+
+![Timeline com pontos](img/roteiro-timeline.png)
+
+| Na timeline | Faz |
+|---|---|
+| **Duplo clique** | Cria um ponto no beat (com **Shift**, no compasso). |
+| **Clique** num ponto | Seleciona o ponto, que você edita na aba Roteiro. |
+| **Arrastar** um ponto | Muda o ponto de lugar (com **Shift**, de compasso em compasso). |
+| **Clique** no fundo | Leva o cursor (linha branca) até ali. |
+| **Arrastar** o fundo / **roda** | Rola / dá zoom. |
+| **Delete** | Apaga o ponto selecionado. |
+
+Cada ponto é de um tipo (a cor na timeline mostra qual):
+
+| Tipo | O que faz |
+|---|---|
+| **Cena** (roxo) | Chama uma das 8 cenas, com crossfade de N beats. |
+| **Efeito** (rosa) | **Strobe** (1/1, 1/2 ou 1/4) por N beats, **Flash** (um clarão no beat), **Blackout** ou **Só logo** por N beats. Depois volta ao que estava. |
+| **Vídeo** (azul) | Troca o vídeo de fundo, de forma instantânea (o telão já deixa carregado). |
+| **Knob** (verde) | Leva um ajuste (rastro, glow, zoom, matiz…) até um valor em N beats, como uma automação. |
+
+Os pontos ficam marcados **em beats**, não em segundos. Por isso o mesmo roteiro funciona
+mesmo se o DJ mexer no pitch.
+
+### Rodar: quem toca a música?
+
+**O app toca** (*O app*). Bom para abertura, intro gravada ou apresentação.
+
+1. Escolha a **saída de áudio** (por exemplo, a que vai para a mesa).
+2. Posicione o cursor e clique em **▶ Tocar** (ou **G**). O app toca o arquivo e os pontos
+   disparam exatamente no tempo.
+3. Clicar na timeline durante a música pula para aquele ponto. O visual já assume a cena e o
+   vídeo daquele trecho.
+
+**O DJ toca nos decks** (*O DJ (GO)*). O app não sabe onde a música está, então você avisa
+com o **GO**:
+
+![Modo DJ: GO](img/roteiro-dj.png)
+
+1. Escolha o **compasso do GO**, por exemplo o 1º compasso ou o primeiro drop. Coloque o
+   cursor lá e clique em **usar cursor**.
+2. Com a música tocando e o **BPM travado**, aperte **GO** (**G** ou um pad MIDI) **no beat**
+   em que a música chega naquele compasso.
+3. Daí em diante, o roteiro anda junto com o BPM ao vivo, mesmo com o pitch mexido.
+4. Errou o GO? **‹ ›** corrigem 1 beat e **« »** corrigem 1 compasso (teclas **, .** e **; '**).
+
+![Roteiro tocando](img/roteiro.gif)
+
+### Modo
+
+- **Roteiro + ao vivo:** os pontos disparam e o visual continua reagindo ao som (pulso,
+  anéis, espectro). Os knobs, as cenas e o MIDI também continuam funcionando.
+- **Só roteiro:** o visual muda **apenas nos pontos marcados** e não reage ao som. Bom para
+  um show "coreografado", que fica igual toda vez.
+
+**Exportar / Importar** salvam o roteiro em `.json`, sem a música. Para levar a outro
+computador, importe o roteiro e use **Trocar música** para apontar o arquivo de novo.
+
+---
+
+## 17. Controlador MIDI
 
 Qualquer controlador MIDI USB funciona (Korg nanoKONTROL, Akai LPD8/MPD, Novation Launch
 Control, Arturia BeatStep…).
@@ -424,7 +554,7 @@ DoubleK. Para o visual, use um **controlador separado** (um pequeno e barato já
 
 ---
 
-## 16. Atalhos do teclado
+## 18. Atalhos do teclado
 
 | Tecla | Ação |
 |---|---|
@@ -434,17 +564,22 @@ DoubleK. Para o visual, use um **controlador separado** (um pequeno e barato já
 | **B** | Blackout |
 | **L** | Só logo |
 | **F** | Abrir/fechar o telão |
+| **G** | Roteiro: tocar / pausar (o app toca) ou **GO** (o DJ toca) |
+| **Shift + G** | Roteiro: parar |
+| **, / .** | Roteiro: −1 / +1 beat |
+| **; / '** | Roteiro: −1 / +1 compasso |
 | **Esc** | Sair do modo MIDI (no controle) · fechar o telão (no telão) |
 
 ---
 
-## 17. Checklist do dia do show
+## 19. Checklist do dia do show
 
 **Em casa (uma vez):**
 
 - [ ] Logo carregada e conferida no preview.
 - [ ] 3 ou 4 cenas montadas (ex.: calma, pesada, túnel, strobe) e nomeadas.
 - [ ] Controlador MIDI mapeado.
+- [ ] Roteiros conferidos (tocar pelo app e ver os pontos caírem no tempo).
 - [ ] **Exportar** um backup do preset para um pendrive ou para a nuvem.
 
 **Na festa (antes de abrir a pista):**
@@ -461,7 +596,7 @@ DoubleK. Para o visual, use um **controlador separado** (um pequeno e barato já
 
 ---
 
-## 18. Problemas e soluções
+## 20. Problemas e soluções
 
 | Problema | Solução |
 |---|---|
@@ -469,17 +604,21 @@ DoubleK. Para o visual, use um **controlador separado** (um pequeno e barato já
 | Medidor no **CLIP** | Abaixe o **Ganho** (ou o volume do booth). |
 | BPM na metade ou no dobro | Escolha a faixa certa de andamento ou use **½ / ×2**. |
 | BPM pulando | Ligue **Travar BPM** quando ele estiver certo, ou dê **TAP**. |
-| O pulso sai atrasado em relação ao som | **Offset visual** mais negativo (seção 13). |
+| O pulso sai atrasado em relação ao som | **Offset visual** mais negativo (seção 14). |
 | A logo pulsa com o baixo, não com o kick | Ligue **Exigir o "click" do kick** e baixe um pouco a **Sensibilidade**. |
 | Logo quase parada num breakdown longo | Depois de 30 s sem kick, o app solta o BPM e a logo passa a seguir a onda da música. Suba **Seguir a música sem kick** para ela mexer mais. O BPM volta sozinho quando o kick volta. |
 | Telão travando, fps baixo | Abaixe a **Resolução de render**. Feche outros programas. Deixe o notebook na tomada. |
 | O telão abriu no monitor errado | Feche (**F**), escolha o outro monitor na aba **Saída** e projete de novo. |
+| Efeito "só no drop" não aparece com o grave tocando | A pílula **DROP** está apagada: baixe o **Limiar do grave** (aba Áudio). |
+| Roteiro no modo DJ escorregando | O BPM ao vivo não estava travado no GO. Espere travar (ou dê TAP), e corrija com **‹ ›** / **« »**. |
+| Roteiro: pontos adiantados ou atrasados em relação à música | Alinhe a grade com **−5ms / +5ms**; se for um beat inteiro, **1º tempo − / +**. |
+| "A saída está em … Hz" ao tocar o roteiro | A saída de áudio mudou: escolha a saída de novo na aba Roteiro (a música é preparada de novo). |
 | Controlador aparece como "(ocupado)" | Outro programa está com ele (Rekordbox, Serato…). Use outro controlador ou feche o programa. |
 | O controlador não aparece | Desplugue e plugue de novo. O app reconecta em até 2 s. |
 
 ---
 
-## 19. Plano B
+## 21. Plano B
 
 Se algo der errado no notebook do show, o app antigo em HTML continua funcionando: o arquivo
 `legacy/logo-pulsante-2.0.html` abre direto no Chrome ou Edge, sem instalar nada. Vale

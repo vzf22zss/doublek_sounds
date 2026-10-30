@@ -19,9 +19,17 @@ Feito para psytrance, dark/forest e hi-tech (135–220 BPM).
 - **Efeitos em WebGL:** glow, anéis, flash, rastro/túnel, espectro radial, strobe no tempo,
   aberração cromática e tremor. Cada um pode reagir ao kick, ao sub, ao baixo, aos médios,
   aos hats, ao beat, ao compasso ou a um LFO.
+- **Efeitos só no drop.** O app percebe quando o grave some (breakdown) e quando volta; cada
+  efeito pode entrar só no drop.
+- **Vídeo em loop no fundo**, com a mesma reação ao beat da foto.
 - **8 cenas** com crossfade que começa no próximo beat. Presets exportáveis em `.json`.
+- **Roteiro por música.** Você sobe a faixa, marca os pontos na timeline (cena, strobe, vídeo,
+  knob) e roda com o app tocando o arquivo ou com o DJ nos decks (GO). Funciona no modo
+  "roteiro + ao vivo" ou "só roteiro".
 - **MIDI learn:** clique num controle da tela e mexa no knob do controlador.
 - **Instalador `.msi`** em português.
+
+![Roteiro: timeline com os pontos marcados na música](docs/img/roteiro-controle.png)
 
 | Dark túnel | Radial | Strobe |
 |---|---|---|
@@ -38,6 +46,8 @@ Feito para psytrance, dark/forest e hi-tech (135–220 BPM).
 | B | blackout |
 | L | só a logo, sem efeitos |
 | F | abrir/fechar o telão |
+| G / Shift+G | roteiro: tocar ou GO / parar |
+| , . / ; ' | roteiro: ±1 beat / ±1 compasso |
 
 Knobs: arrastar (Shift = fino), roda do mouse, duplo clique = padrão.
 
@@ -59,10 +69,11 @@ Tauri 2 + Rust (áudio e análise) + Svelte 5 / WebGL2 (telas).
 |---|---|
 | `src-tauri/src/analysis.rs` | Filtros, onset, detecção de kick (com testes sobre faixas sintéticas) |
 | `src-tauri/src/beat.rs` | Relógio do beat: BPM, fase, tap, nudge, ½/×2 |
-| `src-tauri/src/audio.rs` · `midi.rs` | Captura com reconexão; MIDI em todos os controladores |
-| `src/render/renderer.ts` | Renderer WebGL2 (usado pelo telão e pelo preview) |
-| `src/control/` | Interface de controle, knobs, cenas, MIDI learn |
-| `src/lib/settings.ts` | Ajustes, cenas, crossfade, validação de presets |
+| `src-tauri/src/audio.rs` · `midi.rs` | Captura com reconexão; reprodução da faixa do roteiro; MIDI em todos os controladores |
+| `src-tauri/src/track.rs` | Decodifica (symphonia), reamostra (rubato), grade de BPM da faixa inteira e forma de onda |
+| `src/render/renderer.ts` | Renderer WebGL2 (usado pelo telão e pelo preview), vídeo de fundo, "só no drop" |
+| `src/control/` | Interface de controle, knobs, cenas, MIDI learn, timeline e motor do roteiro |
+| `src/lib/settings.ts` · `roteiro.ts` | Ajustes, cenas, crossfade, validação de presets; modelo e regras do roteiro |
 
 ### Rodar
 
@@ -121,10 +132,10 @@ cd src-tauri && cargo test --release
 
 ```
 cd src-tauri
-cargo run --release --example analyze -- faixa.wav 135 150
+cargo run --release --example analyze -- faixa.mp3 135 150
 ```
 
-Mostra o BPM e os kicks encontrados num WAV. Compare com o BPM do Rekordbox.
+Mostra o BPM e os kicks encontrados num arquivo (mp3, wav, flac, m4a ou ogg) e a grade que o roteiro usaria. Compare com o BPM do Rekordbox.
 
 ## Plano B
 
