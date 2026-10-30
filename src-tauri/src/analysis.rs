@@ -314,46 +314,10 @@ impl Analyzer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::synth::Synth;
 
-    /// Faixa sintética estilo psy: kick (sweep + click) em 4/4 e, opcionalmente,
-    /// baixo rolante nas 3 semicolcheias seguintes (sub sem click), mais ruído.
     fn track(bpm: f64, secs: f64, sr: f32, rolling: bool) -> (Vec<f32>, Vec<f64>) {
-        let mut out = vec![0f32; (secs * sr as f64) as usize];
-        let mut rng = 1u32;
-        let mut noise = move || {
-            rng = rng.wrapping_mul(1664525).wrapping_add(1013904223);
-            (rng >> 8) as f32 / (1 << 24) as f32 * 2.0 - 1.0
-        };
-        let beat = 60.0 / bpm;
-        let mut kicks = vec![];
-        let mut t0 = 0.05;
-        while t0 + 0.4 < secs {
-            kicks.push(t0);
-            let s0 = (t0 * sr as f64) as usize;
-            let mut ph = 0f32;
-            for i in 0..(0.3 * sr) as usize {
-                let tt = i as f32 / sr;
-                ph += 2.0 * PI * (50.0 + 120.0 * (-tt / 0.03).exp()) / sr;
-                out[s0 + i] += 0.9 * ph.sin() * (-tt / 0.2).exp() + 0.4 * noise() * (-tt / 0.004).exp();
-            }
-            if rolling {
-                for j in 1..4 {
-                    let b0 = ((t0 + j as f64 * beat / 4.0) * sr as f64) as usize;
-                    let len = (beat / 4.0 * 0.9 * sr as f64) as usize;
-                    for i in 0..len {
-                        let tt = i as f32 / sr;
-                        let w = 2.0 * PI * 55.0 * tt;
-                        let fade = ((len - i) as f32 / (0.005 * sr)).min(1.0); // sem corte seco (que vira click)
-                        out[b0 + i] += 0.7 * (tt / 0.003).min(1.0) * (-tt / 0.05).exp() * fade * (w.sin() + 0.3 * (2.0 * w).sin());
-                    }
-                }
-            }
-            t0 += beat;
-        }
-        for s in &mut out {
-            *s += 0.02 * noise();
-        }
-        (out, kicks)
+        Synth { bpm, secs, sr, rolling, ..Default::default() }.render()
     }
 
     fn check(bpm: f64, lo: f32, hi: f32) {

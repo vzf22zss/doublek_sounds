@@ -1,0 +1,150 @@
+//! Benchmark de detecção de kick/BPM em faixas sintéticas (DK-008):
+//!   cargo run --release --example bench            → tabelas Markdown no stdout
+//!   cargo run --release --example bench -- 30      → duração de cada faixa em segundos (padrão 30)
+//! Só mede; não muda parâmetros nem algoritmo. O relatório fica em docs/quality/DETECCAO.md.
+
+use doublek_lib::analysis::{Analyzer, Params, HOP};
+use doublek_lib::synth::Synth;
+
+const BPMS: [f64; 7] = [135.0, 140.0, 148.0, 160.0, 175.0, 200.0, 220.0];
+const TOL: f64 = 0.030; // ±30 ms conta como acerto
+const WARMUP: f64 = 3.0; // antes disso o limiar ainda está aprendendo
+const BREAK: (f64, f64) = (10.0, 18.0);
+
+/// Faixa de andamento do app coerente com o BPM (App.svelte: Psy 135–150, Dark 145–185, Hi-tech 175–220).
+fn genre(bpm: f64) -> (&'static str, f32, f32) {
+    if bpm <= 150.0 {
+        ("Psy", 135.0, 150.0)
+    } else if bpm <= 185.0 {
+        ("Dark", 145.0, 185.0)
+    } else {
+        ("Hi-tech", 175.0, 220.0)
+    }
+}
+
+fn scenarios(bpm: f64, secs: f64) -> Vec<(&'static str, Synth)> {
+    let base = Synth { bpm, secs, ..Default::default() };
+    vec![
+        ("limpo", Synth { rolling: false, ..base.clone() }),
+        ("baixo rolante", base.clone()),
+        ("breakdown 10–18 s", Synth { breakdown: Some(BREAK), ..base.clone() }),
+        ("ruído alto (−14 dBFS)", Synth { noise: 0.2, ..base.clone() }),
+        ("volume −20 dB", Synth { gain: 0.1, ..base.clone() }),
+        ("cold start (2 s de silêncio)", Synth { start: 2.0, ..base.clone() }),
+    ]
+}
+
+struct Res {
+    precision: f64,
+    recall: f64,
+    est: f64,
+    lock_after: Option<f64>, // segundos entre o 1º kick e a trava
+    delay_ms: f64,           // mediana de (detectado − real) nos acertos
+    unlocks: usize,          // quantas vezes a trava caiu
+    false_in_break: usize,
+}
+
+fn measure(s: &Synth, lo: f32, hi: f32) -> Res {
+    let (x, truth) = s.render();
+    let sr = s.sr;
+    let mut an = Analyzer::new(sr);
+    let p = Params { bpm_min: lo, bpm_max: hi, ..Default::default() };
+    let (mut det, mut lock_at, mut was_locked, mut unlocks) = (vec![], None, false, 0);
+    for (i, c) in x.chunks_exact(HOP).enumerate() {
+        let t = (i + 1) as f64 * HOP as f64 / sr as f64;
+        if an.process(c, &p).is_some() {
+            det.push(t);
+        }
+        if an.beat.locked && lock_at.is_none() {
+            lock_at = Some(t);
+        }
+        if was_locked && !an.beat.locked {
+            unlocks += 1;
+        }
+        was_locked = an.beat.locked;
+    }
+    let truth: Vec<f64> = truth.into_iter().filter(|&t| t > WARMUP).collect();
+    let det: Vec<f64> = det.into_iter().filter(|&d| d > WARMUP).collect();
+    let near = |a: f64, b: f64| (a - b).abs() < TOL;
+    let mut delays: Vec<f64> = truth.iter().filter_map(|&t| det.iter().find(|&&d| near(d, t)).map(|d| (d - t) * 1000.0)).collect();
+    delays.sort_by(f64::total_cmp);
+    let hits = delays.len();
+    let falses: Vec<f64> = det.iter().copied().filter(|&d| !truth.iter().any(|&t| near(d, t))).collect();
+    let (est, _, _) = an.beat.at(s.secs);
+    Res {
+        precision: if det.is_empty() { 0.0 } else { (det.len() - falses.len()) as f64 / det.len() as f64 },
+        recall: if truth.is_empty() { 0.0 } else { hits as f64 / truth.len() as f64 },
+        est: est as f64,
+        lock_after: lock_at.map(|t| t - s.start),
+        delay_ms: delays.get(hits / 2).copied().unwrap_or(f64::NAN),
+        unlocks,
+        false_in_break: s.breakdown.map_or(0, |(a, b)| falses.iter().filter(|&&d| d >= a && d < b).count()),
+    }
+}
+
+/// "½" ou "×2" se a estimativa ficou perto da metade ou do dobro (±3 %); "⅔"/"3/2" para os outros erros clássicos.
+fn ratio_error(est: f64, bpm: f64) -> &'static str {
+    let r = est / bpm;
+    let close = |x: f64| (r - x).abs() < 0.03 * x;
+    if close(0.5) {
+        "½"
+    } else if close(2.0) {
+        "×2"
+    } else if close(2.0 / 3.0) || close(1.5) || close(4.0 / 3.0) || close(0.75) {
+        "outra razão"
+    } else {
+        "não"
+    }
+}
+
+fn main() {
+    let secs: f64 = std::env::args().nth(1).map_or(30.0, |a| a.parse().expect("duração em segundos"));
+    println!("<!-- gerado por `cargo run --release --example bench` (src-tauri); faixas de {secs:.0} s a 48 kHz, HOP {HOP}, janela ±{:.0} ms, medido após {WARMUP:.0} s -->", TOL * 1000.0);
+    let mut worst: Vec<String> = vec![];
+    fn auto(_: f64) -> (&'static str, f32, f32) {
+        ("Auto", 80.0, 220.0)
+    }
+    let tables: [(&str, fn(f64) -> (&'static str, f32, f32)); 2] = [("Faixa de andamento do gênero", genre), ("Faixa Auto (80–220)", auto)];
+    for (title, pick) in tables {
+        println!("\n### {title}\n");
+        println!("| BPM | Faixa | Cenário | Precisão | Recall | Erro BPM | Trava após | Atraso | ½/×2 | Obs. |");
+        println!("|---:|---|---|---:|---:|---:|---:|---:|:---:|---|");
+        for &bpm in &BPMS {
+            let (name, lo, hi) = pick(bpm);
+            for (scen, s) in scenarios(bpm, secs) {
+                let r = measure(&s, lo, hi);
+                let err = r.est - bpm;
+                let ratio = ratio_error(r.est, bpm);
+                let mut obs = vec![];
+                if r.lock_after.is_none() {
+                    obs.push("**não travou**".to_string());
+                }
+                if r.unlocks > 0 {
+                    obs.push(format!("perdeu a trava {}×", r.unlocks));
+                }
+                if r.false_in_break > 0 {
+                    obs.push(format!("{} falsos no breakdown", r.false_in_break));
+                }
+                let bad = r.precision < 0.95 || r.recall < 0.95 || err.abs() > 0.5 || r.lock_after.is_none() || ratio != "não";
+                if bad {
+                    worst.push(format!("{bpm:.0} BPM · {name} · {scen}: precisão {:.2}, recall {:.2}, erro {err:+.2} BPM, ½/×2 {ratio}", r.precision, r.recall));
+                }
+                println!(
+                    "| {bpm:.0} | {name} {lo:.0}–{hi:.0} | {scen} | {:.2} | {:.2} | {err:+.2} | {} | {} | {ratio} | {} |",
+                    r.precision,
+                    r.recall,
+                    r.lock_after.map_or("—".to_string(), |t| format!("{t:.1} s")),
+                    if r.delay_ms.is_nan() { "—".to_string() } else { format!("{:.1} ms", r.delay_ms) },
+                    obs.join("; ")
+                );
+            }
+        }
+    }
+    println!("\n### Casos fora da meta (precisão/recall < 0,95, |erro| > 0,5 BPM, sem trava ou ½/×2)\n");
+    if worst.is_empty() {
+        println!("Nenhum.");
+    }
+    for w in worst {
+        println!("- {w}");
+    }
+}
