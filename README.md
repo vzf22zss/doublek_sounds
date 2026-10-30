@@ -1,23 +1,39 @@
 # DoubleK Visuals
 
-App desktop (Windows) que escuta o set e faz a logo pulsar no telão. Tauri 2 + Rust (áudio) + Svelte/WebGL (tela).
+App para Windows que escuta o set ao vivo e faz a logo do DJ pulsar no telão, no beat.
+Feito para psytrance, dark/forest e hi-tech (135–220 BPM).
 
-## Rodar
+![O telão pulsando no beat](docs/img/telao.gif)
 
-```
-npm install
-npm run tauri dev
-```
+**📘 [Tutorial completo, do cabo ao show](docs/TUTORIAL.md)**
 
-Requer Rust (rustup) e Visual Studio Build Tools com C++.
+![Janela de controle](docs/img/controle.png)
 
-## Ao vivo
+## O que ele faz
+
+- **Kick e BPM confiáveis no psy.** Ele separa o kick do baixo rolante exigindo o grave e o
+  "click" ao mesmo tempo. O BPM trava em poucos segundos e se segura nos breakdowns.
+- **Pulso previsto.** Com o BPM travado, o pulso sai do relógio do beat, e um **offset**
+  adianta a imagem para compensar o atraso do projetor.
+- **Duas janelas.** O controle fica no notebook; o telão abre em tela cheia no datashow.
+- **Efeitos em WebGL:** glow, anéis, flash, rastro/túnel, espectro radial, strobe no tempo,
+  aberração cromática e tremor. Cada um pode reagir ao kick, ao sub, ao baixo, aos médios,
+  aos hats, ao beat, ao compasso ou a um LFO.
+- **8 cenas** com crossfade que começa no próximo beat. Presets exportáveis em `.json`.
+- **MIDI learn:** clique num controle da tela e mexa no knob do controlador.
+- **Instalador `.msi`** em português.
+
+| Dark túnel | Radial | Strobe |
+|---|---|---|
+| ![Dark túnel](docs/img/telao-tunel.gif) | ![Radial](docs/img/telao-radial.gif) | ![Strobe](docs/img/telao-strobe.gif) |
+
+## Atalhos ao vivo
 
 | Tecla | Ação |
 |---|---|
 | Espaço | tap tempo |
 | ← → | ajuste fino da fase (5 ms) |
-| 1–8 | chamar cena (crossfade começa no próximo beat) |
+| 1–8 | chamar cena (o crossfade começa no próximo beat) |
 | Shift+clique na cena | gravar o visual atual nela |
 | B | blackout |
 | L | só a logo, sem efeitos |
@@ -25,18 +41,39 @@ Requer Rust (rustup) e Visual Studio Build Tools com C++.
 
 Knobs: arrastar (Shift = fino), roda do mouse, duplo clique = padrão.
 
-## MIDI
+## Para desenvolvedores
 
-1. Clique em **MIDI** na barra de cima (o LED pisca quando chega mensagem).
-2. Clique num controle da tela: knob, slider, cena, TAP, ½, ×2, ◀ ▶, BLACKOUT ou Só logo.
-3. Mexa no knob ou aperte o pad do controlador. Pronto: o controle mostra o CC/nota.
-4. **Concluir** ou Esc para sair.
+Tauri 2 + Rust (áudio e análise) + Svelte 5 / WebGL2 (telas).
 
-O controlador pode ser plugado com o app aberto. No Windows a entrada MIDI costuma ser
-exclusiva: se o Rekordbox/Serato já estiver usando o controlador, ele aparece como
-"(ocupado)" — use um controlador separado para o visual.
+```
+ cpal (WASAPI) ─► ring buffer ─► análise a cada 256 amostras (~5 ms)
+                                 filtros por banda · onset · kick = sub + click
+                                 relógio do beat (regressão sobre os kicks)
+                                        │ Channel ~94 Hz
+                       ┌────────────────┴────────────────┐
+              janela de controle (Svelte)        janela do telão (WebGL2)
+              preview com o mesmo renderer       cena → feedback → pós
+```
 
-## Instalador
+| Pasta | Conteúdo |
+|---|---|
+| `src-tauri/src/analysis.rs` | Filtros, onset, detecção de kick (com testes sobre faixas sintéticas) |
+| `src-tauri/src/beat.rs` | Relógio do beat: BPM, fase, tap, nudge, ½/×2 |
+| `src-tauri/src/audio.rs` · `midi.rs` | Captura com reconexão; MIDI em todos os controladores |
+| `src/render/renderer.ts` | Renderer WebGL2 (usado pelo telão e pelo preview) |
+| `src/control/` | Interface de controle, knobs, cenas, MIDI learn |
+| `src/lib/settings.ts` | Ajustes, cenas, crossfade, validação de presets |
+
+### Rodar
+
+Requer Node 20+, Rust (rustup) e Visual Studio Build Tools com C++.
+
+```
+npm install
+npm run tauri dev
+```
+
+### Instalador
 
 ```
 npm run tauri build
@@ -44,22 +81,24 @@ npm run tauri build
 
 Gera `src-tauri/target/release/bundle/msi/DoubleK Visuals_<versão>_x64_pt-BR.msi`.
 
-## Checagens
+### Checagens
 
 ```
 npm run typecheck
 npm run check
+cd src-tauri && cargo test --release
 ```
 
-## Afinar a detecção com faixas reais
+### Afinar a detecção com faixas reais
 
 ```
 cd src-tauri
 cargo run --release --example analyze -- faixa.wav 135 150
-cargo test --release
 ```
+
+Mostra o BPM e os kicks encontrados num WAV. Compare com o BPM do Rekordbox.
 
 ## Plano B
 
-O app antigo em HTML está em `legacy/logo-pulsante-2.0.html` (abre direto no Chrome/Edge)
-e também na tag git `html-original`.
+O app antigo em HTML está em `legacy/logo-pulsante-2.0.html` (abre direto no Chrome/Edge).
+Ele também fica guardado na tag git `html-original`.
