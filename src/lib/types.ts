@@ -22,4 +22,15 @@ export type Frame = {
   clock?: 'audio' | 'midi'; // quem manda no relógio do beat (DK-112); opcional até todo consumidor atualizar
 };
 
+// Saída Spout (DK-102): resposta de spout_start / spout_status
+export type SpoutStatus = {
+  running: boolean;
+  name: string;
+  width: number;
+  height: number;
+  fps: number;
+  frames: number;
+  lastError: string | null;
+};
+
 export type Msg = { t: 'frame'; v: Frame } | { t: 'status'; v: string };

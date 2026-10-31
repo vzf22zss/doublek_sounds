@@ -5,5 +5,6 @@ pub mod midi;
 pub mod osc;
 pub mod rec;
 pub mod remote;
+pub mod spout;
 pub mod synth;
 pub mod track;
