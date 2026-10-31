@@ -1,6 +1,21 @@
 // npm run check — contrato das camadas (DK-051).
 import assert from 'node:assert/strict';
-import { addFxLayer, applyLayerParam, defaultLayers, drawsLayer, LAYER_IDS, LAYER_PARAM, MAX_FX, moveLayer, needsCompose, placeLayer, removeFxLayer, sanitizeLayers, setLayer } from './layers.ts';
+import { addFxLayer, addVideoLayer, applyLayerParam, defaultLayers, drawsLayer, LAYER_IDS, LAYER_PARAM, MAX_FX, moveLayer, needsCompose, placeLayer, removeExtraLayer, sanitizeLayers, setLayer, VIDEO_LAYER } from './layers.ts';
+
+// DK-063: vídeo como camada opcional
+{
+  const D0 = defaultLayers();
+  assert.ok(!D0.some((l) => l.id === VIDEO_LAYER), 'padrão: vídeo no fundo, sem camada');
+  const v = addVideoLayer(D0);
+  assert.deepEqual(v.at(-1), { id: 'video', type: 'video', enabled: true, order: 7, opacity: 1, blend: 'normal' });
+  assert.deepEqual(addVideoLayer(v), v, 'repetido: igual');
+  assert.deepEqual(sanitizeLayers(JSON.parse(JSON.stringify(v))), v, 'sobrevive a salvar/carregar');
+  assert.deepEqual(sanitizeLayers([...D0, { id: 'video' }, { id: 'video', blend: 'add' }]).filter((l) => l.id === 'video').length, 1);
+  assert.equal(moveLayer(v, 'video', -1).at(-2)!.id, 'video');
+  assert.deepEqual(removeExtraLayer(v, 'video'), D0, 'tirar: o vídeo volta para o fundo');
+  assert.equal(addFxLayer(v, 'algum-fx').length, 9, 'vídeo não conta no limite de efeitos');
+  assert.equal(setLayer(v, 'video', { blend: 'screen', opacity: 0.5 }).at(-1)!.blend, 'screen');
+}
 
 // DK-123: camadas de efeito da comunidade (fx:<id>)
 {
@@ -20,8 +35,8 @@ import { addFxLayer, applyLayerParam, defaultLayers, drawsLayer, LAYER_IDS, LAYE
   const many = sanitizeLayers([...D0, { id: 'fx:aaa', order: 7 }, { id: 'fx:bbb', order: 8 }, { id: 'fx:ccc', order: 9 }, { id: 'fx:', order: 10 }, { id: 'fx:../x' }]);
   assert.equal(many.filter((l) => l.type === 'fx').map((l) => l.id).join(), 'fx:aaa,fx:bbb');
   // tirar: só camada fx sai
-  assert.equal(removeFxLayer(two, 'fx:ondas-grave').length, 8);
-  assert.deepEqual(removeFxLayer(D0, 'tunnel'), D0, 'camada do app não sai');
+  assert.equal(removeExtraLayer(two, 'fx:ondas-grave').length, 8);
+  assert.deepEqual(removeExtraLayer(D0, 'tunnel'), D0, 'camada do app não sai');
   // mover, solo, mistura funcionam com fx
   assert.equal(moveLayer(two, 'fx:ondas-grave', -1).at(-1)!.id, 'fx:rgb-split-kick');
   assert.equal(two.filter((l) => drawsLayer(l, 'fx:ondas-grave')).map((l) => l.id).join(), 'fx:ondas-grave', 'solo em fx');

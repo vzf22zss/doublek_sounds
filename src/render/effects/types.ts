@@ -14,8 +14,12 @@ export type Helpers = {
   dropTarget(t: Target): void;
 };
 
-/** Texturas de entrada, mantidas pelo renderer. `bg` já é o vídeo quando há vídeo. */
-export type Textures = { logo: WebGLTexture; glow: WebGLTexture; bg: WebGLTexture; bgAspect: number; logoAspect: number; video: boolean };
+/** Texturas de entrada, mantidas pelo renderer. `bg` já é o vídeo quando há vídeo (e não há camada de vídeo).
+ *  `vid`/`vidAspect`: o vídeo para a camada `video` (DK-063); null sem vídeo carregado. */
+export type Textures = {
+  logo: WebGLTexture; glow: WebGLTexture; bg: WebGLTexture; bgAspect: number; logoAspect: number; video: boolean;
+  vid: WebGLTexture | null; vidAspect: number;
+};
 
 export type Ctx = {
   gl: WebGL2RenderingContext;

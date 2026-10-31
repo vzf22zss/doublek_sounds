@@ -44,9 +44,10 @@ import { KaleidoEffect } from './effects/kaleido';
 import { OrganicEffect } from './effects/organic';
 import { ParticlesEffect } from './effects/particles';
 import { GlitchEffect } from './effects/glitch';
+import { VideoEffect } from './effects/video';
 import { Compose } from './effects/compose';
 import { FxEffect } from './effects/fx';
-import { drawsLayer, needsCompose, sanitizeLayers, type Layer } from './layers';
+import { drawsLayer, needsCompose, sanitizeLayers, VIDEO_LAYER, type Layer } from './layers';
 
 /** Efeito da comunidade pronto para o telão (DK-123): id do manifesto, código do autor e os valores salvos. */
 export type FxItem = { id: string; code: string; values: number[] };
@@ -121,7 +122,7 @@ export class Renderer {
     // dobrando tudo; glitch depois do rastro (não deixa rastro). Com intensidade 0 cada um devolve null e não desenha.
     this.effects = [
       new SceneEffect(), new OrganicEffect(), new TunnelEffect(), new ParticlesEffect(), new MandalaEffect(), new KaleidoEffect(),
-      new FeedbackEffect(), new GlitchEffect(), new PostEffect(),
+      new FeedbackEffect(), new GlitchEffect(), new VideoEffect(), new PostEffect(), // vídeo: só com a camada `video` (DK-063)
     ];
     for (const e of this.effects) this.guard(e, () => e.init(gl, h));
     this.byId = new Map(this.effects.map((e) => [e.id, e]));
@@ -277,15 +278,19 @@ export class Renderer {
     if (vid && this.vidFresh) { upload(gl, this.tex.vid, vid); this.vidFresh = false; }
     // o orçamento só baixa a qualidade que os módulos leem; o visual do operador não muda
     const q = effQuality(this.budget, v.psyQuality);
+    const chain = this.chainFor(v.layers);
+    // DK-063: com a camada `video` na lista (ligada ou não), o vídeo sai do fundo da cena — o fundo fica foto/cor
+    const inScene = vid && !chain.some((c) => c.layer?.id === VIDEO_LAYER) ? vid : null;
     const ctx: Ctx = {
       gl, uniforms: u, visual: q === Math.round(v.psyQuality) ? v : { ...v, psyQuality: q }, W, H,
       px: H / 1080, // ajustes em "px" são relativos a 1080p
       textures: {
-        logo: this.tex.logo, glow: this.tex.glow, bg: vid ? this.tex.vid : this.tex.bg,
-        bgAspect: vid ? vid.videoHeight / vid.videoWidth : this.bgAspect, logoAspect: this.logoAspect, video: !!vid,
+        logo: this.tex.logo, glow: this.tex.glow, bg: inScene ? this.tex.vid : this.tex.bg,
+        bgAspect: inScene ? inScene.videoHeight / inScene.videoWidth : this.bgAspect, logoAspect: this.logoAspect, video: !!inScene,
+        vid: vid ? this.tex.vid : null, vidAspect: vid ? vid.videoHeight / vid.videoWidth : 0,
       },
     };
-    for (const { e, layer } of this.chainFor(v.layers)) {
+    for (const { e, layer } of chain) {
       if (this.off.has(e.id)) continue; // módulo quebrado (desligado no init, no resize ou num quadro anterior)
       // interruptor, orçamento, camada desligada/transparente ou outra camada em solo: não desenha
       if ((e.psy && (v.psySafe || this.budget.off.includes(e.id))) || (layer && !drawsLayer(layer, v.layerSolo)) || (layer?.type === 'fx' && v.fxSafe)) {

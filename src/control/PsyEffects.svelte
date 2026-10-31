@@ -5,7 +5,7 @@
   import Slider from './Slider.svelte';
   import { VISUAL, type Visual } from '../lib/settings';
   import type { BudgetInfo, Cost } from '../render/renderer';
-  import { addFxLayer, BLEND_NAMES, BLENDS, isFxLayer, LAYER_NAMES, MAX_FX, moveLayer, placeLayer, removeFxLayer, sanitizeLayers, setLayer, type Blend, type LayerId } from '../render/layers';
+  import { addFxLayer, addVideoLayer, BLEND_NAMES, BLENDS, isFxLayer, LAYER_NAMES, MAX_FX, moveLayer, placeLayer, removeExtraLayer, sanitizeLayers, setLayer, VIDEO_LAYER, type Blend, type LayerId } from '../render/layers';
   import { load } from '../lib/store';
   import { validFxList, type FxEntry } from '../lib/shaders/manifest';
   import { FX_LIST_EVENT } from './fxHealth';
@@ -40,7 +40,9 @@
   const fxOf = (id: string) => fxList.find((e) => `fx:${e.manifest.id}` === id);
   const fxCount = $derived(layers.filter((l) => l.type === 'fx').length);
   const fxAvail = $derived(fxList.filter((e) => e.health.status === 'ok' && !layers.some((l) => l.id === `fx:${e.manifest.id}`)));
+  const hasVideoLayer = $derived(layers.some((l) => l.id === VIDEO_LAYER));
   const name = (id: string) => {
+    if (id === VIDEO_LAYER) return 'Vídeo';
     if (!isFxLayer(id)) return LAYER_NAMES[id as LayerId] ?? id;
     const e = fxOf(id);
     return e ? `${e.manifest.name}${e.health.status !== 'ok' ? ` (${e.health.status})` : ''}` : `${id.slice(3)} (não instalado)`;
@@ -144,7 +146,7 @@
   {#each layers as l, i (l.id)}
     <div class="layer" class:off={!l.enabled} class:hidden={!!vs.layerSolo && vs.layerSolo !== l.id} class:dragging={dragging === l.id}>
       <input type="checkbox" checked={l.enabled} title="Liga/desliga a camada (mute)" aria-label="Ligar {name(l.id)}"
-        use:learnable={l.type === 'fx' ? null : { id: `l:${l.id}:on`, label: `Liga ${name(l.id)}` }}
+        use:learnable={l.type === 'fx' || l.type === 'video' ? null : { id: `l:${l.id}:on`, label: `Liga ${name(l.id)}` }}
         onchange={(e) => (vs.layers = setLayer(vs.layers, l.id, { enabled: e.currentTarget.checked }))} />
       <span class="name" title="Arraste para mudar a ordem" role="button" tabindex="-1" aria-label="Arrastar {name(l.id)}"
         onpointerdown={(e) => { dragging = l.id; e.currentTarget.setPointerCapture(e.pointerId); }}
@@ -156,26 +158,32 @@
         {#each BLENDS as b}<option value={b}>{BLEND_NAMES[b]}</option>{/each}
       </select>
       <input class="op" type="range" min="0" max="1" step="0.05" value={l.opacity} title="Opacidade {Math.round(l.opacity * 100)}%"
-        use:learnable={l.type === 'fx' ? null : { id: `v:layers.${l.id}.opacity`, label: `Opacidade ${name(l.id)}`, min: 0, max: 1, step: 0.01 }}
+        use:learnable={l.type === 'fx' || l.type === 'video' ? null : { id: `v:layers.${l.id}.opacity`, label: `Opacidade ${name(l.id)}`, min: 0, max: 1, step: 0.01 }}
         aria-label="Opacidade {name(l.id)}" oninput={(e) => (vs.layers = setLayer(vs.layers, l.id, { opacity: +e.currentTarget.value }))} />
       <button class="mv" disabled={i === 0} title="Subir (desenha antes)" aria-label="Subir {name(l.id)}"
         onclick={() => (vs.layers = moveLayer(vs.layers, l.id, -1))}>▲</button>
       <button class="mv" disabled={i === layers.length - 1} title="Descer (desenha depois)" aria-label="Descer {name(l.id)}"
         onclick={() => (vs.layers = moveLayer(vs.layers, l.id, 1))}>▼</button>
-      {#if l.type === 'fx'}
-        <button class="mv" title="Tirar o efeito das camadas" aria-label="Tirar {name(l.id)}"
-          onclick={() => { vs.layers = removeFxLayer(vs.layers, l.id); if (vs.layerSolo === l.id) vs.layerSolo = ''; }}>×</button>
+      {#if l.type === 'fx' || l.type === 'video'}
+        <button class="mv" title={l.type === 'video' ? 'Tirar a camada: o vídeo volta para o fundo, atrás da logo' : 'Tirar o efeito das camadas'} aria-label="Tirar {name(l.id)}"
+          onclick={() => { vs.layers = removeExtraLayer(vs.layers, l.id); if (vs.layerSolo === l.id) vs.layerSolo = ''; }}>×</button>
       {:else}<span></span>{/if}
     </div>
   {/each}
 </div>
-{#if fxCount < MAX_FX}
-  <select class="addfx" value="" aria-label="Adicionar efeito da comunidade" onpointerdown={refreshFx} onfocus={refreshFx}
-    onchange={(e) => { const id = e.currentTarget.value; e.currentTarget.value = ''; if (id) vs.layers = addFxLayer(vs.layers, id); }}>
-    <option value="">+ Efeito da comunidade como camada ({fxCount}/{MAX_FX})…</option>
-    {#each fxAvail as e}<option value={e.manifest.id}>{e.manifest.name}</option>{/each}
+{#if fxCount < MAX_FX || !hasVideoLayer}
+  <select class="addfx" value="" aria-label="Adicionar camada" onpointerdown={refreshFx} onfocus={refreshFx}
+    onchange={(e) => {
+      const id = e.currentTarget.value; e.currentTarget.value = '';
+      if (id === VIDEO_LAYER) vs.layers = addVideoLayer(vs.layers);
+      else if (id) vs.layers = addFxLayer(vs.layers, id);
+    }}>
+    <option value="">+ Adicionar camada…</option>
+    {#if !hasVideoLayer}<option value={VIDEO_LAYER}>Vídeo do fundo como camada (sai de trás da logo)</option>{/if}
+    {#if fxCount < MAX_FX}{#each fxAvail as e}<option value={e.manifest.id}>Efeito da comunidade: {e.manifest.name} ({fxCount}/{MAX_FX})</option>{/each}{/if}
   </select>
 {/if}
+{#if hasVideoLayer}<p class="keys">Camada Vídeo: o vídeo deixa o fundo e desenha nesta posição, por cima da logo. Use Tela ou Somar (ou opacidade menor) para a logo aparecer; desligada = sem vídeo. Tire a camada para voltar ao fundo.</p>{/if}
 {#if vs.fxSafe && fxCount}<p class="keys warn">Modo seguro ligado: os efeitos da comunidade não carregam no telão (desligue no editor de efeitos).</p>{/if}
 {#if vs.layerSolo}<p class="keys warn">Solo ligado: só {name(vs.layerSolo)} desenha. Clique no S de novo para voltar.</p>{/if}
 <p class="keys">De cima para baixo = ordem em que desenham; arraste pelo nome ou use ▲▼. O fundo e a logo vêm sempre antes; vinheta, strobe e blackout sempre por último. Normal a 100% não custa nada a mais; os outros modos gastam 1 passe. Com o MIDI ligado, clique no liga/desliga ou na opacidade para mapear.</p>
