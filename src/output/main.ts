@@ -9,6 +9,7 @@ import { loadVisual, type Visual } from '../lib/settings';
 import { assetSync, getVideo } from '../lib/assets';
 import { FrameStats, type Telemetry } from '../lib/telemetry';
 import type { Frame, Msg } from '../lib/types';
+import { initRecording } from './record';
 
 const canvas = document.querySelector('canvas')!;
 let v = loadVisual();
@@ -62,6 +63,8 @@ wake();
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && wake());
 
 addEventListener('keydown', (e) => { if (e.key === 'Escape') invoke('close_output'); });
+
+initRecording(canvas, report); // DK-072: grava este canvas quando o controle pedir
 
 const stats = new FrameStats();
 let prev = performance.now(), last = prev;

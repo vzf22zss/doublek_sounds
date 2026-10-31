@@ -18,6 +18,8 @@
   import { loadAutomation, saveAutomation } from '../lib/show-engine/config';
   import { shiftAfterRemove } from '../lib/banks';
   import AutomationPanel from './AutomationPanel.svelte';
+  import RecordPanel from './RecordPanel.svelte';
+  import { initRec, rec, recTelemetry } from './rec.svelte';
   import { busy as fxBusy, clear as clearFx, EMPTY as NO_FX, startBurst, startRamp, step as stepFx, type Running } from '../lib/roteiro-fx';
   import { createDispatcher, fromTarget, keyCommand, routePad, startMacro, type AutomationMode, type Handlers, type MacroId, type MacroRun, type ShowCommand, type Source } from '../lib/commands';
   import { applyLayerParam } from '../render/layers';
@@ -51,6 +53,7 @@
   let carried: string | null = null;
   try { carried = sessionStorage.getItem('doublek.status'); sessionStorage.removeItem('doublek.status'); } catch {}
   let status = $state(carried ?? 'Escolha a entrada de áudio e clique em Ouvir.');
+  initRec((m) => (status = m)); // DK-072: eventos da gravação do telão
   let frame = $state.raw<Frame | null>(null);
   let frameAt = 0;
   let kickAt = $state(-1e9);
@@ -525,6 +528,7 @@
   });
   onEvent<Telemetry>('telemetry', (e) => {
     tel = e.payload;
+    recTelemetry(e.payload.p95); // DK-072: a gravação está pesando?
     fps = e.payload.fps;
     fpsAt = performance.now();
     if (e.payload.lost) log('warn', 'telão: sem contexto WebGL');
@@ -550,6 +554,7 @@
       control: { maxFrameGapMs: Math.round(uiGap), jsHeapMB: mem ? Math.round(mem.usedJSHeapSize / 1048576) : null },
       visual: $state.snapshot(vs), roteiro: rt.cur ? { name: rt.list.find((r) => r.id === rt.cur)?.name, running: rt.running, mode: rt.mode, source: rt.source } : null,
       commands: commands.history(),
+      recording: { phase: rec.s.phase, id: rec.s.id, mime: rec.s.mime, ms: Math.round(rec.s.ms), bytes: rec.s.bytes, last: rec.s.path },
       show: { ...$state.snapshot(show), mode: automationMode, automation: $state.snapshot(rulesCfg), manualLeftMs: commands.manualLeft() },
       log: logEntries(),
     };
@@ -894,6 +899,7 @@
           <button onclick={() => invoke('close_output')}>Fechar telão</button>
         </div>
         <p class="keys">No telão: Esc fecha.</p>
+        <RecordPanel outputOpen={fps > 0} p95={tel.p95} />
         <h2>Sincronia</h2>
         <label class="check">
           <input type="checkbox" bind:checked={vs.predict} />
@@ -957,6 +963,7 @@
 
   <footer class="status">
     <span>{status}</span>
+    {#if rec.s.phase !== 'idle'}<span class="recDot" title="Gravando a saída do telão (aba Saída)">●</span>{/if}
     {#if remoteWarn}<span class="remoteWarn">⚠ alguém está controlando pelo celular</span>{/if}
     {#if upd}
       <button class="upd" onclick={installUpdate} disabled={fps > 0 || updPct >= 0}
@@ -979,6 +986,8 @@
   .bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding: 10px 14px; flex-wrap: wrap; }
   .panic { font-weight: 700; letter-spacing: .04em; font-size: 11px; padding: 7px 8px; color: #ffb84d; border-color: rgba(255,184,77,.45); }
   .panic:hover { background: rgba(255,184,77,.15); }
+  .recDot { color: #ff3b3b; font-size: 11px; animation: recblink 1s steps(2, start) infinite; }
+  @keyframes recblink { to { visibility: hidden; } }
   .stagedTag { color: #062a30; background: #22d3ee; padding: 2px 8px; border-radius: 6px; font-weight: 800; letter-spacing: .06em; }
   .blackTag { left: auto; right: 12px; color: #fff; background: var(--clip); padding: 2px 8px; border-radius: 6px; font-weight: 800; }
   .warnTxt { color: #ffb84d; }

@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use doublek_lib::analysis::{BeatCmd, Params};
-use doublek_lib::{audio, midi, track};
+use doublek_lib::{audio, midi, rec, track};
 use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
@@ -67,6 +67,51 @@ fn remove_track(app: AppHandle, id: String) -> Result<(), String> {
 /// Música vinda de um Show Pack, com id já definido (DK-014): `replace` mantém o id do pacote, `new` usa o gerado
 /// na importação. Corpo = bytes; cabeçalho `x-id` = id (`<nome>.<ext>`). Nunca sobrescreve: se o id já existe,
 /// não grava e devolve `false` (o importador então não apaga esse arquivo num rollback).
+// ---------- gravação da saída visual (DK-072) ----------
+// O telão grava o próprio canvas e manda pedaços de ~1 s; aqui vão direto para app_data/recordings/<nome>.
+
+type Rec = Mutex<rec::Recorder>;
+
+fn rec_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(app.path().app_data_dir().map_err(|e| e.to_string())?.join("recordings"))
+}
+
+/// Cria o arquivo da gravação (`id` = `<AAAAMMDD>T<HHMMSS>.<mp4|webm>`). Recusa com menos de 1 GiB livre.
+#[tauri::command]
+fn rec_start(app: AppHandle, rec: State<'_, Rec>, id: String) -> Result<String, String> {
+    let dir = rec_dir(&app)?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let free = rec::free_bytes(&dir);
+    rec.lock().map_err(|e| e.to_string())?.start(&dir, &id, free).map(|p| p.display().to_string())
+}
+
+/// Corpo = bytes do pedaço; cabeçalho `x-id` = nome da gravação. Escreve no fim do arquivo, em ordem.
+#[tauri::command]
+fn rec_chunk(app: AppHandle, rec: State<'_, Rec>, request: tauri::ipc::Request<'_>) -> Result<rec::Chunk, String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else { return Err("Envie o pedaço como bytes".into()) };
+    let id = request.headers().get("x-id").and_then(|v| v.to_str().ok()).unwrap_or("");
+    let free = rec::free_bytes(&rec_dir(&app)?);
+    rec.lock().map_err(|e| e.to_string())?.chunk(id, bytes, free)
+}
+
+#[tauri::command]
+fn rec_stop(rec: State<'_, Rec>, id: String) -> Result<rec::Done, String> {
+    rec.lock().map_err(|e| e.to_string())?.stop(&id)
+}
+
+#[tauri::command]
+fn rec_abort(rec: State<'_, Rec>, id: String) -> Result<(), String> {
+    rec.lock().map_err(|e| e.to_string())?.abort(&id)
+}
+
+/// Abre o Explorer na pasta das gravações (só ela).
+#[tauri::command]
+fn rec_open_dir(app: AppHandle) -> Result<(), String> {
+    let dir = rec_dir(&app)?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    std::process::Command::new("explorer").arg(&dir).spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn put_track(app: AppHandle, request: tauri::ipc::Request<'_>) -> Result<bool, String> {
     let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else { return Err("Envie o arquivo como bytes".into()) };
@@ -384,6 +429,7 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(Engine::default())
+        .manage(Rec::default())
         .setup(|app| {
             let (h1, h2) = (app.handle().clone(), app.handle().clone());
             let devs = app.state::<Engine>().midi_devices.clone();
@@ -399,6 +445,11 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            rec_start,
+            rec_chunk,
+            rec_stop,
+            rec_abort,
+            rec_open_dir,
             list_inputs,
             subscribe,
             start_input,

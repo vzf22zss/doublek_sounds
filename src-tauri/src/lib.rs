@@ -3,6 +3,7 @@ pub mod audio;
 pub mod beat;
 pub mod midi;
 pub mod osc;
+pub mod rec;
 pub mod remote;
 pub mod synth;
 pub mod track;
