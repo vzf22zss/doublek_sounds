@@ -193,6 +193,14 @@ Exigindo os dois juntos, o app ignora o baixo.
 
 ---
 
+### Gravar a análise para ajustar a detecção
+
+Para deixar a detecção afinada com a **sua** música, grave a análise de um set: na aba **Áudio**,
+clique em **Gravar análise (sem áudio)**, toque normalmente e aperte **M** no instante de cada
+drop. **Parar** salva um arquivo `.jsonl` com só números (BPM, grave, kicks por compasso, a cada
+50 ms) — **nenhum som é gravado**. Com esse arquivo dá para medir onde o app errou e ajustar os
+limites. Como gravar e mandar o arquivo: [docs/quality/CALIBRACAO.md](quality/CALIBRACAO.md).
+
 ## 7. BPM e andamento
 
 Na aba **Áudio**, em **Andamento**, escolha a faixa do estilo que você vai tocar:
@@ -288,6 +296,8 @@ os kicks. Use quando o BPM estiver certo e você não quiser que ele oscile.
 5. **Reiniciar no compasso:** quando esse vídeo entra (por cena ou roteiro), ele volta ao
    começo no próximo 1º tempo da música, em vez de entrar no meio.
 
+![Vídeo em loop com início e fim do trecho e reinício no compasso](img/video-loop.png)
+
 Se um vídeo der erro ou travar no meio do show, o telão volta sozinho para a foto ou a cor de
 fundo e avisa no Diagnóstico, sem tela preta. Para o notebook não sofrer, o app deixa no máximo
 um vídeo tocando e um preparado (o próximo do roteiro); os outros ficam parados.
@@ -376,6 +386,11 @@ knob ou botão.
 
 ![Seção Camadas da aba Efeitos: mandala em Somar a 70 %](img/camadas.png)
 
+**Vídeo como camada:** normalmente o vídeo fica no fundo, atrás da logo. Em **+ Adicionar
+camada… › Vídeo do fundo como camada**, ele sai de trás e vira uma camada: dá para pôr na frente
+de efeitos, misturar em **Tela** ou **Somar** (a logo continua aparecendo) ou baixar a opacidade.
+Em **Normal** a 100 % o vídeo cobre a logo. O **×** da linha devolve o vídeo para o fundo.
+
 ### Efeitos da comunidade (shaders)
 
 Quem programa shaders pode criar efeitos novos. Na aba **Efeitos**, abra **Efeitos da
@@ -383,8 +398,19 @@ comunidade (FX)**: **Importar** traz um arquivo `.doublekfx`, **Novo** abre um m
 escrever o seu, **Exportar** gera o arquivo para compartilhar. O editor mostra uma
 pré-visualização sobre a sua logo, reagindo ao som de verdade, e aponta o erro com a linha; se
 algo quebrar, **Reverter para o último válido** volta ao código que funcionava. Cada efeito
-pode ter até 8 controles deslizantes. Por enquanto os efeitos aparecem só na pré-visualização
-do editor; levar para o telão vem na próxima versão.
+pode ter até 8 controles deslizantes (alguns sobem e descem sozinhos com o som, se o autor
+escolheu uma fonte, como o kick ou o grave).
+
+![Editor de efeitos da comunidade com o RGB split no kick](img/fx-editor.png)
+
+**No telão:** em **Efeitos › Camadas**, use **+ Adicionar camada…** e escolha o efeito (até 2 ao
+mesmo tempo). Ele vira uma camada como as outras: ordem, modo de mistura, opacidade, solo e MIDI
+learn. Se o efeito não compilar no telão, pesar demais (mais que o dobro do orçamento por 3 s)
+ou derrubar a placa, o telão desliga **só aquele efeito** e avisa no Diagnóstico.
+
+**Modo seguro:** **Abrir telão em modo seguro** (no editor) ou **Shift + Projetar** abre o
+telão sem nenhum efeito da comunidade. Se o último telão caiu com efeitos ligados, o app abre o
+próximo em modo seguro sozinho e avisa.
 
 > ⚠ Código de shader de outra pessoa pode travar a placa de vídeo. Importe só de quem você
 > confia. Um efeito que derruba a pré-visualização fica marcado como **suspeito** e, depois de
@@ -488,6 +514,20 @@ aparece por cima do PREVIEW mostrando o pedaço do telão que vai ser gravado; a
 recorte** e a **Posição horizontal** (dá para mexer gravando). O arquivo sai em 1080×1920
 (720×1280 na qualidade Leve) com `V9x16` no nome. O vertical pesa mais no notebook: prefira
 Leve ou 30 fps.
+
+![Gravação vertical: o retângulo ciano no PREVIEW mostra o recorte 9:16](img/gravacao-vertical.png)
+
+### Spout: mandar o telão para o Resolume
+
+Se você usa **Resolume**, **TouchDesigner**, **OBS** (com plugin) ou outro programa que recebe
+**Spout**, o DoubleK pode mandar a imagem do telão direto para ele, sem cabo nem placa de
+captura. Na aba **Saída**, seção **Spout (Resolume)**: projete o telão, escolha o nome (padrão
+"DoubleK Visuals") e clique em **Ligar**. No Resolume, a fonte aparece em **Sources › Spout**
+com esse nome. A seção mostra o tamanho, os quadros por segundo e quantos quadros já foram.
+A janela do telão **não pode ficar minimizada** (o Spout copia o que ela mostra); se você mudar o
+telão de monitor, o Spout religa sozinho com o mesmo nome. Fechar o telão desliga o Spout. Custa
+quase nada para a placa de vídeo (menos de 0,5 ms por quadro) e atrasa a imagem em cerca de um
+quadro. O Spout é de Lynn Jarvis, licença BSD-2 (ver [docs/CREDITOS.md](CREDITOS.md)).
 
 ## 14. Acertar o atraso do projetor (offset)
 
@@ -603,7 +643,11 @@ Ao lado, o seletor **Manual / Assistido / Automático** decide o que o app faz c
 - **Automático:** tudo do Assistido e, se houver cena marcada para o drop ou para o groove no
   mapa de automação, chama essa cena (abrindo o banco dela) no compasso.
 
-**Mapa de automação:** no topo da aba **Efeitos**, abra **Mapa de automação**. Ali dá para
+**Mapa de automação:** no topo da aba **Efeitos**, abra **Mapa de automação**.
+
+![Mapa de automação aberto na aba Efeitos](img/mapa-automacao.png)
+
+ Ali dá para
 desligar cada regra (breakdown, build-up, drop, groove), escolher até onde as rampas levam
 rastro, anéis, zoom do fundo e aberração em cada momento (duplo clique volta ao padrão) e
 escolher a cena do drop e a do groove (banco e pad, ou "nenhuma"). Mexer no mapa não pausa a
