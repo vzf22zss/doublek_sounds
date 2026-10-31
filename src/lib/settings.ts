@@ -48,6 +48,7 @@ export const VISUAL = {
   layers: defaultLayers(),
   // saída / operação (fora das cenas)
   layerSolo: '',    // DK-053: id da camada em solo ('' = nenhuma); só ela desenha, sem mexer no `enabled` das outras
+  fxSafe: false,    // DK-123: modo seguro — nenhum efeito da comunidade carrega no telão
   psyQuality: 1, // 0 baixa · 1 média · 2 alta: amostras/iterações por pixel dos módulos do Psy Engine
   psyAuto: true,    // DK-024: baixa a qualidade / desliga o módulo mais caro se o telão engasgar
   psyBudgetMs: 22,  // teto do p95 do frametime para o ajuste automático
@@ -78,7 +79,7 @@ export function saveVisual(v: Visual) {
 
 // ---------- cenas ----------
 // Uma cena é o "visual" sem os ajustes de operação (sincronia, desempenho, blackout, recorte da logo).
-const NOT_IN_SCENE = ['renderScale', 'psyQuality', 'psyAuto', 'psyBudgetMs', 'psySafe', 'layerSolo', 'offset', 'predict', 'blackout', 'logoOnly', 'rmWhite', 'white', 'react', 'safeFlash'] as const;
+const NOT_IN_SCENE = ['renderScale', 'psyQuality', 'psyAuto', 'psyBudgetMs', 'psySafe', 'layerSolo', 'fxSafe', 'offset', 'predict', 'blackout', 'logoOnly', 'rmWhite', 'white', 'react', 'safeFlash'] as const;
 export type Look = Omit<Visual, (typeof NOT_IN_SCENE)[number]>;
 export type Scene = { name: string; look: Look } | null;
 

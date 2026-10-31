@@ -4,10 +4,11 @@
 //
 // O que é camada e o que é passe fixo:
 //   fixo   cena (fundo/foto/vídeo + flash + anéis + espectros + logo/glow) — tudo num shader só; separar em passes
-//          mudaria o arredondamento de 8 bits e a imagem de hoje. Vídeo como camada própria fica para DK-063.
+//          mudaria o arredondamento de 8 bits e a imagem de hoje (DK-063 decidiu não dividir; ver VIDEO_LAYER).
 //   camada orgânico, túnel, partículas, mandala, caleidoscópio (psy:<módulo>), rastro (overlay), glitch (psy:glitch)
+//   opcional vídeo (`video`, DK-063) e até 2 efeitos da comunidade (`fx:<id>`, DK-123) — só se o operador puser
 //   fixo   pós (vinheta, grão, strobe, blackout) — sempre por último, é a segurança do telão.
-// Os tipos 'bg' | 'logo' | 'video' ficam reservados no contrato para quando a cena for dividida.
+// Os tipos 'bg' | 'logo' ficam reservados no contrato para se um dia a cena for dividida.
 
 export const BLENDS = ['normal', 'add', 'screen', 'multiply'] as const;
 export type Blend = (typeof BLENDS)[number];
@@ -21,25 +22,42 @@ export const LAYER_NAMES: Record<LayerId, string> = {
   feedback: 'Rastro', glitch: 'Glitch',
 };
 
-export type LayerType = 'bg' | 'logo' | 'overlay' | 'video' | `psy:${string}`;
+export type LayerType = 'bg' | 'logo' | 'overlay' | 'video' | 'fx' | `psy:${string}`;
 export type Layer = { id: string; type: LayerType; enabled: boolean; order: number; opacity: number; blend: Blend };
 
-const typeOf = (id: string): LayerType => (id === 'feedback' ? 'overlay' : `psy:${id}`);
-const make = (id: LayerId, order: number): Layer => ({ id, type: typeOf(id), enabled: true, order, opacity: 1, blend: 'normal' });
+// DK-123: efeito da comunidade como camada, id `fx:<id do manifesto>`; no máximo MAX_FX ao mesmo tempo
+export const MAX_FX = 2;
+export const FX_LAYER = /^fx:[a-z0-9][a-z0-9-]{2,39}$/;
+export const isFxLayer = (id: unknown): id is string => typeof id === 'string' && FX_LAYER.test(id);
+
+// DK-063: vídeo como camada própria, OPCIONAL. Sem ela (padrão, cenas e Show Pack antigos), o vídeo continua no
+// fundo da cena, atrás da logo, como sempre. Com ela, o vídeo sai do fundo e entra na ordem das camadas — por
+// cima da cena fixa (logo incluída): use Tela/Somar ou opacidade < 100% para a logo aparecer. Desligada = sem vídeo.
+export const VIDEO_LAYER = 'video';
+
+const typeOf = (id: string): LayerType => (isFxLayer(id) ? 'fx' : id === VIDEO_LAYER ? 'video' : id === 'feedback' ? 'overlay' : `psy:${id}`);
+const make = (id: string, order: number): Layer => ({ id, type: typeOf(id), enabled: true, order, opacity: 1, blend: 'normal' });
 
 export const defaultLayers = (): Layer[] => LAYER_IDS.map(make);
 
 /** Qualquer coisa → lista válida: só ids conhecidos (o 1º de cada), valores limitados, ordem estável 0..n-1,
- *  ids que faltarem entram no fim com o padrão. Tipo sempre derivado do id. */
-export function sanitizeLayers(raw: unknown): Layer[] {
+ *  ids que faltarem entram no fim com o padrão. Tipo sempre derivado do id.
+ *  Camadas `fx:<id>` (DK-123): ficam as primeiras MAX_FX bem formadas; com `fxIds` (os efeitos instalados e
+ *  saudáveis), só as desses ids. Sem `fxIds` (salvar/carregar cena), ficam todas as bem formadas. */
+export function sanitizeLayers(raw: unknown, fxIds?: readonly string[]): Layer[] {
   const seen = new Map<string, Layer & { i: number }>();
+  let fx = 0;
   if (Array.isArray(raw)) raw.forEach((x, i) => {
     if (!x || typeof x !== 'object') return;
     const r = x as Record<string, unknown>, id = r.id;
-    if (typeof id !== 'string' || !(LAYER_IDS as readonly string[]).includes(id) || seen.has(id)) return;
+    if (typeof id !== 'string' || seen.has(id)) return;
+    if (isFxLayer(id)) {
+      if (fx >= MAX_FX || (fxIds && !fxIds.includes(id.slice(3)))) return;
+      fx++;
+    } else if (id !== VIDEO_LAYER && !(LAYER_IDS as readonly string[]).includes(id)) return;
     const op = typeof r.opacity === 'number' && Number.isFinite(r.opacity) ? Math.min(1, Math.max(0, r.opacity)) : 1;
     seen.set(id, {
-      ...make(id as LayerId, typeof r.order === 'number' && Number.isFinite(r.order) ? r.order : Infinity),
+      ...make(id, typeof r.order === 'number' && Number.isFinite(r.order) ? r.order : Infinity),
       enabled: typeof r.enabled === 'boolean' ? r.enabled : true,
       opacity: op,
       blend: (BLENDS as readonly string[]).includes(r.blend as string) ? (r.blend as Blend) : 'normal',
@@ -82,7 +100,24 @@ export function placeLayer(layers: unknown, id: string, to: number): Layer[] {
 /** A camada desenha? Com uma camada em solo (`layerSolo` = id conhecido), só ela — mesmo desligada; o `enabled`
  *  das outras fica como estava. Opacidade 0 nunca desenha. */
 export const drawsLayer = (l: Layer, solo: unknown) =>
-  ((LAYER_IDS as readonly unknown[]).includes(solo) ? l.id === solo : l.enabled) && l.opacity > 0;
+  ((LAYER_IDS as readonly unknown[]).includes(solo) || isFxLayer(solo) ? l.id === solo : l.enabled) && l.opacity > 0;
+
+/** Põe um efeito da comunidade como camada, no topo das camadas (logo antes do pós). Já presente ou cheio: igual. */
+export function addFxLayer(layers: unknown, fxId: string): Layer[] {
+  const l = sanitizeLayers(layers), id = `fx:${fxId}`;
+  if (!isFxLayer(id) || l.some((x) => x.id === id) || l.filter((x) => x.type === 'fx').length >= MAX_FX) return l;
+  return sanitizeLayers([...l, make(id, l.length)]);
+}
+
+/** Põe o vídeo como camada (DK-063), no topo das camadas. Já presente: igual. */
+export function addVideoLayer(layers: unknown): Layer[] {
+  const l = sanitizeLayers(layers);
+  return l.some((x) => x.id === VIDEO_LAYER) ? l : sanitizeLayers([...l, make(VIDEO_LAYER, l.length)]);
+}
+
+/** Tira uma camada opcional (efeito da comunidade ou vídeo; o vídeo volta para o fundo). As do app não saem. */
+export const removeExtraLayer = (layers: unknown, id: string): Layer[] =>
+  isFxLayer(id) || id === VIDEO_LAYER ? sanitizeLayers(sanitizeLayers(layers).filter((x) => x.id !== id)) : sanitizeLayers(layers);
 
 /** Chaves de camada que SET_PARAMETER aceita (MIDI learn): `layers.<id>.opacity` (0–1) e `layers.<id>.on`
  *  (1 liga · 0 desliga · −1 alterna). */

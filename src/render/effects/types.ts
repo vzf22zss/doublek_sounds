@@ -7,15 +7,19 @@ import type { Target } from '../gl/texture';
 
 /** Ferramentas GL que o renderer empresta aos módulos. `program` vem de um cache por código-fonte. */
 export type Helpers = {
-  program(fs: string, name: string): Prog;
+  program(fs: string, name: string, vs?: string): Prog;
   use(pr: Prog, fb: WebGLFramebuffer | null, W: number, H: number): Prog['u'];
   bind(unit: number, t: WebGLTexture, loc: WebGLUniformLocation | null): void;
   target(W: number, H: number): Target;
   dropTarget(t: Target): void;
 };
 
-/** Texturas de entrada, mantidas pelo renderer. `bg` já é o vídeo quando há vídeo. */
-export type Textures = { logo: WebGLTexture; glow: WebGLTexture; bg: WebGLTexture; bgAspect: number; logoAspect: number; video: boolean };
+/** Texturas de entrada, mantidas pelo renderer. `bg` já é o vídeo quando há vídeo (e não há camada de vídeo).
+ *  `vid`/`vidAspect`: o vídeo para a camada `video` (DK-063); null sem vídeo carregado. */
+export type Textures = {
+  logo: WebGLTexture; glow: WebGLTexture; bg: WebGLTexture; bgAspect: number; logoAspect: number; video: boolean;
+  vid: WebGLTexture | null; vidAspect: number;
+};
 
 export type Ctx = {
   gl: WebGL2RenderingContext;

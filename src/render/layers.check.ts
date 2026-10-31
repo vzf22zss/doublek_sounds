@@ -1,6 +1,48 @@
 // npm run check — contrato das camadas (DK-051).
 import assert from 'node:assert/strict';
-import { applyLayerParam, defaultLayers, drawsLayer, LAYER_IDS, LAYER_PARAM, moveLayer, needsCompose, placeLayer, sanitizeLayers, setLayer } from './layers.ts';
+import { addFxLayer, addVideoLayer, applyLayerParam, defaultLayers, drawsLayer, LAYER_IDS, LAYER_PARAM, MAX_FX, moveLayer, needsCompose, placeLayer, removeExtraLayer, sanitizeLayers, setLayer, VIDEO_LAYER } from './layers.ts';
+
+// DK-063: vídeo como camada opcional
+{
+  const D0 = defaultLayers();
+  assert.ok(!D0.some((l) => l.id === VIDEO_LAYER), 'padrão: vídeo no fundo, sem camada');
+  const v = addVideoLayer(D0);
+  assert.deepEqual(v.at(-1), { id: 'video', type: 'video', enabled: true, order: 7, opacity: 1, blend: 'normal' });
+  assert.deepEqual(addVideoLayer(v), v, 'repetido: igual');
+  assert.deepEqual(sanitizeLayers(JSON.parse(JSON.stringify(v))), v, 'sobrevive a salvar/carregar');
+  assert.deepEqual(sanitizeLayers([...D0, { id: 'video' }, { id: 'video', blend: 'add' }]).filter((l) => l.id === 'video').length, 1);
+  assert.equal(moveLayer(v, 'video', -1).at(-2)!.id, 'video');
+  assert.deepEqual(removeExtraLayer(v, 'video'), D0, 'tirar: o vídeo volta para o fundo');
+  assert.equal(addFxLayer(v, 'algum-fx').length, 9, 'vídeo não conta no limite de efeitos');
+  assert.equal(setLayer(v, 'video', { blend: 'screen', opacity: 0.5 }).at(-1)!.blend, 'screen');
+}
+
+// DK-123: camadas de efeito da comunidade (fx:<id>)
+{
+  const D0 = defaultLayers();
+  const one = addFxLayer(D0, 'rgb-split-kick');
+  assert.equal(one.length, 8);
+  assert.deepEqual(one.at(-1), { id: 'fx:rgb-split-kick', type: 'fx', enabled: true, order: 7, opacity: 1, blend: 'normal' });
+  assert.deepEqual(addFxLayer(one, 'rgb-split-kick'), one, 'repetido: igual');
+  const two = addFxLayer(one, 'ondas-grave');
+  assert.equal(addFxLayer(two, 'terceiro-fx').length, 9, `no máximo ${MAX_FX}`);
+  assert.deepEqual(addFxLayer(D0, 'X invalido'), D0, 'id fora do formato do manifesto');
+  assert.deepEqual(sanitizeLayers(JSON.parse(JSON.stringify(two))), two, 'sobrevive a salvar/carregar');
+  // com a lista de instalados, só os instalados ficam
+  assert.equal(sanitizeLayers(two, ['ondas-grave']).filter((l) => l.type === 'fx').map((l) => l.id).join(), 'fx:ondas-grave');
+  assert.equal(sanitizeLayers(two, []).length, 7, 'nenhum instalado: só as do app');
+  // lixo: id mal formado sai; mais de 2 corta nos 2 primeiros
+  const many = sanitizeLayers([...D0, { id: 'fx:aaa', order: 7 }, { id: 'fx:bbb', order: 8 }, { id: 'fx:ccc', order: 9 }, { id: 'fx:', order: 10 }, { id: 'fx:../x' }]);
+  assert.equal(many.filter((l) => l.type === 'fx').map((l) => l.id).join(), 'fx:aaa,fx:bbb');
+  // tirar: só camada fx sai
+  assert.equal(removeExtraLayer(two, 'fx:ondas-grave').length, 8);
+  assert.deepEqual(removeExtraLayer(D0, 'tunnel'), D0, 'camada do app não sai');
+  // mover, solo, mistura funcionam com fx
+  assert.equal(moveLayer(two, 'fx:ondas-grave', -1).at(-1)!.id, 'fx:rgb-split-kick');
+  assert.equal(two.filter((l) => drawsLayer(l, 'fx:ondas-grave')).map((l) => l.id).join(), 'fx:ondas-grave', 'solo em fx');
+  assert.equal(setLayer(two, 'fx:ondas-grave', { blend: 'screen' }).at(-1)!.blend, 'screen');
+  assert.deepEqual(sanitizeLayers(D0, []), D0, 'sem fx, a lista do app não muda');
+}
 
 const ids = (l: { id: string }[]) => l.map((x) => x.id).join(',');
 const D = defaultLayers();
