@@ -1,6 +1,8 @@
 // Catálogo de presets de fábrica (DK-131): só parâmetros (cores, efeitos, fontes de modulação), sem mídia.
 // Nunca são editados no lugar: a interface grava uma cópia num pad ou aplica no visual atual.
-import { lookOf, VISUAL, type Look } from './settings.ts';
+import { lookOf, sanitizeLook, VISUAL, type Look } from './settings.ts';
+import { checkFile } from './limits.ts';
+import { isObj, load, save } from './store.ts';
 
 export const STYLES = {
   psy: 'Psy', dark: 'Dark', forest: 'Forest', hitech: 'Hi-Tech', ambient: 'Ambient', breakdown: 'Breakdown', drop: 'Drop',
@@ -131,3 +133,77 @@ export function searchPresets(q: string): Preset[] {
   if (!t) return FACTORY_PRESETS;
   return FACTORY_PRESETS.filter((pr) => fold([pr.name, pr.style, STYLES[pr.style], ...pr.tags].join(' ')).includes(t));
 }
+
+// ---------- presets da comunidade como arquivo local (DK-132) ----------
+// Formato `.doublekpreset` (docs/PRESETS.md): JSON pequeno, só parâmetros, sem mídia. Importados ficam em
+// `doublek.presets` (máx. 100) e aparecem no Catálogo em "Importados"; aplicar = mesmo caminho dos de fábrica.
+
+export const PRESET_FORMAT = 'doublek-preset';
+export const PRESET_VERSION = 1;
+export const PRESET_EXT = '.doublekpreset';
+export const MAX_PRESET_BYTES = 64 * 1024;
+export const MAX_IMPORTED = 100;
+const NAME_MAX = 60;
+
+export type UserPreset = { id: string; name: string; author?: string; style?: Style; look: Look };
+export type PresetFile = { format: typeof PRESET_FORMAT; v: number; name: string; author?: string; style?: Style; look: Look };
+
+/** Look só com chaves de cena conhecidas, completado com o padrão, sem vídeo (vídeo não viaja no arquivo). */
+const cleanLook = (x: unknown): Look => ({ ...structuredClone(base), ...sanitizeLook(x), bgVideo: '' } as Look);
+const text = (x: unknown, max: number) => (typeof x === 'string' ? x.trim().slice(0, max) : '');
+const pid = () => Math.random().toString(36).slice(2, 10);
+
+/** Arquivo para compartilhar. Avisos em português (ex.: o vídeo de fundo ficou de fora). */
+export function exportPreset(name: string, look: Look, meta: { author?: string; style?: Style } = {}): { text: string; warnings: string[] } {
+  const warnings: string[] = [];
+  if (look.bgVideo) warnings.push('o vídeo de fundo não vai no arquivo (presets levam só parâmetros)');
+  const n = text(name, NAME_MAX) || 'Preset';
+  const file: PresetFile = {
+    format: PRESET_FORMAT, v: PRESET_VERSION, name: n,
+    ...(text(meta.author, NAME_MAX) ? { author: text(meta.author, NAME_MAX) } : {}),
+    ...(meta.style && meta.style in STYLES ? { style: meta.style } : {}),
+    look: cleanLook(look),
+  };
+  const out = JSON.stringify(file, null, 1);
+  if (new TextEncoder().encode(out).length > MAX_PRESET_BYTES) throw new Error(`preset grande demais (máximo ${MAX_PRESET_BYTES / 1024} KB)`);
+  return { text: out, warnings };
+}
+
+/** Lê um `.doublekpreset`. Lança Error com a mensagem para a linha de status. */
+export function parsePreset(file: { name: string; size: number }, content: string): UserPreset {
+  const bad = checkFile('json', { name: file.name.replace(/\.doublekpreset$/i, '.json'), size: file.size });
+  if (bad) throw new Error(bad);
+  if (file.size > MAX_PRESET_BYTES) throw new Error(`preset grande demais (máximo ${MAX_PRESET_BYTES / 1024} KB)`);
+  let x: unknown;
+  try { x = JSON.parse(content); } catch { throw new Error('arquivo de preset inválido (não é JSON)'); }
+  if (!isObj(x) || x.format !== PRESET_FORMAT) throw new Error('não é um preset do DoubleK');
+  if (x.v !== PRESET_VERSION) throw new Error(typeof x.v === 'number' && x.v > PRESET_VERSION ? `preset de uma versão mais nova do DoubleK (v${x.v}); atualize o app` : 'versão de preset desconhecida');
+  const name = text(x.name, NAME_MAX);
+  if (!name) throw new Error('preset sem nome');
+  if (!isObj(x.look)) throw new Error('preset sem parâmetros (look)');
+  const author = text(x.author, NAME_MAX), style = typeof x.style === 'string' && x.style in STYLES ? (x.style as Style) : undefined;
+  return { id: pid(), name, ...(author ? { author } : {}), ...(style ? { style } : {}), look: cleanLook(x.look) };
+}
+
+/** Lista guardada: cada item revalidado; o que não presta some; no máximo 100. */
+export function validUserPresets(raw: unknown): UserPreset[] {
+  if (!Array.isArray(raw)) throw new Error('presets: precisa ser lista');
+  const out: UserPreset[] = [], ids = new Set<string>();
+  for (const p of raw) {
+    if (!isObj(p) || !isObj(p.look) || !text(p.name, NAME_MAX)) continue;
+    const id = typeof p.id === 'string' && /^[a-z0-9]{1,16}$/.test(p.id) && !ids.has(p.id) ? p.id : pid();
+    ids.add(id);
+    const author = text(p.author, NAME_MAX), style = typeof p.style === 'string' && p.style in STYLES ? (p.style as Style) : undefined;
+    out.push({ id, name: text(p.name, NAME_MAX), ...(author ? { author } : {}), ...(style ? { style } : {}), look: cleanLook(p.look) });
+    if (out.length === MAX_IMPORTED) break;
+  }
+  return out;
+}
+
+export function addUserPreset(list: UserPreset[], p: UserPreset): UserPreset[] {
+  if (list.length >= MAX_IMPORTED) throw new Error(`limite de ${MAX_IMPORTED} presets importados: apague algum antes`);
+  return [...list, p];
+}
+export const removeUserPreset = (list: UserPreset[], id: string) => list.filter((p) => p.id !== id);
+export const loadUserPresets = () => load('doublek.presets', validUserPresets, () => []);
+export const saveUserPresets = (list: UserPreset[]) => save('doublek.presets', list);

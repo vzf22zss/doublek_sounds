@@ -12,7 +12,7 @@
   import { applyShowPack, inspectShowPack, type ApplyMode } from '../lib/showpack/import';
   import { blend, lookOf, sanitizeLook, VISUAL, type Look, type Scene, type Visual } from '../lib/settings';
   import { addBank, loadBanks, MAX_BANKS, removeBank, renameBank, saveBanks, stepBank, usedScenes, type Banks } from '../lib/banks';
-  import { FACTORY_PRESETS, presetLook, presetsByStyle, STYLES } from '../lib/presets';
+  import { addUserPreset, exportPreset, FACTORY_PRESETS, loadUserPresets, parsePreset, PRESET_EXT, presetLook, presetsByStyle, removeUserPreset, saveUserPresets, STYLES } from '../lib/presets';
   import { MACROS, routePad, type AutomationMode, type MacroId, type ShowCommand } from '../lib/commands';
   import type { StateName } from '../lib/show-engine/state';
   import { afterRemoveBank, resolve, stage, take as takeOf, type PreviewRef, type Take } from '../lib/preview';
@@ -237,14 +237,59 @@ ${refs} ponto(s) de roteiro/automação usam este banco: passam a usar o banco a
     }
   }
 
-  // Catálogo de fábrica (DK-131): nunca edita o preset; grava uma cópia num pad ou aplica no visual.
+  // Catálogo (DK-131/132): de fábrica + importados de arquivo. Nunca edita o preset; grava uma cópia num pad ou aplica.
   let catalog = $state(false);
-  let pick = $state(FACTORY_PRESETS[0].id);
+  let pick = $state(FACTORY_PRESETS[0].id); // importados: 'u:<id>'
   const byStyle = presetsByStyle();
-  const picked = $derived(FACTORY_PRESETS.find((p) => p.id === pick)!);
+  let userPresets = $state(loadUserPresets());
+  $effect(() => saveUserPresets($state.snapshot(userPresets)));
+  const userOf = (id: string) => (id.startsWith('u:') ? userPresets.find((p) => p.id === id.slice(2)) : undefined);
+  const picked = $derived.by(() => {
+    const u = userOf(pick);
+    return u ? { name: u.name, description: `Importado${u.author ? ` · de ${u.author}` : ''}${u.style ? ` · ${STYLES[u.style]}` : ''}` }
+      : FACTORY_PRESETS.find((p) => p.id === pick) ?? FACTORY_PRESETS[0];
+  });
+  const lookFor = (id: string): Look => { const u = userOf(id); return u ? structuredClone($state.snapshot(u.look)) as Look : presetLook(id); };
+
+  /** Visual atual → arquivo .doublekpreset (só parâmetros; vídeo fica de fora, com aviso). */
+  function exportPresetFile() {
+    const name = prompt('Nome do preset:', 'Meu preset')?.trim();
+    if (!name) return;
+    try {
+      const { text, warnings } = exportPreset(name, lookOf($state.snapshot(vs) as Visual));
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+      a.download = (name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[-.]+|[-.]+$/g, '').slice(0, 60) || 'preset') + PRESET_EXT;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      onstatus(`Preset exportado: ${a.download}.` + (warnings.length ? ' Atenção: ' + warnings.join('; ') + '.' : ''));
+    } catch (e) {
+      onstatus('Não consegui exportar o preset: ' + (e as Error).message);
+    }
+  }
+
+  async function importPresetFile(f: File | undefined) {
+    if (!f) return;
+    try {
+      const p = parsePreset({ name: f.name, size: f.size }, await f.text());
+      userPresets = addUserPreset($state.snapshot(userPresets) as typeof userPresets, p);
+      pick = 'u:' + p.id;
+      onstatus(`Preset importado: "${p.name}". Está no Catálogo, em Importados.`);
+    } catch (e) {
+      onstatus('Não importei o preset: ' + (e as Error).message);
+    }
+  }
+
+  function deletePreset() {
+    const u = userOf(pick);
+    if (!u || !confirm(`Apagar o preset importado "${u.name}"? (os pads que já usam ele não mudam)`)) return;
+    userPresets = removeUserPreset($state.snapshot(userPresets) as typeof userPresets, u.id);
+    pick = FACTORY_PRESETS[0].id;
+    onstatus(`Preset "${u.name}" apagado.`);
+  }
 
   function applyPreset() {
-    Object.assign(vs, presetLook(pick));
+    Object.assign(vs, lookFor(pick));
     onstatus('Preset aplicado: ' + picked.name);
   }
 
@@ -253,7 +298,7 @@ ${refs} ponto(s) de roteiro/automação usam este banco: passam a usar o banco a
     let i = active >= 0 ? active : scenes.findIndex((s) => !s);
     if (i < 0) i = 0;
     if (scenes[i] && !confirm(`Gravar "${picked.name}" por cima da cena ${i + 1} (${scenes[i]!.name})?`)) return;
-    scenes[i] = { name: picked.name.slice(0, 24), look: presetLook(pick) };
+    scenes[i] = { name: picked.name.slice(0, 24), look: lookFor(pick) };
     active = i;
     onstatus(`Preset "${picked.name}" gravado na cena ${i + 1}.`);
   }
@@ -369,10 +414,18 @@ ${refs} ponto(s) de roteiro/automação usam este banco: passam a usar o banco a
               </optgroup>
             {/if}
           {/each}
+          {#if userPresets.length}
+            <optgroup label="Importados">
+              {#each userPresets as up}<option value={'u:' + up.id}>{up.name}</option>{/each}
+            </optgroup>
+          {/if}
         </select>
         <span class="desc">{picked.description}</span>
         <button onclick={applyPreset} title="Troca o visual atual, sem gravar em cena">Aplicar agora</button>
         <button onclick={savePreset} title="Grava uma cópia na cena ativa ou na primeira vazia">Gravar no pad</button>
+        {#if userOf(pick)}<button onclick={deletePreset} title="Apaga este preset importado (pede confirmação)">Apagar</button>{/if}
+        <button onclick={exportPresetFile} title="Salva o visual atual num arquivo .doublekpreset para compartilhar (só parâmetros, sem vídeo/foto)">Exportar preset</button>
+        <label class="btn" title="Carrega um .doublekpreset de outra pessoa para a seção Importados">Importar preset<input type="file" accept=".doublekpreset,application/json" onchange={(e) => { importPresetFile(e.currentTarget.files?.[0]); e.currentTarget.value = ''; }} /></label>
       </div>
     {/if}
   </div>
