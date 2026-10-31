@@ -121,14 +121,20 @@ export const removeExtraLayer = (layers: unknown, id: string): Layer[] =>
 
 /** Chaves de camada que SET_PARAMETER aceita (MIDI learn): `layers.<id>.opacity` (0–1) e `layers.<id>.on`
  *  (1 liga · 0 desliga · −1 alterna). */
-export const LAYER_PARAM = new RegExp(`^layers\\.(${LAYER_IDS.join('|')})\\.(opacity|on)$`);
+// D-21b: também as camadas extras — `video` e `fx:<id do manifesto>` (o id tem ":"; nunca ".")
+const EXTRA_ID = `${VIDEO_LAYER}|${FX_LAYER.source.slice(1, -1)}`;
+export const LAYER_PARAM = new RegExp(`^layers\\.(${LAYER_IDS.join('|')}|${EXTRA_ID})\\.(opacity|on)$`);
+/** Id de camada que aceita MIDI learn de liga/desliga (`l:<id>:on`), inclusive as extras. */
+export const LAYER_ON = new RegExp(`^l:(${LAYER_IDS.join('|')}|${EXTRA_ID}):on$`);
 
-/** Aplica um SET_PARAMETER de camada. null = não é chave de camada (o App segue com o caminho normal). */
+/** Aplica um SET_PARAMETER de camada. null = não é chave de camada (o App segue com o caminho normal).
+ *  Camada extra que não está na lista agora (efeito tirado, vídeo voltou ao fundo): lista igual, sem erro. */
 export function applyLayerParam(layers: unknown, key: string, value: number): Layer[] | null {
   const m = LAYER_PARAM.exec(key);
   if (!m || !Number.isFinite(value)) return null;
   const [, id, field] = m;
+  const cur = sanitizeLayers(layers).find((x) => x.id === id);
+  if (!cur) return sanitizeLayers(layers);
   if (field === 'opacity') return setLayer(layers, id, { opacity: value });
-  const cur = sanitizeLayers(layers).find((x) => x.id === id)!;
   return setLayer(layers, id, { enabled: value < 0 ? !cur.enabled : value >= 0.5 });
 }

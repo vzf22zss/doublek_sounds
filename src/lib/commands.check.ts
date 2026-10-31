@@ -183,6 +183,16 @@ const reason = (r: { ok: boolean; reason?: string }) => (r.ok ? '' : (r as any).
     assert.equal(validate(fromTarget({ id: `v:layers.${id}.opacity`, min: 0, max: 1, step: 0.01 }, 64)), null, id);
   }
   assert.match(validate({ type: 'SET_PARAMETER', key: 'layers.evil.on', value: 1 })!, /desconhecido/);
+  // D-21b: camadas extras (vídeo e efeitos da comunidade) pelo mesmo caminho
+  for (const id of ['video', 'fx:ondas-grave', 'fx:rgb-split-kick']) {
+    assert.deepEqual(fromTarget({ id: `l:${id}:on` }), { type: 'SET_PARAMETER', key: `layers.${id}.on`, value: -1 }, id);
+    assert.equal(validate(fromTarget({ id: `l:${id}:on` })), null, id);
+    assert.equal(validate(fromTarget({ id: `v:layers.${id}.opacity`, min: 0, max: 1, step: 0.01 }, 64)), null, id);
+  }
+  for (const bad of ['fx:X', 'fx:ab', 'fx:../etc', 'fx:a.b.c', 'fx:', 'videos', 'fx:-comeca-com-hifen']) {
+    assert.equal(fromTarget({ id: `l:${bad}:on` }), null, `l:${bad}:on`);
+    assert.match(validate({ type: 'SET_PARAMETER', key: `layers.${bad}.opacity`, value: 0.5 })!, /desconhecido/, bad);
+  }
   
   // c:<i>
   for (let i = 0; i < 8; i++) assert.deepEqual(fromTarget({ id: `c:${i}` }), { type: 'SCENE_RECALL', index: i });
