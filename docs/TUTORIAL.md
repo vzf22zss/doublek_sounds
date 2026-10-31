@@ -762,8 +762,15 @@ BLACKOUT por OSC têm a mesma prioridade de sempre.
 | Tecla | Ação |
 |---|---|
 | **Espaço** | TAP (bater o tempo) |
-| **← / →** | Adiantar / atrasar a fase 5 ms |
-| **1 … 8** | Chamar cena |
+| **← / →** | Adiantar / atrasar a fase 5 ms (segurar repete) |
+| **1 … 8** | Chamar cena (no modo Preview: preparar) |
+| **Shift + 1 … 8** | Preparar a cena no Preview, sem o telão ver |
+| **T** / **Shift + T** | TAKE (manda o Preview para o telão no próximo beat) / limpar o Preview |
+| **V** | Ligar/desligar o modo Preview dos pads |
+| **[ / ]** | Banco anterior / próximo |
+| **Alt + 1 … 4** | Abrir o banco 1 a 4 |
+| **U / D / C / X** | Macros Build-up / Drop / Caos / Reset |
+| **A** | Automação: Manual → Assistido → Automático |
 | **B** | Blackout (apaga o telão) |
 | **P** | Pânico (para o roteiro e zera os efeitos agressivos) |
 | **L** | Só logo |
@@ -774,6 +781,12 @@ BLACKOUT por OSC têm a mesma prioridade de sempre.
 | **; / '** | Roteiro: −1 / +1 compasso |
 | **R** | Roteiro: compara com roteiro × só o som (com a música tocando) |
 | **Esc** | Sair do modo MIDI (no controle) · fechar o telão (no telão) |
+
+Os atalhos só valem sem **Ctrl** (ou Cmd): Ctrl+C, Ctrl+R e afins continuam com o Windows. Segurar
+uma tecla não repete o comando (segurar **D** dá um Drop só); só as setas de fase repetem. Todo
+comando desta tabela também tem um id para o **MIDI learn**: clique no botão correspondente com o
+modo MIDI ligado (para abrir um banco pelo MIDI, abra o banco e clique em "Banco N/M"; para o
+modo de automação, clique no chip de estado).
 
 ---
 
