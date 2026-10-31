@@ -1,0 +1,14 @@
+{
+ "format": "doublek-fx",
+ "v": 1,
+ "id": "ondas-grave",
+ "name": "Ondas no grave",
+ "author": "DoubleK (exemplo)",
+ "version": "1.0.0",
+ "entry": "effect.frag",
+ "params": [
+  { "key": "amp", "label": "Amplitude", "min": 0, "max": 1, "default": 0.5, "step": 0.01, "mod": "bass" },
+  { "key": "freq", "label": "Frequência", "min": 0, "max": 1, "default": 0.3, "step": 0.01 },
+  { "key": "soft", "label": "Suavizar", "min": 0, "max": 1, "default": 0.4, "step": 0.01 }
+ ]
+}

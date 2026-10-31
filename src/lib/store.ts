@@ -27,6 +27,7 @@ export const SCHEMA = {
   'doublek.banks': 1, // DK-041: até 4 bancos de 8 cenas; doublek.scenes segue = banco ativo
   'doublek.automation': 1, // DK-035: mapa de automação (show-engine/config.ts)
   'doublek.presets': 1, // DK-132: presets importados (lib/presets.ts)
+  'doublek.fx': 1, // DK-122: efeitos da comunidade instalados (código no IndexedDB, chave fx:<id>)
 } as const;
 export type Key = keyof typeof SCHEMA;
 
@@ -44,6 +45,7 @@ const MIGRATIONS: Record<Key, Migration[]> = {
   'doublek.banks': [(d) => d], // nasceu na v1; o v0 nunca existiu
   'doublek.automation': [(d) => d], // nasceu na v1
   'doublek.presets': [(d) => d], // nasceu na v1
+  'doublek.fx': [(d) => d], // nasceu na v1
 };
 
 export type Envelope = { v: number; data: unknown };

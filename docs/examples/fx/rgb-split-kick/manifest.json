@@ -1,0 +1,13 @@
+{
+ "format": "doublek-fx",
+ "v": 1,
+ "id": "rgb-split-kick",
+ "name": "RGB split no kick",
+ "author": "DoubleK (exemplo)",
+ "version": "1.0.0",
+ "entry": "effect.frag",
+ "params": [
+  { "key": "amount", "label": "Força", "min": 0, "max": 1, "default": 0.6, "step": 0.01, "mod": "kick" },
+  { "key": "angle", "label": "Ângulo", "min": 0, "max": 1, "default": 0, "step": 0.01 }
+ ]
+}
