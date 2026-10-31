@@ -2,7 +2,7 @@
 // O processamento pesado (tirar o branco, borrar o glow, borrar o fundo) roda uma vez por troca, não por quadro.
 import type { Visual } from './settings';
 import { load, save } from './store.ts';
-import { barDelayMs, loopWindow, toRelease, videoInfo, wrapTarget, type VideoInfo } from './videoloop.ts';
+import { barDelayMs, entryTarget, loopWindow, toRelease, videoInfo, wrapTarget, type VideoInfo } from './videoloop.ts';
 
 const DEFAULT_LOGO =
   'data:image/svg+xml;utf8,' +
@@ -22,7 +22,7 @@ function db(): Promise<IDBDatabase> {
   });
 }
 
-type Key = 'logo' | 'bg' | `video:${string}`;
+type Key = 'logo' | 'bg' | `video:${string}` | `fx:${string}`; // fx: código dos efeitos da comunidade (DK-122)
 
 export async function getAsset(k: Key): Promise<Blob | undefined> {
   const d = await db();
@@ -52,10 +52,13 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-async function imageFrom(blob: Blob | undefined, fallback?: string) {
-  if (!blob) return fallback ? loadImage(fallback) : null;
-  const url = URL.createObjectURL(blob);
-  try { return await loadImage(url); } finally { URL.revokeObjectURL(url); }
+/** Imagem guardada; bytes que não decodificam (arquivo renomeado, IndexedDB corrompido) caem no `fallback` e chamam `onBad`. */
+async function imageFrom(blob: Blob | undefined, fallback?: string, onBad?: () => void) {
+  if (blob) {
+    const url = URL.createObjectURL(blob);
+    try { return await loadImage(url); } catch { onBad?.(); } finally { URL.revokeObjectURL(url); }
+  }
+  return fallback ? loadImage(fallback) : null;
 }
 
 function canvas(w: number, h: number) {
@@ -68,8 +71,8 @@ export const LOGO_PAD = 0.25; // margem em volta da logo para o glow caber
 
 export type Prepared = { image: HTMLCanvasElement; glow?: HTMLCanvasElement; aspect: number };
 
-async function prepareLogo(v: Visual): Promise<Prepared> {
-  const img = (await imageFrom(await getAsset('logo'), DEFAULT_LOGO))!;
+async function prepareLogo(v: Visual, onBad?: () => void): Promise<Prepared> {
+  const img = (await imageFrom(await getAsset('logo'), DEFAULT_LOGO, onBad))!;
   const s = Math.min(1, 1024 / Math.max(img.naturalWidth, img.naturalHeight));
   const w = Math.round(img.naturalWidth * s), h = Math.round(img.naturalHeight * s);
   const [c, x] = canvas(Math.round(w * (1 + 2 * LOGO_PAD)), Math.round(h * (1 + 2 * LOGO_PAD)));
@@ -91,8 +94,8 @@ async function prepareLogo(v: Visual): Promise<Prepared> {
   return { image: c, glow: g, aspect: h / w };
 }
 
-async function prepareBg(v: Visual): Promise<Prepared | null> {
-  const img = await imageFrom(await getAsset('bg'));
+async function prepareBg(v: Visual, onBad?: () => void): Promise<Prepared | null> {
+  const img = await imageFrom(await getAsset('bg'), undefined, onBad);
   if (!img) return null;
   const s = Math.min(1, 2560 / Math.max(img.naturalWidth, img.naturalHeight));
   const w = Math.round(img.naturalWidth * s), h = Math.round(img.naturalHeight * s);
@@ -262,30 +265,42 @@ function watchVideo(el: HTMLVideoElement, info: VideoInfo, o: { restart: boolean
   const win = () => loopWindow(info, el.duration);
   el.loop = win().native; // arquivo inteiro: o loop do próprio <video>; janela: a gente volta ao início
   const seek = (t: number) => { el.currentTime = t; };
-  const onTime = () => { last = Date.now(); };
+  const onTime = () => { last = Date.now(); }; // timeupdate e seeked: andou (o fim de um seek também conta)
   const onEnded = () => { seek(win().start); el.play().catch(() => {}); };
   const onError = () => alive && o.fail('deu erro ao tocar');
   el.addEventListener('timeupdate', onTime);
+  el.addEventListener('seeked', onTime);
   el.addEventListener('ended', onEnded);
   el.addEventListener('error', onError);
   const frame = (_: number, m: VideoFrameCallbackMetadata) => {
     if (!alive) return;
     last = Date.now();
-    const to = wrapTarget(m.mediaTime, win());
+    const to = wrapTarget(m.mediaTime, win(), el.seeking); // durante o seek o quadro pode ser o quadro-chave anterior
     if (to !== null) seek(to);
     el.requestVideoFrameCallback(frame);
   };
   el.requestVideoFrameCallback(frame);
-  const to = wrapTarget(el.currentTime, win()); // entrou na tela parado fora da janela
+  const to = entryTarget(el.currentTime, win()); // entrou na tela parado fora da janela
   if (to !== null) seek(to);
   const restart = o.restart && info.barRestart ? setTimeout(() => alive && seek(win().start), barDelayMs(o.beat?.() ?? null)) : 0;
-  // sem quadro nem timeupdate por 2 s com a janela visível = travou
-  const stall = setInterval(() => { if (alive && !document.hidden && Date.now() - last > 2000) o.fail('travou (2 s sem avançar)'); }, 500);
+  // sem quadro nem timeupdate por 2 s com a janela visível = travou; buscar não conta, mas buscar por 5 s, sim
+  let seekSince = 0;
+  const stall = setInterval(() => {
+    if (!alive || document.hidden) return;
+    if (el.seeking) {
+      seekSince ||= Date.now();
+      if (Date.now() - seekSince > 5000) o.fail('travou buscando o início do loop (5 s)');
+      return;
+    }
+    seekSince = 0;
+    if (Date.now() - last > 2000) o.fail('travou (2 s sem avançar)');
+  }, 500);
   return () => {
     alive = false;
     clearTimeout(restart);
     clearInterval(stall);
     el.removeEventListener('timeupdate', onTime);
+    el.removeEventListener('seeked', onTime);
     el.removeEventListener('ended', onEnded);
     el.removeEventListener('error', onError);
   };
@@ -304,6 +319,8 @@ export type SyncOpts = {
   beat?: () => BeatLike | null;
   /** Vídeo falhou e o fundo voltou para a foto/cor: mensagem pronta para o diário. */
   onVideoFail?: (msg: string) => void;
+  /** Logo ou foto guardada não decodifica: o telão usa a logo padrão / a cor de fundo. */
+  onImageFail?: (msg: string) => void;
 };
 
 /** Reprocessa logo/fundo só quando o arquivo ou um ajuste que os afeta mudou; troca o vídeo do fundo.
@@ -326,8 +343,8 @@ export function assetSync(r: { setLogo(p: Prepared): void; setBg(p: Prepared | n
     const lk = `${v.rmWhite}|${v.white}`, bk = `${v.bgBlur}`;
     const doLogo = force || lk !== logoKey, doBg = force || bk !== bgKey;
     logoKey = lk; bgKey = bk;
-    if (doLogo) r.setLogo(await prepareLogo(v));
-    if (doBg) r.setBg(await prepareBg(v));
+    if (doLogo) r.setLogo(await prepareLogo(v, () => o.onImageFail?.('Logo guardada inválida: o telão está usando a logo padrão. Carregue a logo de novo.')));
+    if (doBg) r.setBg(await prepareBg(v, () => o.onImageFail?.('Foto de fundo guardada inválida: o telão está usando a cor de fundo. Carregue a foto de novo.')));
     if (force || v.bgVideo !== vid) {
       const changed = v.bgVideo !== vid, my = ++token;
       vid = v.bgVideo;
