@@ -31,12 +31,28 @@ jobs:
         with:
           node-version: 22
           cache: npm
+
+      # DK-004: notas = seção do CHANGELOG.md desta versão. Sem a seção (ou vazia) o passo falha
+      # aqui, antes de compilar e de publicar: release sem notas não sai.
+      - name: Notas da Release (CHANGELOG)
+        id: notes
+        shell: bash
+        run: |
+          v=$(node -p "require('./package.json').version")
+          node scripts/release-notes.mjs "$v" > release-notes.md
+          {
+            echo 'body<<NOTAS_DA_RELEASE_FIM'
+            cat release-notes.md
+            echo 'NOTAS_DA_RELEASE_FIM'
+          } >> "$GITHUB_OUTPUT"
+
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
       - run: npm ci
       - uses: tauri-apps/tauri-action@v0
+        id: tauri
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -44,6 +60,35 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: DoubleK Visuals v__VERSION__
-          releaseBody: Baixe o .msi abaixo. Quem já tem o app instalado recebe o aviso de atualização ao abrir.
+          releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: false
           prerelease: false
+
+      # DK-004: SHA-256 do .msi publicado. Baixa o .msi da própria Release (com o nome que o GitHub
+      # deu), confere que é o mesmo arquivo compilado neste job e anexa SHA256SUMS.txt. Roda depois
+      # da publicação (o tauri-action compila e publica num passo só): se falhar, a Release existe
+      # sem o SHA256SUMS.txt; ver docs/RELEASE.md.
+      - name: SHA256SUMS.txt
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARTIFACTS: ${{ steps.tauri.outputs.artifactPaths }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $v = node -p "require('./package.json').version"
+          $built = @()
+          # ForEach-Object desdobra o array do JSON (o ConvertFrom-Json pode entregar o array inteiro como 1 objeto)
+          if ($env:ARTIFACTS) { $built = @($env:ARTIFACTS | ConvertFrom-Json | ForEach-Object { $_ } | Where-Object { $_ -like '*.msi' }) }
+          if (-not $built) { $built = @(Get-ChildItem src-tauri/target/release/bundle/msi/*.msi | ForEach-Object FullName) }
+          if (-not $built) { throw 'Nenhum .msi foi gerado' }
+          $want = @($built | ForEach-Object { (Get-FileHash $_ -Algorithm SHA256).Hash.ToLower() } | Sort-Object)
+          New-Item -ItemType Directory -Force release-dl | Out-Null
+          gh release download "v$v" --pattern '*.msi' --dir release-dl --clobber
+          if ($LASTEXITCODE) { throw "Não consegui baixar o .msi da Release v$v" }
+          $sums = @(Get-ChildItem release-dl/*.msi | Sort-Object Name | ForEach-Object { "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)" })
+          $got = @($sums | ForEach-Object { $_.Substring(0, 64) } | Sort-Object)
+          if (Compare-Object $want $got) { throw "O .msi da Release não é o compilado neste job: $($got -join ', ') x $($want -join ', ')" }
+          Set-Content -Path SHA256SUMS.txt -Value ($sums -join "`n") -Encoding utf8NoBOM
+          gh release upload "v$v" SHA256SUMS.txt --clobber
+          if ($LASTEXITCODE) { throw "Não consegui anexar o SHA256SUMS.txt à Release v$v" }
+          Get-Content SHA256SUMS.txt
