@@ -6,6 +6,16 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Não lançado]
 
+## [0.3.9] - 2026-10-31
+
+### Adicionado
+
+- DK-102: saída **Spout** para Resolume/TouchDesigner/OBS — captura a janela do telão direto na placa de vídeo (menos de 0,5 ms por quadro), nome do sender salvo, religa sozinha ao trocar o telão de monitor; desligada por padrão (`docs/quality/SPOUT.md`, `docs/CREDITOS.md`).
+- DK-123: efeitos da comunidade no telão como camadas (até 2), com desligamento automático do efeito que falha, pesa demais ou derruba a placa, e **modo seguro** (botão no editor, Shift + Projetar, ou automático depois de uma queda). Parâmetros com fonte de modulação passam a reagir ao som; opacidade e liga/desliga das camadas de efeito e de vídeo aprendem no MIDI.
+- DK-063: vídeo do fundo como camada opcional (na frente de efeitos, com mistura e opacidade); o padrão continua igual.
+- DK-144: gravar a análise de um set (só números, sem áudio) com a tecla **M** marcando os drops, para ajustar a detecção com a música do DJ (`docs/quality/CALIBRACAO.md`).
+- Tutorial com capturas novas: mapa de automação, editor de efeitos, gravação vertical, vídeo em loop, aba Saída inteira.
+
 ## [0.3.8] - 2026-10-31
 
 ### Adicionado
