@@ -48,11 +48,14 @@ function lost() {
 }
 
 // ---------- pareamento ----------
+let pairSeq = 0; // só a resposta da última tentativa conta (uma lenta não apaga o aviso da seguinte)
 async function pair() {
   const code = $('code').value.replace(/\D/g, '');
   if (code.length !== 6) { $('pairErr').textContent = 'O código tem 6 dígitos.'; return; }
   $('pairBtn').disabled = true;
+  const my = ++pairSeq;
   const r = await api('POST', '/pair', { code });
+  if (my !== pairSeq) return;
   $('pairBtn').disabled = false;
   if (r.status === 200 && r.j.token) {
     saveToken(r.j.token);
@@ -168,20 +171,24 @@ $('ctl').addEventListener('click', async (e) => {
   if (b.dataset.addr) send(b.dataset.addr, b.dataset.arg ? [{ t: 'i', v: +b.dataset.arg }] : [], b);
 });
 
-// sliders: no máximo 10 envios por segundo (o servidor corta em 20); o último valor sempre vai
+// sliders: um envio em voo por knob e o último valor vence (envios paralelos chegavam fora de ordem e o
+// penúltimo podia ficar); no máximo 10 por segundo (o servidor corta em 20)
 for (const el of document.querySelectorAll('[data-knob]')) {
-  let last = 0, timer = 0;
-  const go = () => {
-    last = Date.now();
-    timer = 0;
-    send(P + 'parameter/' + el.dataset.knob, [{ t: 'f', v: +el.value }]);
+  let busy = false, sent = null;
+  const flush = async () => {
+    if (busy) return;
+    busy = true;
+    while (+el.value !== sent) {
+      const v = +el.value, t0 = Date.now();
+      sent = v;
+      await send(P + 'parameter/' + el.dataset.knob, [{ t: 'f', v }]);
+      await new Promise((r) => setTimeout(r, Math.max(0, 100 - (Date.now() - t0))));
+    }
+    busy = false;
   };
   el.addEventListener('input', () => {
     el.dataset.touched = Date.now();
-    if (timer) return;
-    const wait = 100 - (Date.now() - last);
-    if (wait <= 0) go();
-    else timer = setTimeout(go, wait);
+    flush();
   });
 }
 
