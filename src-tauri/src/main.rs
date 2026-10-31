@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use doublek_lib::analysis::{BeatCmd, Params};
-use doublek_lib::{audio, midi, track};
+use doublek_lib::{audio, diary, midi, track};
 use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
@@ -17,6 +17,7 @@ struct Engine {
     subs: Subs, // uma assinatura por janela (controle, saída)
     midi_devices: Arc<Mutex<Vec<String>>>,
     clock: Arc<Mutex<midi::MidiClock>>, // MIDI Clock (pulsos da thread MIDI, lido pela análise)
+    diary: Arc<Mutex<Option<diary::Diary>>>, // diário de análise (DK-144), desligado ao abrir
     track: Mutex<Option<Arc<track::Track>>>, // faixa do roteiro carregada (pronta para tocar)
 }
 
@@ -115,8 +116,46 @@ fn subscribe(engine: State<Engine>, window: WebviewWindow, on_msg: Channel<audio
 #[tauri::command]
 fn start_input(engine: State<Engine>, device: Option<String>, channel: usize) {
     let (stop, rx) = engine.restart();
-    let (params, emit, clock) = (engine.params.clone(), engine.broadcast(), engine.clock.clone());
-    std::thread::spawn(move || audio::run(device, channel, params, clock, rx, stop, emit));
+    let (params, emit, clock, diary) = (engine.params.clone(), engine.broadcast(), engine.clock.clone(), engine.diary.clone());
+    std::thread::spawn(move || audio::run(device, channel, params, clock, diary, rx, stop, emit));
+}
+
+/// Diário de análise (DK-144): grava os números da análise da entrada ao vivo, sem áudio, em
+/// `<app_data>/analysis/<data>T<hora>Z.jsonl`. Reiniciar abre um arquivo novo.
+#[tauri::command]
+fn analysis_log_start(app: AppHandle, engine: State<Engine>) -> Result<diary::Status, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?.join("analysis");
+    let mut slot = engine.diary.lock().unwrap();
+    if let Some(old) = slot.take() {
+        old.stop();
+    }
+    let d = diary::Diary::start(&dir)?;
+    let st = d.status();
+    *slot = Some(d);
+    Ok(st)
+}
+
+#[tauri::command]
+fn analysis_log_stop(engine: State<Engine>) -> diary::Status {
+    engine.diary.lock().unwrap().take().map(|d| d.stop()).unwrap_or_default()
+}
+
+#[tauri::command]
+fn analysis_log_status(engine: State<Engine>) -> diary::Status {
+    engine.diary.lock().unwrap().as_ref().map(|d| d.status()).unwrap_or_default()
+}
+
+/// Marca do operador no diário (ex.: "drop" na tecla M). Sem diário ligado, não faz nada.
+#[tauri::command]
+fn analysis_mark(engine: State<Engine>, label: String) -> Result<(), String> {
+    let l = label.trim();
+    if l.is_empty() || l.len() > 40 || l.chars().any(|c| c.is_control()) {
+        return Err("Marca: 1 a 40 caracteres".into());
+    }
+    if let Some(d) = engine.diary.lock().unwrap().as_ref() {
+        d.mark(l);
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -209,7 +248,11 @@ fn main() {
             list_monitors,
             open_output,
             close_output,
-            midi_devices
+            midi_devices,
+            analysis_log_start,
+            analysis_log_stop,
+            analysis_log_status,
+            analysis_mark
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar o app");

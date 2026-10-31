@@ -22,4 +22,14 @@ export type Frame = {
   clock?: 'audio' | 'midi'; // quem manda no relógio do beat (DK-112); opcional até todo consumidor atualizar
 };
 
+// Diário de análise (DK-144): resposta de analysis_log_start / _stop / _status
+export type AnalysisLogStatus = {
+  running: boolean;
+  path: string;
+  lines: number;
+  bytes: number;
+  dropped: number;
+  lastError: string | null;
+};
+
 export type Msg = { t: 'frame'; v: Frame } | { t: 'status'; v: string };

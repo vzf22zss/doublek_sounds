@@ -266,6 +266,9 @@ pub struct Analyzer {
     pub beat: Beat,
     /// Relógio externo (MIDI Clock) já no tempo da análise; `None` = o áudio manda.
     pub ext: Option<ExtClock>,
+    /// Eventos deste hop para o diário (DK-144): lock, unlock, jump, restart, drop_on, drop_off.
+    events: Vec<&'static str>,
+    ev_locked: bool,
     trend: Trend,
     ring: Vec<f32>,
     ring_pos: usize,
@@ -314,6 +317,8 @@ impl Analyzer {
             last_quiet: 0.0,
             beat: Beat::default(),
             ext: None,
+            events: Vec::new(),
+            ev_locked: false,
             trend: Trend::default(),
             ring: vec![0.0; FFT],
             ring_pos: 0,
@@ -360,6 +365,11 @@ impl Analyzer {
         ms.iter_mut().for_each(|m| *m /= n);
         let dt = n / self.sr;
         self.t += dt as f64;
+        self.events.clear();
+        if self.beat.locked != self.ev_locked {
+            self.ev_locked = self.beat.locked;
+            self.events.push(if self.ev_locked { "lock" } else { "unlock" });
+        }
         let t = self.t;
         self.peak = pk;
         self.rms = (sq / n).sqrt();
@@ -378,7 +388,11 @@ impl Analyzer {
         self.low_ref = self.low_lvl.max(self.low_ref * (-dt / 60.0).exp()).max(1e-4);
         let ratio = self.low_lvl / self.low_ref;
         let had_low = self.last_low; // antes deste hop: o grave do kick atual ainda não subiu
+        let was_low = self.low_on;
         self.low_on = self.rms >= p.gate && ratio > if self.low_on { 0.7 * p.drop_thr } else { p.drop_thr };
+        if self.low_on != was_low {
+            self.events.push(if self.low_on { "drop_on" } else { "drop_off" });
+        }
         if self.low_on {
             self.last_low = t;
         }
@@ -461,6 +475,7 @@ impl Analyzer {
         let gap = 4.0 * self.beat.period;
         if grid == Some(false) && (t - self.last_kick > gap || t - had_low > gap) {
             self.beat.jump(t); // fase pulou depois de pausa/corte (P8)
+            self.events.push("jump");
         }
         self.last_kick = t;
         self.trend.kicks.push_back(t);
@@ -494,10 +509,37 @@ impl Analyzer {
         if regular.count() * 4 >= (self.orphans.len() - 1) * 3 {
             let ks = std::mem::take(&mut self.orphans);
             self.beat.restart(&ks);
+            self.events.push("restart");
         }
     }
 
     /// Estado atual para a UI/render (inclui espectro de 64 faixas log, 30 Hz–16 kHz).
+    /// Eventos do último hop (para o diário).
+    pub fn events(&self) -> &[&'static str] {
+        &self.events
+    }
+
+    /// Estado atual para o diário: o mesmo do `snapshot`, sem a FFT do espectro.
+    pub fn sample(&self, kick: f32) -> crate::diary::Sample {
+        let (bpm, phase, beat) = self.beat.at(self.t);
+        crate::diary::Sample::new(
+            self.t,
+            bpm,
+            self.beat.locked,
+            self.beat.holding(self.t),
+            phase,
+            beat,
+            kick,
+            self.low_on,
+            self.trend.energy,
+            self.trend.contrast,
+            self.trend.stability,
+            self.trend.kick_rate,
+            if self.ext.is_some() { "midi" } else { "audio" },
+            std::array::from_fn(|i| (self.env[i] / self.env_peak[i]).min(1.0)),
+        )
+    }
+
     pub fn snapshot(&mut self) -> Frame {
         for i in 0..FFT {
             self.fin[i] = self.ring[(self.ring_pos + i) % FFT] * self.win[i];

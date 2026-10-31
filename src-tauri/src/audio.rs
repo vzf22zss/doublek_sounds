@@ -2,6 +2,7 @@
 //! O callback de áudio só copia amostras; toda a análise roda fora dele.
 
 use crate::analysis::{Analyzer, BeatCmd, Frame, Params, HOP};
+use crate::diary::Diary;
 use crate::midi::{self, MidiClock};
 use crate::track::Track;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
@@ -193,6 +194,7 @@ pub fn run(
     channel: usize,
     params: Arc<Mutex<Params>>,
     clock: Arc<Mutex<MidiClock>>,
+    diary: Arc<Mutex<Option<Diary>>>,
     cmds: Receiver<BeatCmd>,
     stop: Arc<AtomicBool>,
     mut emit: impl FnMut(Msg) -> bool,
@@ -222,8 +224,15 @@ pub fn run(
                     let now = midi::now();
                     let hop_end = an.time() + HOP as f64 / sr as f64;
                     an.ext = clock.lock().ok().and_then(|c| c.state(now)).map(|e| e.shifted(hop_end - now));
-                    if let Some(k) = an.process(&buf, &p) {
+                    let k = an.process(&buf, &p);
+                    if let Some(k) = k {
                         kick = kick.max(k);
+                    }
+                    // diário de análise (DK-144): try_lock + try_send, nunca espera
+                    if let Ok(mut g) = diary.try_lock() {
+                        if let Some(d) = g.as_mut() {
+                            d.hop(&an, k);
+                        }
                     }
                     n += 1;
                     if n % 2 == 0 {
