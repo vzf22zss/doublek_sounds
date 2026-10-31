@@ -1,6 +1,22 @@
 // npm run check — contrato das camadas (DK-051).
 import assert from 'node:assert/strict';
-import { addFxLayer, addVideoLayer, applyLayerParam, defaultLayers, drawsLayer, LAYER_IDS, LAYER_PARAM, MAX_FX, moveLayer, needsCompose, placeLayer, removeExtraLayer, sanitizeLayers, setLayer, VIDEO_LAYER } from './layers.ts';
+import { addFxLayer, addVideoLayer, applyLayerParam, defaultLayers, drawsLayer, LAYER_IDS, LAYER_ON, LAYER_PARAM, MAX_FX, moveLayer, needsCompose, placeLayer, removeExtraLayer, sanitizeLayers, setLayer, VIDEO_LAYER } from './layers.ts';
+
+// D-21b: MIDI learn das camadas extras (vídeo e fx:<id>) pelo mesmo SET_PARAMETER
+{
+  const l = addFxLayer(addVideoLayer(defaultLayers()), 'ondas-grave');
+  const get = (x: ReturnType<typeof sanitizeLayers>, id: string) => x.find((y) => y.id === id)!;
+  assert.ok(LAYER_PARAM.test('layers.video.opacity') && LAYER_PARAM.test('layers.fx:ondas-grave.on'));
+  assert.ok(!LAYER_PARAM.test('layers.fx:X.on') && !LAYER_PARAM.test('layers.fx:a.b.on') && !LAYER_PARAM.test('layers.videos.on'));
+  assert.ok(LAYER_ON.test('l:video:on') && LAYER_ON.test('l:fx:ondas-grave:on') && LAYER_ON.test('l:tunnel:on'));
+  assert.ok(!LAYER_ON.test('l:fx:ab:on') && !LAYER_ON.test('l:fx:ondas-grave:off'));
+  assert.equal(get(applyLayerParam(l, 'layers.fx:ondas-grave.opacity', 0.3)!, 'fx:ondas-grave').opacity, 0.3);
+  assert.equal(get(applyLayerParam(l, 'layers.video.on', -1)!, 'video').enabled, false, 'alterna o vídeo');
+  assert.equal(get(applyLayerParam(l, 'layers.fx:ondas-grave.on', 0)!, 'fx:ondas-grave').enabled, false);
+  // camada extra que não está na lista: devolve a lista igual (não cai no caminho "vs[chave] = valor")
+  assert.deepEqual(applyLayerParam(defaultLayers(), 'layers.fx:outro-fx.on', -1), defaultLayers());
+  assert.deepEqual(applyLayerParam(defaultLayers(), 'layers.video.opacity', 0.5), defaultLayers());
+}
 
 // DK-063: vídeo como camada opcional
 {

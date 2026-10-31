@@ -146,7 +146,7 @@
   {#each layers as l, i (l.id)}
     <div class="layer" class:off={!l.enabled} class:hidden={!!vs.layerSolo && vs.layerSolo !== l.id} class:dragging={dragging === l.id}>
       <input type="checkbox" checked={l.enabled} title="Liga/desliga a camada (mute)" aria-label="Ligar {name(l.id)}"
-        use:learnable={l.type === 'fx' || l.type === 'video' ? null : { id: `l:${l.id}:on`, label: `Liga ${name(l.id)}` }}
+        use:learnable={{ id: `l:${l.id}:on`, label: `Liga ${name(l.id)}` }}
         onchange={(e) => (vs.layers = setLayer(vs.layers, l.id, { enabled: e.currentTarget.checked }))} />
       <span class="name" title="Arraste para mudar a ordem" role="button" tabindex="-1" aria-label="Arrastar {name(l.id)}"
         onpointerdown={(e) => { dragging = l.id; e.currentTarget.setPointerCapture(e.pointerId); }}
@@ -158,7 +158,7 @@
         {#each BLENDS as b}<option value={b}>{BLEND_NAMES[b]}</option>{/each}
       </select>
       <input class="op" type="range" min="0" max="1" step="0.05" value={l.opacity} title="Opacidade {Math.round(l.opacity * 100)}%"
-        use:learnable={l.type === 'fx' || l.type === 'video' ? null : { id: `v:layers.${l.id}.opacity`, label: `Opacidade ${name(l.id)}`, min: 0, max: 1, step: 0.01 }}
+        use:learnable={{ id: `v:layers.${l.id}.opacity`, label: `Opacidade ${name(l.id)}`, min: 0, max: 1, step: 0.01 }}
         aria-label="Opacidade {name(l.id)}" oninput={(e) => (vs.layers = setLayer(vs.layers, l.id, { opacity: +e.currentTarget.value }))} />
       <button class="mv" disabled={i === 0} title="Subir (desenha antes)" aria-label="Subir {name(l.id)}"
         onclick={() => (vs.layers = moveLayer(vs.layers, l.id, -1))}>▲</button>

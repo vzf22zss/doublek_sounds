@@ -5,7 +5,7 @@ import { VISUAL } from './settings.ts';
 import { MAX_BANKS } from './banks.ts';
 import { SAFE_FLASH_MAX, SAFE_STROBE_MAX } from './safety.ts';
 import { FX_KINDS, type FxKind } from './roteiro-fx.ts';
-import { LAYER_IDS, LAYER_PARAM } from '../render/layers.ts';
+import { LAYER_IDS, LAYER_ON, LAYER_PARAM } from '../render/layers.ts';
 
 export const MACROS = ['BUILD_UP', 'DROP', 'CHAOS', 'RESET'] as const;
 export type MacroId = (typeof MACROS)[number];
@@ -221,6 +221,8 @@ export function fromTarget(t: MidiTarget, val = 127): ShowCommand | null {
     return { type: 'SET_PARAMETER', key: t.id.slice(2), value: +(Math.round(x / st) * st).toFixed(6) };
   }
   if (t.id.startsWith('c:')) return /^c:\d+$/.test(t.id) ? { type: 'SCENE_RECALL', index: +t.id.slice(2) } : null;
+  // D-21b: liga/desliga das camadas extras (`l:video:on`, `l:fx:<id>:on`): ids dinâmicos, fora da tabela
+  if (!LEGACY_ACTIONS[t.id] && LAYER_ON.test(t.id)) return { type: 'SET_PARAMETER', key: `layers.${t.id.slice(2, -3)}.on`, value: -1 };
   const c = LEGACY_ACTIONS[t.id];
   return c ? structuredClone(c) : null;
 }
