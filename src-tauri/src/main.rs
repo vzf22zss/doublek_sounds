@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use doublek_lib::analysis::{BeatCmd, Params};
-use doublek_lib::{audio, midi, track};
+use doublek_lib::{audio, midi, spout, track};
 use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
@@ -17,6 +17,7 @@ struct Engine {
     subs: Subs, // uma assinatura por janela (controle, saída)
     midi_devices: Arc<Mutex<Vec<String>>>,
     clock: Arc<Mutex<midi::MidiClock>>, // MIDI Clock (pulsos da thread MIDI, lido pela análise)
+    spout: Mutex<Option<spout::Spout>>, // saída Spout (desligada por padrão)
     track: Mutex<Option<Arc<track::Track>>>, // faixa do roteiro carregada (pronta para tocar)
 }
 
@@ -168,10 +169,47 @@ fn midi_devices(engine: State<Engine>) -> Vec<String> {
 }
 
 #[tauri::command]
-fn close_output(app: AppHandle) {
+fn close_output(app: AppHandle, engine: State<Engine>) {
+    if let Some(mut s) = engine.spout.lock().unwrap().take() {
+        s.stop(); // o Spout captura a janela do telão: sem ela, para
+    }
     if let Some(w) = app.get_webview_window("output") {
         let _ = w.close();
     }
+}
+
+/// Liga a saída Spout da janela do telão (que precisa estar aberta). Reiniciar troca o nome.
+#[tauri::command]
+fn spout_start(app: AppHandle, engine: State<Engine>, name: String) -> Result<spout::Status, String> {
+    let name = spout::check_name(&name)?;
+    let win = app.get_webview_window("output").ok_or("Abra o telão antes de ligar o Spout")?;
+    #[cfg(windows)]
+    let hwnd = win.hwnd().map_err(|e| e.to_string())?.0 as isize;
+    #[cfg(not(windows))]
+    let hwnd = {
+        let _ = win;
+        0
+    };
+    let mut slot = engine.spout.lock().unwrap();
+    if let Some(mut old) = slot.take() {
+        old.stop();
+    }
+    let s = spout::Spout::start(hwnd, name);
+    let st = s.status();
+    *slot = Some(s);
+    Ok(st)
+}
+
+#[tauri::command]
+fn spout_stop(engine: State<Engine>) {
+    if let Some(mut s) = engine.spout.lock().unwrap().take() {
+        s.stop();
+    }
+}
+
+#[tauri::command]
+fn spout_status(engine: State<Engine>) -> spout::Status {
+    engine.spout.lock().unwrap().as_ref().map(|s| s.status()).unwrap_or_default()
 }
 
 fn main() {
@@ -209,7 +247,10 @@ fn main() {
             list_monitors,
             open_output,
             close_output,
-            midi_devices
+            midi_devices,
+            spout_start,
+            spout_stop,
+            spout_status
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar o app");
