@@ -25,7 +25,7 @@
   import { busy as fxBusy, clear as clearFx, EMPTY as NO_FX, startBurst, startRamp, step as stepFx, type Running } from '../lib/roteiro-fx';
   import { createDispatcher, fromTarget, keyCommand, routePad, startMacro, type AutomationMode, type Handlers, type MacroId, type MacroRun, type ShowCommand, type Source } from '../lib/commands';
   import { applyLayerParam } from '../render/layers';
-  import { addVideo, assetSync, imageColors, listVideos, removeVideo, setAsset, videoColors } from '../lib/assets';
+  import { addVideo, assetSync, imageColors, listVideos, probeVideo, removeVideo, setAsset, updateVideo, videoColors, type VideoInfo } from '../lib/assets';
   import { load as storeLoad, save as storeSave, shaped } from '../lib/store';
   import { getVersion } from '@tauri-apps/api/app';
   import { captureErrors, log, logEntries, NO_TELEMETRY, type Telemetry } from '../lib/telemetry';
@@ -141,7 +141,7 @@
   // preview: o mesmo renderer do telão, a 30 fps e meia resolução
   $effect(() => {
     preview = new Renderer(previewCanvas, { ...$state.snapshot(vs), renderScale: 0.5 });
-    sync = assetSync(preview);
+    sync = assetSync(preview, { beat: () => frame }); // a falha de vídeo quem avisa é o telão
     sync($state.snapshot(vs), true);
     let raf = 0, odd = false;
     const loop = (now: number) => {
@@ -615,6 +615,9 @@
     const bad = checkFile(isVideo ? 'video' : 'image', file);
     if (bad) { status = `Não aceitei "${file.name}": ${bad}.`; log('warn', status); return; }
     if (isVideo) {
+      status = 'Conferindo se o vídeo toca…';
+      const why = await probeVideo(file); // DK-061: recusa na hora o que este Windows não decodifica
+      if (why) { status = `Não aceitei: ${why}`; log('warn', status); return; }
       status = 'Guardando o vídeo…';
       vs.bgVideo = await addVideo(file);
       videoList = listVideos();
@@ -637,6 +640,14 @@
   }
 
   let videoList = $state(listVideos());
+  const curVideo = $derived(videoList.find((x) => x.id === vs.bgVideo));
+  /** Início/fim do loop e "reiniciar no compasso" do vídeo da tela (DK-062): grava e avisa preview e telão. */
+  function editVideo(patch: Partial<Pick<VideoInfo, 'start' | 'end' | 'barRestart'>>) {
+    updateVideo(vs.bgVideo, patch);
+    videoList = listVideos();
+    sync?.($state.snapshot(vs), true);
+    emitTo('output', 'assets');
+  }
   async function dropVideo(id: string) {
     if (vs.bgVideo === id) vs.bgVideo = '';
     await removeVideo(id);
@@ -867,6 +878,20 @@
               </div>
             {/each}
           </div>
+        {/if}
+        {#if curVideo}
+          <div class="loop">
+            <label>Início <input type="number" min="0" step="0.1" value={curVideo.start ?? 0} aria-label="Início do loop"
+              onchange={(e) => editVideo({ start: Math.max(0, +e.currentTarget.value || 0) })} /> s</label>
+            <label>Fim <input type="number" min="0" step="0.1" value={curVideo.end ?? 0} aria-label="Fim do loop"
+              onchange={(e) => editVideo({ end: Math.max(0, +e.currentTarget.value || 0) })} /> s</label>
+            <small>fim 0 = até o fim do arquivo</small>
+          </div>
+          <label class="check">
+            <input type="checkbox" checked={!!curVideo.barRestart} aria-label="Reiniciar no compasso"
+              onchange={(e) => editVideo({ barRestart: e.currentTarget.checked })} />
+            <span>Reiniciar no compasso <small>ao entrar na tela (cena ou roteiro), volta ao início no próximo 1º tempo; sem BPM travado, na hora</small></span>
+          </label>
         {/if}
         {#if vs.bgVideo}
           <Slider label="Velocidade do vídeo" bind:value={vs.videoSpeed} learn="videoSpeed" min={0.25} max={2} step={0.05} def={1} fmt={(v) => v.toFixed(2) + '×'} />
@@ -1101,6 +1126,9 @@
   .color input { width: 34px; height: 26px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; cursor: pointer; }
   .vids { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
   .vid { display: flex; gap: 4px; }
+  .loop { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+  .loop input { width: 64px; padding: 3px 6px; margin: 0 2px; }
+  .loop small { flex-basis: 100%; font-size: 11px; }
   .vid button:first-child { flex: 1; text-align: left; padding: 5px 10px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .vid.on button:first-child { background: var(--accent); border-color: var(--accent); color: var(--accent-ink, #fff); }
   .vid .x { padding: 5px 9px; }
