@@ -7,8 +7,13 @@ void main() { uv = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }`;
 
 export type Prog = { p: WebGLProgram; u: (n: string) => WebGLUniformLocation | null };
 
-/** `name` só entra na mensagem de erro, para saber qual módulo não compilou. */
-export function program(gl: WebGL2RenderingContext, fs: string, name = 'shader'): Prog {
+/** Vértice dos efeitos da comunidade (DK-123): o contrato deles (FX_HEADER) lê `vUv`. */
+export const FX_VS = `#version 300 es
+in vec2 p; out vec2 vUv;
+void main() { vUv = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }`;
+
+/** `name` só entra na mensagem de erro, para saber qual módulo não compilou. `vs` = vértice (padrão: `uv`). */
+export function program(gl: WebGL2RenderingContext, fs: string, name = 'shader', vs = VS): Prog {
   const sh = (type: number, src: string) => {
     const s = gl.createShader(type)!;
     gl.shaderSource(s, src);
@@ -21,7 +26,7 @@ export function program(gl: WebGL2RenderingContext, fs: string, name = 'shader')
     return s;
   };
   const p = gl.createProgram()!;
-  gl.attachShader(p, sh(gl.VERTEX_SHADER, VS));
+  gl.attachShader(p, sh(gl.VERTEX_SHADER, vs));
   gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs));
   gl.bindAttribLocation(p, 0, 'p');
   gl.linkProgram(p);

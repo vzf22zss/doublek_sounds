@@ -4,6 +4,8 @@
   // Compila 500 ms depois de parar de digitar, no máximo 2×/s; contexto perdido ou 1ª renderização > 2 s = suspeito
   // (não recompila sozinho); 3 falhas = desabilitado até reativar.
   import Slider from './Slider.svelte';
+  import { emitTo } from '@tauri-apps/api/event';
+  import { FX_LIST_EVENT } from './fxHealth';
   import { load, save } from '../lib/store';
   import { getAsset, setAsset } from '../lib/assets';
   import type { Frame } from '../lib/types';
@@ -12,7 +14,10 @@
     validateShader, validFxList, writeFxPack, type FxEntry, type FxManifest,
   } from '../lib/shaders/manifest';
 
-  let { getFrame, onstatus }: { getFrame: () => Frame | null; onstatus: (m: string) => void } = $props();
+  let { getFrame, onstatus, safe = false, onsafe }: {
+    getFrame: () => Frame | null; onstatus: (m: string) => void;
+    safe?: boolean; onsafe?: (on: boolean, open?: boolean) => void; // DK-123: modo seguro do telão
+  } = $props();
 
   // o código fica no IndexedDB ao lado da mídia; a API pública de assets.ts só tipa logo/bg/vídeo, daí o cast
   type AssetKey = Parameters<typeof setAsset>[0];
@@ -21,6 +26,12 @@
   const saved = load('doublek.fx', validFxList, () => [] as FxEntry[]);
   let list = $state<FxEntry[]>(saved);
   $effect(() => save('doublek.fx', $state.snapshot(list)));
+  // DK-123: o telão marcou um efeito como suspeito (fxHealth.ts gravou): relê a lista
+  $effect(() => {
+    const reread = () => (list = load('doublek.fx', validFxList, () => [] as FxEntry[]));
+    addEventListener(FX_LIST_EVENT, reread);
+    return () => removeEventListener(FX_LIST_EVENT, reread);
+  });
   let sel = $state(saved[0]?.manifest.id ?? '');
   const cur = $derived(list.find((e) => e.manifest.id === sel));
   let code = $state('');
@@ -160,7 +171,10 @@
     prog = p;
     errors = [];
     firstDraw = true;
-    if (code !== lastValid) { lastValid = code; setAsset(codeKey(sel), new Blob([code], { type: 'text/plain' })); } // só o válido é guardado
+    if (code !== lastValid) { // só o válido é guardado; o telão recompila se o efeito estiver como camada (DK-123)
+      lastValid = code;
+      setAsset(codeKey(sel), new Blob([code], { type: 'text/plain' })).then(() => emitTo('output', 'fx-changed'));
+    }
   }
 
   function draw(now: number) {
@@ -214,6 +228,13 @@
 <details class="fx" bind:open data-automation>
   <summary>Efeitos da comunidade (FX)</summary>
   <p class="warn">⚠ Shader de terceiros pode travar a placa de vídeo. Use só de quem você confia.</p>
+  {#if onsafe}
+    {#if safe}
+      <p class="bad">Modo seguro: o telão não carrega efeitos da comunidade. <button onclick={() => onsafe(false)}>Sair do modo seguro</button></p>
+    {:else}
+      <button onclick={() => onsafe(true, true)} title="Abre (ou reabre) o telão sem nenhum efeito da comunidade. Também: Shift + Projetar.">Abrir telão em modo seguro</button>
+    {/if}
+  {/if}
   <div class="bar">
     <select value={sel} onchange={(e) => select(e.currentTarget.value)} disabled={!list.length}>
       {#if !list.length}<option value="">nenhum instalado</option>{/if}
@@ -225,7 +246,7 @@
     <button onclick={remove} disabled={!cur}>Apagar</button>
   </div>
   {#if cur}
-    <p class="meta">{cur.manifest.id} v{cur.manifest.version}{cur.manifest.author ? ` · ${cur.manifest.author}` : ''} · só pré-visualização (o telão ainda não usa)</p>
+    <p class="meta">{cur.manifest.id} v{cur.manifest.version}{cur.manifest.author ? ` · ${cur.manifest.author}` : ''} · no telão: Efeitos › Camadas › adicionar (até 2)</p>
     {#if cur.health.status === 'suspeito'}
       <p class="bad">Suspeito ({cur.health.fails} falha(s)): não recompila sozinho. <button onclick={retry}>Tentar de novo</button></p>
     {:else if cur.health.status === 'desabilitado'}

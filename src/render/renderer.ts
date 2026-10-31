@@ -45,7 +45,11 @@ import { OrganicEffect } from './effects/organic';
 import { ParticlesEffect } from './effects/particles';
 import { GlitchEffect } from './effects/glitch';
 import { Compose } from './effects/compose';
+import { FxEffect } from './effects/fx';
 import { drawsLayer, needsCompose, sanitizeLayers, type Layer } from './layers';
+
+/** Efeito da comunidade pronto para o telão (DK-123): id do manifesto, código do autor e os valores salvos. */
+export type FxItem = { id: string; code: string; values: number[] };
 
 export type Cost = { id: string; cpuMs: number; gpuMs: number | null };
 export type { BudgetInfo };
@@ -87,16 +91,25 @@ export class Renderer {
   private layersRaw: unknown = Symbol(); // força validar na 1ª vez
   private chain: { e: Effect; layer?: Layer }[] = [];
 
+  // efeitos da comunidade (DK-123): até 2, compilados aqui; lento demais por 3 s = desligado
+  private h: Helpers;
+  private fx = new Map<string, FxEffect>(); // chave `fx:<id>`
+  private fxVer = 0; private chainVer = -1;
+  private fxOver = new Map<string, number>();
+  private fxCheckAt = -1;
+  private fxDrew = new Set<string>(); private fxRecent: string[] = [];
+
   constructor(private canvas: HTMLCanvasElement, v: Visual, private onEffectError?: (id: string, e: Error) => void) {
     this.v = v;
     const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, powerPreference: 'high-performance' });
     if (!gl) throw new Error('WebGL2 indisponível');
     this.gl = gl;
     this.timer = gl.getExtension('EXT_disjoint_timer_query_webgl2') as TimerExt | null;
-    const h: Helpers = {
-      program: (fs, name) => {
-        let p = this.progs.get(fs);
-        if (!p) this.progs.set(fs, (p = program(gl, fs, name)));
+    const h: Helpers = this.h = {
+      program: (fs, name, vs) => {
+        const k = (vs ?? '') + '\0' + fs;
+        let p = this.progs.get(k);
+        if (!p) this.progs.set(k, (p = program(gl, fs, name, vs)));
         return p;
       },
       use: (pr, fb, W, H) => use(gl, pr, fb, W, H),
@@ -148,6 +161,27 @@ export class Renderer {
     this.bgAspect = p ? p.aspect : 0;
   }
 
+  /** Efeitos da comunidade disponíveis como camada (DK-123). Compila os novos já (falha = desliga só aquele, com
+   *  onEffectError('fx:<id>')); mesmo código = só troca os valores; quem saiu da lista é descartado. */
+  setFx(items: FxItem[]) {
+    const keep = new Set(items.map((i) => `fx:${i.id}`));
+    for (const [id, e] of this.fx) if (!keep.has(id)) { e.dispose(); this.fx.delete(id); this.off.delete(id); this.fxOver.delete(id); }
+    for (const it of items) {
+      const id = `fx:${it.id}`, old = this.fx.get(id);
+      if (old && old.code === it.code) { old.setValues(it.values); continue; } // desligado por lentidão continua desligado
+      old?.dispose();
+      this.off.delete(id); this.fxOver.delete(id);
+      const e = new FxEffect(it.id, it.code, it.values);
+      this.fx.set(id, e);
+      this.guard(e, () => e.init(this.gl, this.h));
+      if (this.fbW) this.guard(e, () => e.resize(this.fbW, this.fbH));
+    }
+    this.fxVer++;
+  }
+
+  /** Efeitos da comunidade que desenharam no último segundo (para avisar o controle se o contexto cair). */
+  activeFx() { return [...new Set([...this.fxRecent, ...this.fxDrew])].map((id) => id.slice(3)); }
+
   /** Custo médio (~1 s) de cada passe, em ms. `gpuMs` = null sem timer de GPU. */
   costs(): Cost[] {
     return [...this.cost].map(([id, c]) => ({ id, cpuMs: +c.cpu.toFixed(3), gpuMs: c.gpu === null ? null : +c.gpu.toFixed(3) }));
@@ -193,10 +227,11 @@ export class Renderer {
 
   /** Cena → camadas na ordem do visual → pós. Só recalcula quando a lista muda (cada evento 'visual' traz uma nova). */
   private chainFor(raw: unknown) {
-    if (raw === this.layersRaw) return this.chain;
-    this.layersRaw = raw;
-    const mid = sanitizeLayers(raw).flatMap((layer) => {
-      const e = this.byId.get(layer.id);
+    if (raw === this.layersRaw && this.chainVer === this.fxVer) return this.chain;
+    this.layersRaw = raw; this.chainVer = this.fxVer;
+    const fxIds = [...this.fx.keys()].map((k) => k.slice(3)); // camada fx só com o efeito carregado aqui
+    const mid = sanitizeLayers(raw, fxIds).flatMap((layer) => {
+      const e = this.byId.get(layer.id) ?? this.fx.get(layer.id);
       return e ? [{ e, layer }] : [];
     });
     this.chain = [{ e: this.byId.get('scene')! }, ...mid, { e: this.byId.get('post')! }];
@@ -233,7 +268,7 @@ export class Renderer {
     const H = Math.max(2, Math.round(this.canvas.clientHeight * devicePixelRatio * v.renderScale));
     if (this.canvas.width !== W || this.canvas.height !== H) { this.canvas.width = W; this.canvas.height = H; }
     if (W !== this.fbW || H !== this.fbH) {
-      for (const e of this.effects) if (!this.off.has(e.id)) this.guard(e, () => e.resize(W, H));
+      for (const e of [...this.effects, ...this.fx.values()]) if (!this.off.has(e.id)) this.guard(e, () => e.resize(W, H));
       this.compose.resize(W, H);
       this.fbW = W; this.fbH = H;
     }
@@ -253,7 +288,7 @@ export class Renderer {
     for (const { e, layer } of this.chainFor(v.layers)) {
       if (this.off.has(e.id)) continue; // módulo quebrado (desligado no init, no resize ou num quadro anterior)
       // interruptor, orçamento, camada desligada/transparente ou outra camada em solo: não desenha
-      if ((e.psy && (v.psySafe || this.budget.off.includes(e.id))) || (layer && !drawsLayer(layer, v.layerSolo))) {
+      if ((e.psy && (v.psySafe || this.budget.off.includes(e.id))) || (layer && !drawsLayer(layer, v.layerSolo)) || (layer?.type === 'fx' && v.fxSafe)) {
         this.cost.delete(e.id);
         continue;
       }
@@ -277,8 +312,32 @@ export class Renderer {
       if (out) {
         ctx.src = out;
         if (e.psy) this.drew.add(e.id);
+        if (layer?.type === 'fx') this.fxDrew.add(e.id);
       }
     }
+    this.checkFx(now);
     return u.p;
+  }
+
+  /** DK-123: efeito da comunidade que custa mais que 2× o orçamento por 3 s seguidos é desligado (só ele). */
+  private checkFx(now: number) {
+    if (now - this.fxCheckAt < 1000) return;
+    this.fxCheckAt = now;
+    const lim = 2 * this.v.psyBudgetMs;
+    for (const id of this.fxDrew) {
+      const c = this.cost.get(id), ms = c ? c.gpu ?? c.cpu : 0;
+      const n = ms > lim ? (this.fxOver.get(id) ?? 0) + 1 : 0;
+      this.fxOver.set(id, n);
+      const e = this.fx.get(id);
+      if (n >= 3 && e) {
+        this.off.add(id);
+        e.dispose();
+        const err = new Error(`lento demais: ${ms.toFixed(1)} ms por quadro, acima de ${lim} ms por 3 s`);
+        console.error(`Renderer: efeito "${id}" desligado:`, err);
+        this.onEffectError?.(id, err);
+      }
+    }
+    this.fxRecent = [...this.fxDrew];
+    this.fxDrew.clear();
   }
 }

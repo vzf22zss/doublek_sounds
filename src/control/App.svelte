@@ -19,6 +19,7 @@
   import { shiftAfterRemove } from '../lib/banks';
   import AutomationPanel from './AutomationPanel.svelte';
   import FxEditor from './FxEditor.svelte';
+  import { watchFxHealth } from './fxHealth';
   import RecordPanel from './RecordPanel.svelte';
   import { initRec, rec, recTelemetry } from './rec.svelte';
   import { cropRect } from '../lib/recorder';
@@ -409,6 +410,7 @@
     log('info', status);
   });
   onEvent<MidiMsg>('midi', (e) => onMidi(e.payload));
+  watchFxHealth((m) => { status = m; log('warn', m); }); // DK-123: telão desligou um efeito da comunidade
 
   let netLastErr = '', netLastErrAt = 0;
   /** Erro vindo da rede (OSC/celular) no diário. */
@@ -918,7 +920,7 @@
 
       {:else if tab === 'Efeitos'}
         <AutomationPanel bind:cfg={rulesCfg} bankNames={() => perf?.bankNames() ?? []} sceneNames={(b: number) => perf?.sceneNames(b) ?? []} />
-        <FxEditor getFrame={() => frame} onstatus={(m) => (status = m)} />
+        <FxEditor getFrame={() => frame} onstatus={(m) => (status = m)} safe={vs.fxSafe} onsafe={(on, open) => { vs.fxSafe = on; if (open) project(); }} />
         <PsyEffects bind:vs />
         <Slider label="Flash" bind:value={vs.fxFlash} learn="fxFlash" bind:mod={vs.mod.fxFlash} bind:drop={vs.drop.fxFlash} min={0} max={1} step={0.01} def={VISUAL.fxFlash} fmt={f2} />
         <Slider label="Anéis a cada kick" bind:value={vs.fxRings} learn="fxRings" bind:drop={vs.drop.fxRings} min={0} max={1} step={0.01} def={VISUAL.fxRings} fmt={f2} />
@@ -954,7 +956,7 @@
           {#each monitors as m, i}<option value={i}>{i + 1}. {m.name || 'Monitor'} — {m.width}×{m.height}</option>{/each}
         </select>
         <div class="files">
-          <button class="primary" onclick={project}>Projetar</button>
+          <button class="primary" onclick={(e) => { if (e.shiftKey) vs.fxSafe = true; project(); }} title="Shift + clique: abre em modo seguro (sem efeitos da comunidade)">Projetar</button>
           <button onclick={() => invoke('close_output')}>Fechar telão</button>
         </div>
         <p class="keys">No telão: Esc fecha.</p>

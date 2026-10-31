@@ -7,7 +7,7 @@ import type { Target } from '../gl/texture';
 
 /** Ferramentas GL que o renderer empresta aos módulos. `program` vem de um cache por código-fonte. */
 export type Helpers = {
-  program(fs: string, name: string): Prog;
+  program(fs: string, name: string, vs?: string): Prog;
   use(pr: Prog, fb: WebGLFramebuffer | null, W: number, H: number): Prog['u'];
   bind(unit: number, t: WebGLTexture, loc: WebGLUniformLocation | null): void;
   target(W: number, H: number): Target;

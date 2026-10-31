@@ -19,13 +19,15 @@ export abstract class Pass implements Effect {
   psy = true;
   protected abstract fs: string;
   protected abstract label: string;
+  protected vs?: string;      // vértice próprio (efeitos da comunidade usam vUv)
+  protected srcName = 'uSrc'; // nome da textura de entrada no shader
   protected h!: Helpers;
   protected prog!: Prog;
   private t: Target | null = null;
   private W = 0; private H = 0;
   private last = -1;
 
-  init(_gl: WebGL2RenderingContext, h: Helpers) { this.h = h; this.prog = h.program(this.fs, this.label); }
+  init(_gl: WebGL2RenderingContext, h: Helpers) { this.h = h; this.prog = h.program(this.fs, this.label, this.vs); }
 
   resize(W: number, H: number) {
     if (this.t) this.h.dropTarget(this.t);
@@ -45,7 +47,7 @@ export abstract class Pass implements Effect {
     if (!this.t) this.t = this.h.target(this.W || ctx.W, this.H || ctx.H);
     const u = this.h.use(this.prog, this.t.fb, ctx.W, ctx.H);
     ctx.gl.uniform2f(u('uRes'), ctx.W, ctx.H);
-    this.h.bind(0, ctx.src!, u('uSrc'));
+    this.h.bind(0, ctx.src!, u(this.srcName));
     return u;
   }
 
