@@ -447,6 +447,18 @@ limpa, e no drop os efeitos entram.
 
 ---
 
+### Gravar o telão
+
+Na aba **Saída**, seção **Gravação**, o app grava exatamente o que o telão está mostrando (sem
+som), para postar depois. Escolha a qualidade (**Leve**, **Média** ou **Alta**) e 30 ou 60 quadros
+por segundo e clique em **Gravar** (precisa do telão aberto). Enquanto grava, a seção mostra
+`● REC` com o tempo e o tamanho, e uma bolinha vermelha pisca no rodapé. **Parar** fecha o
+arquivo; **Abrir pasta das gravações** mostra onde ficou (um `.mp4` com data e hora no nome, que
+abre em qualquer player). Se a gravação pesar no telão, o app avisa para baixar para 30 fps ou
+Leve; se algo der errado (disco cheio, telão fechado), a gravação para com uma mensagem e **o
+telão continua normal**. A gravação para sozinha em 4 GB ou se o disco ficar com menos de 1 GB
+livre. Apague as gravações antigas de vez em quando: o app não apaga nada sozinho.
+
 ## 14. Acertar o atraso do projetor (offset)
 
 Todo projetor atrasa a imagem (30 a 80 ms é comum). Se nada for feito, o pulso parece
@@ -778,16 +790,27 @@ valor inválido, que também aparecem no diário do Diagnóstico). Comando por O
 automação do Intelligent Show (é tratado como outro programa, não como a sua mão); PÂNICO e
 BLACKOUT por OSC têm a mesma prioridade de sempre.
 
-### Celular na mesma rede (prévia)
+### Celular na mesma rede
 
-Na aba **Saída**, abaixo do OSC, a seção **Celular (rede)** liga um servidor local protegido por
-código: clique em **Ligar**, depois em **Mostrar código** e digite os 6 dígitos no celular, no
-endereço que aparece (`http://IP-do-notebook:8008`). O código vale 2 minutos e uma vez só; depois
-de 5 tentativas erradas o pareamento trava por 1 minuto. **Desconectar todos** derruba os
-celulares na hora, e fechar o app também. Enquanto alguém comanda pelo celular, um aviso laranja
-aparece no rodapé. A rede local não é criptografada: use só em Wi-Fi seu. Nesta versão a página
-do celular ainda só confirma o pareamento; os botões (cenas, macros, blackout, PÂNICO, TAP) chegam
-na 0.3.7. Detalhes de segurança em [docs/REMOTO.md](REMOTO.md).
+Dá para comandar o show pelo celular, sem instalar nada: na aba **Saída**, seção **Celular
+(rede)**, marque **Abrir para a rede local**, clique em **Ligar** e depois em **Mostrar código**.
+No celular (no mesmo Wi-Fi), abra o endereço que aparece (`http://IP-do-notebook:8008`) e digite
+os 6 dígitos. O código vale 2 minutos e uma vez só; depois de 5 tentativas erradas o pareamento
+trava por 1 minuto.
+
+| ![Celular em pé](img/celular-retrato.png) | ![Celular deitado](img/celular-paisagem.png) |
+|---|---|
+
+A tela do celular mostra o BPM, o estado da música e o DROP, e tem: os bancos e os 8 pads com os
+nomes das cenas (o pad aceso é a cena no telão), **BLACKOUT** e **SÓ LOGO**, as 4 macros, **TAP**
+e ajuste de fase (◀ ▶), quatro sliders (pulso, glow, flash, rastro) e o **PÂNICO**, grande e
+separado. Se o celular perder o app (Wi-Fi caiu, app fechado), aparece uma faixa "sem conexão" e
+os botões ficam desligados até voltar; o show no notebook continua normal.
+
+**Desconectar todos** derruba os celulares na hora, e fechar o app também. Enquanto alguém
+comanda pelo celular, um aviso laranja aparece no rodapé. A rede local não é criptografada: use
+só em Wi-Fi seu. O Windows pode perguntar sobre o firewall na primeira vez. Detalhes de
+segurança em [docs/REMOTO.md](REMOTO.md).
 
 ## 18. Atalhos do teclado
 
