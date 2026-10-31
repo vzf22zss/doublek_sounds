@@ -34,3 +34,13 @@ export type SpoutStatus = {
 };
 
 export type Msg = { t: 'frame'; v: Frame } | { t: 'status'; v: string };
+
+// Diário de análise (DK-144): resposta de analysis_log_start / _stop / _status
+export type AnalysisLogStatus = {
+  running: boolean;
+  path: string;
+  lines: number;
+  bytes: number;
+  dropped: number;
+  lastError: string | null;
+};
