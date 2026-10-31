@@ -20,7 +20,11 @@ pub const CODE_SECS: u64 = 120;
 const MAX_FAILS: u32 = 5;
 const BLOCK: Duration = Duration::from_secs(60);
 const MAX_CONNS: usize = 32;
+// tela do celular (DK-082): HTML + JS + CSS embutidos no exe, servidos como arquivos separados para a CSP ficar
+// estrita (nada inline); sem framework, funciona offline
 const PAGE: &str = include_str!("remote.html");
+const JS: &str = include_str!("remote.js");
+const CSS: &str = include_str!("remote.css");
 
 #[derive(Debug)]
 pub struct Req {
@@ -119,12 +123,15 @@ impl Resp {
         format!(
             "HTTP/1.1 {} {reason}\r\nContent-Type: {}; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\
              Cache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nX-Frame-Options: DENY\r\nReferrer-Policy: no-referrer\r\n\
-             Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline'\r\n\r\n{}",
+             Content-Security-Policy: {CSP}\r\n\r\n{}",
             self.status, self.ctype, self.body.len(), self.body
         )
         .into_bytes()
     }
 }
+
+/// Só arquivos deste servidor, nada inline, sem frames, sem formulário para fora.
+const CSP: &str = "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 
 /// O que a janela de controle precisa saber. `Cmd` = `{ addr, args, client }`.
 pub enum Event {
@@ -241,6 +248,8 @@ impl Shared {
         }
         match (req.method.as_str(), req.path.as_str()) {
             ("GET", "/") => Resp { status: 200, ctype: "text/html", body: PAGE.into() },
+            ("GET", "/app.js") => Resp { status: 200, ctype: "text/javascript", body: JS.into() },
+            ("GET", "/app.css") => Resp { status: 200, ctype: "text/css", body: CSS.into() },
             ("POST", "/pair") => self.pair(req, peer),
             ("POST", "/cmd") => match self.auth(req) {
                 Ok(client) => self.cmd(req, client),
@@ -250,7 +259,7 @@ impl Shared {
                 Ok(_) => Resp::json(200, self.state.lock().unwrap().clone()),
                 Err(r) => r,
             },
-            (_, "/" | "/pair" | "/cmd" | "/state") => Resp::err(405, "método não permitido"),
+            (_, "/" | "/app.js" | "/app.css" | "/pair" | "/cmd" | "/state") => Resp::err(405, "método não permitido"),
             _ => Resp::err(404, "não encontrado"),
         }
     }
@@ -462,7 +471,19 @@ mod tests {
     fn rotas_metodos_e_origem() {
         let (sh, _rx) = shared();
         let r = sh.handle(&req("GET", "/", None, ""), IP);
-        assert!(r.status == 200 && r.ctype == "text/html" && r.body.contains("DOUBLEK REMOTO"));
+        assert!(r.status == 200 && r.ctype == "text/html" && r.body.contains(r#"src="/app.js""#) && r.body.contains(r#"href="/app.css""#));
+        let js = sh.handle(&req("GET", "/app.js", None, ""), IP);
+        assert!(js.status == 200 && js.ctype == "text/javascript" && js.body.contains("/doublek/v1/"));
+        let css = sh.handle(&req("GET", "/app.css", None, ""), IP);
+        assert!(css.status == 200 && css.ctype == "text/css");
+        assert!(PAGE.len() + JS.len() + CSS.len() <= 40 * 1024, "tela do celular passou de 40 KB");
+        assert!(!PAGE.contains("<script>") && !PAGE.contains("<style") && !PAGE.contains(" style=") && !PAGE.contains(" onclick"), "nada inline (CSP)");
+        let raw = String::from_utf8(js.bytes()).unwrap();
+        assert!(raw.contains("Content-Type: text/javascript; charset=utf-8") && raw.contains("script-src 'self'") && !raw.contains("unsafe-inline"));
+        for p in ["/app.js.map", "/remote.rs", "/../Cargo.toml", "/app.css/x", "/favicon.ico"] {
+            assert_eq!(sh.handle(&req("GET", p, None, ""), IP).status, 404, "{p}");
+        }
+        assert_eq!(sh.handle(&req("POST", "/app.js", None, ""), IP).status, 405);
         assert_eq!(sh.handle(&req("PUT", "/", None, ""), IP).status, 405);
         assert_eq!(sh.handle(&req("GET", "/cmd", None, ""), IP).status, 405);
         assert_eq!(sh.handle(&req("OPTIONS", "/cmd", None, ""), IP).status, 405); // preflight de outra origem morre aqui
@@ -568,6 +589,7 @@ mod tests {
             http(format!("POST {path} HTTP/1.1\r\nHost: {addr}\r\n{auth}Content-Length: {}\r\n\r\n{body}", body.len()))
         };
         assert!(http(format!("GET / HTTP/1.1\r\nHost: {addr}\r\n\r\n")).starts_with("HTTP/1.1 200 OK"));
+        assert!(http(format!("GET /app.js HTTP/1.1\r\nHost: {addr}\r\n\r\n")).contains("Content-Type: text/javascript"));
         assert!(post("/cmd", "", "{}").starts_with("HTTP/1.1 401"));
         let code = srv.shared.pair_code();
         let r = post("/pair", "", &format!(r#"{{"code":"{code}"}}"#));

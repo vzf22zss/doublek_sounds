@@ -19,7 +19,7 @@
   import { getVersion } from '@tauri-apps/api/app';
   import { captureErrors, log, logEntries, NO_TELEMETRY, type Telemetry } from '../lib/telemetry';
   import { checkFile, EXT, ext } from '../lib/limits';
-  import { oscToCommand, type OscArg } from '../lib/osc';
+  import { OSC_PARAMS, oscToCommand, type OscArg } from '../lib/osc';
   import type { Frame, Msg } from '../lib/types';
   import { check, type Update } from '@tauri-apps/plugin-updater';
   import { relaunch } from '@tauri-apps/plugin-process';
@@ -293,13 +293,29 @@
   });
   onEvent<MidiMsg>('midi', (e) => onMidi(e.payload));
 
+  let netLastErr = '', netLastErrAt = 0;
+  /** Erro vindo da rede (OSC/celular) no diário. */
+  function netErr(msg: string) {
+    // ponytail: o mesmo erro repetido entra no diário no máximo 1× a cada 2 s (senão um cliente errado enche os 200)
+    const now = performance.now();
+    if (msg !== netLastErr || now - netLastErrAt > 2000) log('warn', msg);
+    netLastErr = msg;
+    netLastErrAt = now;
+  }
+
   // ---------- OSC (DK-091/092): o servidor é do Rust; aqui liga/desliga, mapeia e libera a fonte 'osc' ----------
   type OscStatus = { running: boolean; bind: string; received: number; dropped: number; rejected: number };
-  let osc = $state<OscStatus>({ running: false, bind: '', received: 0, dropped: 0, rejected: 0 });
+  const OSC_OFF: OscStatus = { running: false, bind: '', received: 0, dropped: 0, rejected: 0 };
+  let osc = $state<OscStatus>({ ...OSC_OFF });
   let oscErr = $state('');
   const oscRunning = $derived(osc.running);
+  /** Falha ao consultar = trata como desligado (a fonte 'osc' volta a ser recusada). */
   async function oscRefresh() {
-    osc = await invoke<OscStatus>('osc_status');
+    try {
+      const st = await invoke<OscStatus | null>('osc_status');
+      if (!st) throw 'resposta vazia';
+      osc = st;
+    } catch (e) { osc = { ...OSC_OFF }; netErr(`OSC: status indisponível (${e})`); }
     commands.setNetwork('osc', osc.running);
   }
   async function oscToggle(on: boolean) {
@@ -321,15 +337,6 @@
     const id = setInterval(oscRefresh, 1000);
     return () => clearInterval(id);
   });
-  let netLastErr = '', netLastErrAt = 0;
-  /** Erro vindo da rede (OSC/celular) no diário. */
-  function netErr(msg: string) {
-    // ponytail: o mesmo erro repetido entra no diário no máximo 1× a cada 2 s (senão um cliente errado enche os 200)
-    const now = performance.now();
-    if (msg !== netLastErr || now - netLastErrAt > 2000) log('warn', msg);
-    netLastErr = msg;
-    netLastErrAt = now;
-  }
   onEvent<{ addr: string; args: OscArg[] }>('osc', (e) => {
     const r = oscToCommand(e.payload.addr, e.payload.args);
     if ('cmd' in r) dispatch(r.cmd, 'osc');
@@ -338,14 +345,19 @@
 
   // ---------- celular / remoto (DK-081): HTTP local no Rust, pareado por código; comandos no formato do OSC ----------
   type RemoteStatus = { running: boolean; bind: string; clients: number; received: number; rejected: number };
-  let remote = $state<RemoteStatus>({ running: false, bind: '', clients: 0, received: 0, rejected: 0 });
+  const REMOTE_OFF: RemoteStatus = { running: false, bind: '', clients: 0, received: 0, rejected: 0 };
+  let remote = $state<RemoteStatus>({ ...REMOTE_OFF });
   let remoteErr = $state('');
   let pairCode = $state<{ code: string; url: string; until: number } | null>(null);
   let remoteWarn = $state(false); // "alguém está controlando pelo celular", 3 s depois de cada comando
   let remoteWarnT = 0;
   const remoteRunning = $derived(remote.running);
   async function remoteRefresh() {
-    remote = await invoke<RemoteStatus>('remote_status');
+    try {
+      const st = await invoke<RemoteStatus | null>('remote_status');
+      if (!st) throw 'resposta vazia';
+      remote = st;
+    } catch (e) { remote = { ...REMOTE_OFF }; netErr(`Celular: status indisponível (${e})`); }
     commands.setNetwork('remote', remote.running);
   }
   async function remoteToggle(on: boolean) {
@@ -371,10 +383,18 @@
     status = 'Celular: todos desconectados.';
     log('info', status);
   }
+  /** Knobs do celular (DK-082): posição 0–1 na faixa do OSC, para o slider acompanhar o app. */
+  const PHONE_KNOBS = ['amount', 'glow', 'fxFlash', 'trail'] as const;
   /** O que o celular vê em GET /state (cena e banco a partir de 1, como nos endereços). */
   function remoteState() {
-    const c = perf?.current();
-    return { state: status, bpm: frame?.bpm ? +frame.bpm.toFixed(1) : null, scene: c && c.scene >= 0 ? c.scene + 1 : null, bank: c ? c.bank + 1 : null, blackout: vs.blackout };
+    const c = perf?.current(), p = perf as any;
+    return {
+      state: status, bpm: frame?.bpm ? +frame.bpm.toFixed(1) : null, music: tempoState, drop: !!frame?.low,
+      scene: c && c.scene >= 0 ? c.scene + 1 : null, bank: c ? c.bank + 1 : null, blackout: vs.blackout, logoOnly: vs.logoOnly,
+      sceneNames: perf?.sceneNames() ?? null,
+      bankNames: typeof p?.bankNames === 'function' ? p.bankNames() : null, // onda-5: Performance.bankNames()
+      knobs: Object.fromEntries(PHONE_KNOBS.map((k) => { const [lo, hi] = OSC_PARAMS[k]; return [k, +((vs[k] - lo) / (hi - lo)).toFixed(3)]; })),
+    };
   }
   // ao abrir: adota o servidor que já está rodando; religa sozinho só no localhost (rede local exige o clique)
   remoteRefresh().then(() => { if (!remote.running && s.remoteOn) { if (s.remoteLan) s.remoteOn = false; else remoteToggle(true); } });

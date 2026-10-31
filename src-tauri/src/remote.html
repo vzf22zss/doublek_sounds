@@ -2,19 +2,60 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
 <title>DoubleK remoto</title>
-<style>
-  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #0b0b10; color: #eee; font: 16px system-ui, sans-serif; text-align: center; }
-  b { display: block; font-size: 22px; letter-spacing: .12em; margin-bottom: 8px; }
-  small { color: #999; }
-</style>
+<link rel="stylesheet" href="/app.css">
+<script src="/app.js" defer></script>
 </head>
 <body>
-<main>
-  <b>DOUBLEK REMOTO</b>
-  <p>Pareie no app: aba Saída → Celular (rede) → Mostrar código.</p>
-  <small>A tela de controle pelo celular chega numa próxima versão.</small>
-</main>
+<section id="pair">
+  <b class="brand">DOUBLEK</b>
+  <p>Digite o código que aparece no app<br><small>aba Saída → Celular (rede) → Mostrar código</small></p>
+  <input id="code" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" aria-label="Código de 6 dígitos" placeholder="000000">
+  <button id="pairBtn" class="primary">Parear</button>
+  <p id="pairErr" class="err" role="alert"></p>
+</section>
+
+<section id="ctl" hidden>
+  <div id="offline" class="banner" hidden>Sem conexão com o app — tentando de novo…</div>
+  <header class="top">
+    <b id="bpm">---.-</b><small>BPM</small>
+    <span id="music" class="muted"></span>
+    <span id="drop" class="pill">DROP</span>
+  </header>
+  <p id="status" class="muted line"></p>
+  <div class="cols">
+    <div class="col">
+      <div id="banks" class="row"></div>
+      <div id="pads" class="grid"></div>
+    </div>
+    <div class="col">
+      <div class="row">
+        <button id="blackout" class="tog">BLACKOUT</button>
+        <button id="logo" class="tog">SÓ LOGO</button>
+      </div>
+      <div class="row">
+        <button data-addr="/doublek/v1/macro/BUILD_UP">Build-up</button>
+        <button data-addr="/doublek/v1/macro/DROP">Drop</button>
+        <button data-addr="/doublek/v1/macro/CHAOS">Chaos</button>
+        <button data-addr="/doublek/v1/macro/RESET">Reset</button>
+      </div>
+      <div class="row">
+        <button data-addr="/doublek/v1/nudge" data-arg="-5" aria-label="Adiantar a fase 5 ms">◀ fase</button>
+        <button data-addr="/doublek/v1/tap" class="tap">TAP</button>
+        <button data-addr="/doublek/v1/nudge" data-arg="5" aria-label="Atrasar a fase 5 ms">fase ▶</button>
+      </div>
+      <div class="knobs">
+        <label>Pulso <input type="range" min="0" max="1" step="0.01" data-knob="amount"></label>
+        <label>Glow <input type="range" min="0" max="1" step="0.01" data-knob="glow"></label>
+        <label>Flash <input type="range" min="0" max="1" step="0.01" data-knob="fxFlash"></label>
+        <label>Rastro <input type="range" min="0" max="1" step="0.01" data-knob="trail"></label>
+      </div>
+    </div>
+  </div>
+  <button id="panic" class="panic" data-addr="/doublek/v1/panic">PÂNICO</button>
+  <p id="msg" class="muted line" role="status"></p>
+</section>
 </body>
 </html>

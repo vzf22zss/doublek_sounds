@@ -75,6 +75,11 @@ export function oscToCommand(addr: string, args: OscArg[] = []): OscResult {
     case 'blackout': return toggle('BLACKOUT');
     case 'logo': return toggle('LOGO_ONLY');
     case 'tap': return noSub ? { cmd: { type: 'TAP' } } : err('endereço desconhecido');
+    case 'nudge': { // fase do beat em ms (como ← → no teclado)
+      if (!noSub) return err('endereço desconhecido');
+      const ms = num(a);
+      return ms === undefined ? err('nudge precisa de ms (número)') : { cmd: { type: 'NUDGE', ms } };
+    }
     case 'panic': return noSub ? { cmd: { type: 'PANIC' } } : err('endereço desconhecido');
     case 'macro':
       return OSC_MACROS.includes(sub as MacroId) ? { cmd: { type: 'MACRO', id: sub as MacroId } } : err(`macro desconhecida (use ${OSC_MACROS.join(', ')})`);
