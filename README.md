@@ -37,10 +37,13 @@ Feito para psytrance, dark/forest e hi-tech (135–220 BPM).
   e mostra num chip com a confiança; em **Assistido** mexe em rampas e dispara a macro Drop,
   em **Automático** pode trocar cena no compasso. Comando manual pausa a automação por 8 s;
   roteiro tocando tem precedência. Abre sempre em **Manual**.
-- **Camadas:** os módulos do Psy Engine, o rastro e o glitch têm ordem, opacidade e modo de
-  mistura (normal, somar, tela, multiplicar); só os modos diferentes de normal custam um passe.
-- **OSC (rede):** servidor local com mapeamento `/doublek/v1/...` para todos os comandos
-  (`docs/OSC.md`); o botão para ligar pela tela chega na 0.3.6.
+- **Camadas:** os módulos do Psy Engine, o rastro e o glitch têm ordem, opacidade, modo de
+  mistura (normal, somar, tela, multiplicar) e solo; entram nas cenas e aprendem no MIDI.
+- **OSC (rede):** ligue na aba Saída e controle tudo por `/doublek/v1/...` a partir do
+  TouchOSC, Pd ou Max (`docs/OSC.md`).
+- **Celular (prévia):** servidor local desligado por padrão, pareado por código de 6 dígitos
+  (`docs/REMOTO.md`); a tela com os botões chega na 0.3.7.
+- **Teclado e MIDI completos:** todo comando de show tem atalho e id de MIDI learn.
 - **Show Pack (`.doublekshow`):** salva e abre o show inteiro (cenas, bancos, roteiros, logo,
   foto, vídeos, MIDI) com backup automático antes de substituir.
 - **Saúde e diagnóstico:** 4 bolinhas (áudio · BPM · MIDI · telão) e um JSON de diagnóstico
