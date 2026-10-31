@@ -18,6 +18,7 @@
   import { loadAutomation, saveAutomation } from '../lib/show-engine/config';
   import { shiftAfterRemove } from '../lib/banks';
   import AutomationPanel from './AutomationPanel.svelte';
+  import FxEditor from './FxEditor.svelte';
   import RecordPanel from './RecordPanel.svelte';
   import { initRec, rec, recTelemetry } from './rec.svelte';
   import { cropRect } from '../lib/recorder';
@@ -869,6 +870,7 @@
 
       {:else if tab === 'Efeitos'}
         <AutomationPanel bind:cfg={rulesCfg} bankNames={() => perf?.bankNames() ?? []} sceneNames={(b: number) => perf?.sceneNames(b) ?? []} />
+        <FxEditor getFrame={() => frame} onstatus={(m) => (status = m)} />
         <PsyEffects bind:vs />
         <Slider label="Flash" bind:value={vs.fxFlash} learn="fxFlash" bind:mod={vs.mod.fxFlash} bind:drop={vs.drop.fxFlash} min={0} max={1} step={0.01} def={VISUAL.fxFlash} fmt={f2} />
         <Slider label="Anéis a cada kick" bind:value={vs.fxRings} learn="fxRings" bind:drop={vs.drop.fxRings} min={0} max={1} step={0.01} def={VISUAL.fxRings} fmt={f2} />
