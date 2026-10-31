@@ -674,7 +674,7 @@ Audio Engine (Rust) ──► Music Features ──► Show Engine / Dispatcher
 - [x] **DK-013** Implementar importação validada, staging, rollback e migração JSON. — 2026-10-30, sessão 22, `feat/dk-013-showpack-import` @ `1222300`: `readZip` (recusa ZIP64, deflate, senha, CRC errado, nomes perigosos), `inspectShowPack` (manifesto → assets com tamanho e sha256 reais → estado por chave com `validX(migrate(...))` → referências cruzadas; puro, nunca toca em storage), `applyShowPack` (checagem de imagem → backup → assets → chaves, com pilha de inversas e rollback; modos `replace`/`new` com remapeamento de ids), `import.check.ts` (roundtrip, rollback no 2º asset, 20+ recusas). Checks e typecheck verdes, conferidos pelo coordenador. UI, destino do backup e `add_track` com id = DK-014/DK-142.
 - [x] **DK-014** UI “Salvar/Abrir Show”, mensagens de erro e tutorial. — 2026-10-30, sessão 22, `feat/dk-014-showpack-ui` @ `05222d5` (base `integ/onda-1`): botões **Salvar show** / **Abrir show** na barra de performance; comandos Rust `save_backup` (pasta `app_data/backups`, nunca sobrescreve, rotação de 5) e `put_track` (id dado, `create_new`); fluxo com `inspect` antes de qualquer escrita, perguntas por `confirm()`, backup automático, `location.reload()` do controle com a mensagem preservada. Mock: 16/16 (salvar, substituir com reload, ZIP lixo sem alterar nada, extensão errada). Checks, typecheck, build e `cargo check` verdes (coordenador). Tutorial escrito pelo coordenador. **App real NÃO VERIFICADO** (disco, rotação, download no WebView2). Onda 2.
 - [x] **DK-131** Criar catálogo inicial de presets locais e metadados. — 2026-10-30, sessão 29, `feat/dk-131-presets` @ `204d333`: `src/lib/presets.ts` (11 presets de fábrica em 7 estilos, `presetLook`, `presetsByStyle`, `searchPresets` sem acento), `presets.check.ts` (ids únicos, looks completos e saneáveis, strobe ≤ 0,7 e flash ≤ 0,5 — coerente com DK-006 —, cópia profunda), botão **Catálogo** na barra de performance (select por estilo, "Aplicar agora", "Gravar no pad" com confirmação se ocupado). Checks, typecheck e build verdes, conferidos pelo coordenador. Miniaturas e pacotes compartilháveis = DK-132.
-- [ ] **DK-142** Roteiros, vídeos e (opt-in) músicas dentro do Show Pack.
+- [x] **DK-142** Roteiros, vídeos e (opt-in) músicas dentro do Show Pack. — Feito dentro de DK-012/013/014 (2026-10-30): `collect.ts` leva `doublek.roteiros` e os vídeos da biblioteca (vídeo sem arquivo no IndexedDB fica de fora), `manifest.ts` tem o tipo de asset `track` e a flag `includeTracks`, `export.ts` só inclui músicas com `includeTracks` (padrão **false**) e `import.ts` grava via `put_track` sem sobrescrever. **Sem botão na tela para incluir músicas até a DEC-09** (direitos autorais e tamanho): hoje um `.doublekshow` nunca carrega áudio; ao abrir noutro PC, o roteiro pede "Trocar música".
 
 **Gate M1:** abrir Show Pack em perfil limpo com logo, fundo, cenas e ajustes intactos.
 
@@ -692,11 +692,11 @@ Audio Engine (Rust) ──► Music Features ──► Show Engine / Dispatcher
 - [x] **DK-041** Migrar cenas 8→32 e adicionar bancos. — 2026-10-30, sessão 22, `feat/dk-041-bancos` @ `9bf0358` (base DK-014): `src/lib/banks.ts` (até 4 bancos × 8, `doublek.banks` v1 com migração automática de `doublek.scenes`, que continua espelhando o banco ativo), seletor à esquerda dos pads (‹ › + ×, renomear), teclas `[ ]`, ações MIDI `a:bank-`/`a:bank+` (os `c:0..7` salvos continuam válidos: pad do banco ativo), `banks.json` no Show Pack com compatibilidade para pacotes sem ele. Mock 21/21; checks 10/10, typecheck 0, build ok (coordenador). Decisões: `stepBank` dá a volta; modo "novo" substitui bancos; `cue.scene` = pad do banco ativo (DK-143 pode ganhar `cue.bank`). Retoque pedido: aceitar também `e.key` `[`/`]` (ABNT2). Pads ficaram em 51 px.
 - [x] **DK-042** Criar dispatcher único e macros seguras. — 2026-10-30, sessão 22, `feat/dk-042-dispatcher` @ `9af14d2` (ADR 0003 implementada): `src/lib/commands.ts` com 18 `ShowCommand`, 7 fontes, validação, recusa de `osc`/`remote` (sem servidor), override manual com cooldown de 8 s (automação descartada; roteiro passa; BLACKOUT/PANIC sempre passam e PANIC limpa a fila), histórico de 50 no Diagnóstico, `LEGACY_ACTIONS` cobrindo todos os ids do MIDI learn salvo; teclado, MIDI, botões e cenas do roteiro passam pelo `dispatch`. Macros Build-up (16 beats), Drop (2 beats, tetos do `safeFlash`), Caos (sorteio por beat, 4 beats), Reset, na barra e MIDI-learnable. Mock 23/23 com mapa MIDI antigo; checks 11/11, typecheck 0, build ok (coordenador). Fora: efeitos/vídeo/rampas do roteiro e knobs da tela ainda escrevem direto (DK-143); `AUTOMATION_MODE` sem efeito. Barra de performance com 180 px.
 - [x] **DK-043** Criar Program/Preview e fluxo TAKE. — 2026-10-30, sessão 22, `feat/dk-043-preview` @ `550dcd5`: `src/lib/preview.ts` (preview = referência banco+pad resolvida com o look de agora; regravar atualiza; PANIC limpa, BLACKOUT não), comandos `SCENE_PREVIEW`/`SCENE_TAKE`/`PREVIEW_CLEAR`/`PREVIEW_MODE`, `keyCommand` puro (Shift+1..8 prepara, T = TAKE, Shift+T limpa), ids MIDI `a:take`/`a:previewMode`/`a:previewClear`, modo preview roteando os pads e o `c:<i>`; canvas PREVIEW mostra o look preparado e o telão nunca o recebe; TAKE quantizado no próximo beat com a transição escolhida. Mock 19/19 com cores lidas dos canvases; checks 12/12, typecheck 0, build (coordenador). Decisão DK-143 aplicada: ponto de cena do roteiro = TAKE direto no Program. Mudanças de UI: Shift+dígito deixou de chamar cena; rótulos da transição em números; "Só logo" na linha das macros.
-- [ ] **DK-044** Integrar bancos/macros ao MIDI/teclado e testar stress.
-- [ ] **DK-031** Calcular indicadores temporais de energia musical.
+- [x] **DK-044** Integrar bancos/macros ao MIDI/teclado e testar stress. — 2026-10-30, sessão 22, `feat/dk-044-stress` @ `6677deb`: todo comando de show ao vivo tem tecla e id MIDI (novos: **A**/`a:autoMode` alterna Manual→Assistido→Automático, **Alt+1..4**/`a:bank:1..4`, **U/D/C/X** macros, **V** modo preview; o chip de estado virou botão), teste de cobertura falha se faltar; bugs corrigidos: Ctrl/Cmd+tecla disparava comando (Ctrl+B = blackout, Ctrl+R = A/B), tecla segurada repetia o comando (só as setas de fase repetem); `dispatcher.idle()`. Stress 300 s no mock (controle + telão em janelas próprias, 9428 comandos ≈ 31/s, 1% PÂNICO, 2% RESET, áudio alternando drop/breakdown): 0 erros, histórico no teto (50), 0 comandos presos, alvos GL 3 o tempo todo, p95 do telão 366 → 362 ms, heap não monotônico; strobe ≤ 3 flashes/s com o limite ligado em 1/1, 1/2 e 1/4 (controle desligado: 10/s). `docs/quality/DK-044-stress.md`. MIDI físico/ABNT2 físico/GPU real NÃO VERIFICADO.
+- [x] **DK-031** Calcular indicadores temporais de energia musical. — 2026-10-30, sessão d7, `feat/dk-031-indicadores` @ `4cfa443`: campos aditivos no `Frame` (camelCase no JSON, opcionais no TS): `energy` (rms + médios + ≥ 6 kHz em nível absoluto, ~1 compasso), `contrast` (4 blocos ÷ 4 anteriores; bloco = compasso travado ou 2 s; blocos parciais fora; zera com 1 s de silêncio ou troca de período > 3%), `stability` (jitter dos kicks × rampa de 8 beats; 0 sem trava), `kickRate` (kicks por compasso). Synth com `riser`: groove contraste 1,00–1,01, build-up 1,38–1,40 (passa 1,2 no 5º compasso), kicks/compasso 3,5–4,0 no groove e 0 no breakdown, estabilidade 1 → 0 → 0,92 na troca 148→175. Custo ~1% do `process`. Rust 20/20; detecção e estresse idênticos. **Achado P8** (pré-existente): pausa + mesma BPM em outra fase → 1/49 kicks por até 30 s (HOLD segura a grade velha) — DETECCAO.md §4.9.
 - [x] **DK-032** Implementar estado musical com histerese e testes. — 2026-10-30, sessão 22, `feat/dk-032-show-engine` @ `31a8a8f`: `src/lib/show-engine/state.ts` puro com relógio injetável, `Features` próprio (fonte trocável pelo DK-031); BREAKDOWN/DROP sobre `Frame.low`, BUILD_UP por contraste de energia (4 compassos ÷ 4 anteriores ≥ 1,2, sai < 1,05), GROOVE grave estável ≥ 1 compasso; permanência mínima 2 compassos + confirmação 1; `dropEvent` uma vez por volta do grave após breakdown ≥ 2 compassos, confirmado após 1 compasso; UNKNOWN em silêncio/sem BPM; compasso de 2 s sem trava. `state.check.ts`: 135/148/220 BPM com sequência exata e 1 drop, volume oscilando, grave piscando, buraco de 1,5 compasso, dois breakdowns. Áudio real NÃO VERIFICADO (limiares de build/confiança precisam de música de verdade).
 
-**Gate M3:** performance manual estável com bancos, preview e diagnóstico musical visível.
+**Gate M3:** performance manual estável com bancos, preview e diagnóstico musical visível. — **Atingido em software (2026-10-30, v0.3.6):** bancos, preview/TAKE, macros, dispatcher, teclas/MIDI completos e stress de 5 min (DK-044); estado musical visível (DK-032) e indicadores do Rust (DK-031). Pendente com o mantenedor: controlador físico e projetor real (NÃO VERIFICADO).
 
 ### Marco M4 — Show automático seguro (semanas 9–10)
 
@@ -704,7 +704,7 @@ Audio Engine (Rust) ──► Music Features ──► Show Engine / Dispatcher
 - [x] **DK-034** Criar Manual/Assistido/Auto e override manual com cooldown. — 2026-10-30, sessão 22, mesma branch: handler `AUTOMATION_MODE` (MANUAL = só mostra; ASSIST = rampas/macros, nunca cena/banco/vídeo; AUTO = tudo), "só roteiro" desliga a automação, cooldown do dispatcher (8 s) exposto no Diagnóstico (`show.manualLeftMs`); `AUTOMATION_MODE` não renova o override (o mock pegou a automação se pausando ao ser ligada). Chip "estado · confiança" + seletor na linha das macros (header intocado; 1253 px em 1280). Abre sempre em Manual. Mock 13/13; checks 16/16, typecheck 0, build. Fora: tela do mapa de automação (config existe), ids MIDI do modo.
 - [x] **DK-051** Desenhar contrato de camadas, serialização e migração. — 2026-10-30, sessão 29, `feat/dk-051-camadas` @ `1324de3`: `src/render/layers.ts` puro (`Layer = {id,type,enabled,order,opacity,blend}`, `defaultLayers()` reproduz a ordem atual, `sanitizeLayers` tolera lixo/ids repetidos/faltantes, `moveLayer`/`setLayer`), 7 camadas (5 módulos psy, rastro, glitch); cena e pós ficam fixos (separar quebraria o diff 0; vídeo como camada = DK-063). `layers` em VISUAL e, por ora, em `NOT_IN_SCENE` (entrar nas cenas = DK-053). `layers.check.ts`; checks 14/14, typecheck 0, build.
 - [x] **DK-052** Implementar compositor mínimo e operações de mistura. — 2026-10-30, sessão 29, mesma branch: `src/render/effects/compose.ts` (normal/somar/tela/multiplicar × opacidade, 2 alvos em pingue-pongue, só roda quando `needsCompose`; shader falhando → tudo em normal + `onEffectError('compose')`), corrente cena→camadas→pós remontada só quando `v.layers` muda; UI "Camadas" na aba Efeitos. Provas no mock: padrão = 0 canais diferentes nas 5 cenas; somar/multiplicar/reordenar mudam a imagem; 100 ciclos de liga/move/modo sem alocar alvo (11→11). GPU real NÃO VERIFICADO.
-- [ ] **DK-053** Criar painel de camadas e benchmark de 4 layers.
+- [x] **DK-053** Criar painel de camadas e benchmark de 4 layers. — 2026-10-30, sessão 29, `feat/dk-053-painel-camadas` @ `7880684`: `layers` entra nas cenas/presets/Show Pack (`sanitizeLook` trata a chave; cena antiga ganha o padrão; `schemaVersion` do Show Pack continua 1), solo por camada (`layerSolo`, fora das cenas), arrastar por ponteiro (HTML5 DnD é engolido pelo WebView2), MIDI learn de opacidade (`v:layers.<id>.opacity`) e liga/desliga (`l:<id>:on` → `SET_PARAMETER layers.<id>.on`, −1 alterna) com `applyLayerParam` no handler do App (aplicado pelo coordenador na integração); `docs/quality/CAMADAS.md` (swiftshader 960×540: padrão p95 51,6 ms / 3 alvos; 4 camadas normal 127 ms / 7; 4 camadas misturadas a 80 % 144 ms / 9; +5–6 ms por mistura). Imagem padrão = 0 canais diferentes. Checks, typecheck 0, build; mock de painel/MIDI sem chave solta. GPU real NÃO VERIFICADO.
 - [x] **DK-143** Roteiro × automação × Program/Preview: precedência e override. — 2026-10-30, sessão 22, `feat/dk-143-roteiro-dispatcher` @ `b660e23`: efeitos, vídeo e rampas do roteiro passam pelo dispatcher (`FX_BURST`, `VIDEO_SET`, `PARAM_RAMP`; `src/lib/roteiro-fx.ts` puro com undo encadeado), `cue.bank` opcional (editor, timeline "B2·nome", JSON antigo byte-igual), `roteiroRunning` no dispatcher: automação não troca cena/banco/vídeo com roteiro tocando; knobs da tela renovam o override manual (`markManual`); PÂNICO/RESET unificados em `cancelRunning()`. Mock 16/16; checks 14/14, typecheck 0, build (coordenador). Ponto de cena do roteiro = TAKE direto (decisão aplicada em DK-043).
 
 **Gate M4:** automações desativáveis instantaneamente, efeitos por camada e show recuperável após erro.
@@ -712,7 +712,7 @@ Audio Engine (Rust) ──► Music Features ──► Show Engine / Dispatcher
 ### Marco M5 — Integrações e entrega pública controlada (semanas 11–12)
 
 - [x] **DK-091** Criar servidor OSC local, dispatcher e validação. — 2026-10-30, sessão cd, `feat/dk-091-osc` @ `e7d96cf`: `src-tauri/src/osc.rs` (parser OSC 1.0 à mão: i f s b T F, bundles aninhados ≤ 8, malformado → Err sem pânico, 1024 pacotes de lixo no teste; `serve()` faz o bind antes da thread, porta em uso recusa na hora, limite 200 msg/s, `Stats {received, dropped, rejected}`, `stop()` com join para religar a porta), comandos `osc_start/osc_stop/osc_status` e evento `osc` para a janela de controle; `src/lib/osc.ts` `oscToCommand(addr,args)` (35 endereços válidos, 40 recusas, 43 ajustes no passo do slider; todo comando passa no `validate`); `docs/OSC.md`. Rust 20/20, checks, typecheck 0, build. Fonte `osc` continua recusada no dispatcher até a UI (DK-092). Cliente OSC real e LAN/firewall NÃO VERIFICADO.
-- [ ] **DK-092** Criar protocolo/feedback e testes com cliente OSC.
+- [x] **DK-092** Criar protocolo/feedback e testes com cliente OSC. — 2026-10-30, sessão cd, `feat/dk-092-osc-ui` @ `44341b6`: seção "OSC (rede)" na aba Saída (porta, "Abrir para a rede local" com aviso de ausência de autenticação, Ligar/Desligar, erro do bind inline, recebidas/descartadas/recusadas 1×/s), `dispatcher.setNetwork('osc'|'remote', on)` por dispatcher (fonte `osc` recusada com servidor desligado), evento `osc` → `oscToCommand` → `dispatch(…,'osc')`, erros de mapeamento no diário com antirrepetição 2 s, `osc` no Diagnóstico; `doublek.settings` ganha `oscOn/oscPort/oscLan` (sem migração); no boot adota servidor já ligado, religa só em localhost. OSC não arma o override manual (tratado como programa externo). Testado no exe real com `WEBVIEW2_USER_DATA_FOLDER` isolado + `dgram`: 21/21. `/status` de volta fica como futuro. TouchOSC/LAN/firewall NÃO VERIFICADO.
 - [ ] **DK-007** Atualizar README, tutorial, demos e feedback beta.
 - [ ] **DK-132** Exportar/importar presets comunitários como arquivos locais.
 - [ ] Executar regressão completa, testes de 2 horas e benchmark final.
@@ -728,7 +728,7 @@ Audio Engine (Rust) ──► Music Features ──► Show Engine / Dispatcher
 - [ ] **DK-071** Spike: opções de gravação/encoding suportadas.
 - [ ] **DK-072** Gravar saída visual silenciosa com qualidade configurável.
 - [ ] **DK-073** Exportação vertical 9:16 e gravação robusta.
-- [ ] **DK-081** Serviço remoto local autenticado e desligado por padrão.
+- [x] **DK-081** Serviço remoto local autenticado e desligado por padrão. — 2026-10-30, sessão cd, `feat/dk-081-remoto` @ `1e313db`: `src-tauri/src/remote.rs` sem dependência nova — HTTP/1.1 mínimo testável sem rede (`read_request(impl Read)`: 400/408/413/431/501), rotas `GET /` (página embutida), `POST /pair` (código de 6 dígitos, 2 min, uso único, comparação em tempo constante, 5 erros → 429 + bloqueio 1 min), `POST /cmd` (Bearer, 20 req/s, corpo ≤ 4 KB, mesmo formato do OSC → `oscToCommand`), `GET /state`; Host só IP/localhost e Origin = Host (anti DNS rebinding), sem CORS, headers no-store/nosniff/DENY/CSP; token de 32 bytes do `BCryptGenRandom` via FFI, só em memória (reiniciar desconecta todos). UI "Celular (rede)" na aba Saída (porta 8008, LAN opcional com aviso de rede sem criptografia, Mostrar código com URL, clientes pareados, Desconectar todos, aviso laranja no rodapé por 3 s a cada comando remoto). Rust 26/26; exe real 28/28 em 127.0.0.1. Celular real/Wi-Fi/firewall NÃO VERIFICADO.
 - [ ] **DK-082** UI responsiva de controle para celular + pareamento.
 - [ ] **DK-083** Testes de segurança, timeout e perda de rede.
 - [ ] **DK-101** Spike Spout ↔ WebGL2/WebView2, latência e licenças.
@@ -752,14 +752,14 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 
 | Campo | Valor inicial |
 |---|---|
-| Última revisão do planejamento | 2026-10-30 (alinhado à v0.3.1) |
+| Última revisão do planejamento | 2026-10-30 (alinhado à v0.3.6) |
 | Commit/branch baseline validado | `main` @ `09a7677` (v0.3.1) — ver `docs/quality/BASELINE.md` |
-| Tarefa ativa | **Em paralelo (desde 2026-10-30, coordenador: sessão doublek-sounds-68):** DK-008 → sessão d7 (`feat/dk-008-benchmark`), DK-004 governança → sessão 29 (`docs/dk-004-governanca`), DK-011 → sessão 22 (`feat/dk-011-showpack-schema`); coordenador: plano de teste do DK-141 (`docs/coordenacao-m0`). Regras: cada sessão num `git worktree` próprio, escopo de arquivos disjunto, sem push/merge, só o coordenador edita roadmap/BASELINE/README |
-| Marco ativo | M0 quase fechado (faltam DK-004 licença/1ª Release e DK-141 com o mantenedor); M1 feito em software (gate depende de validação no app real + DEC-03/09); M2 em andamento (DK-021/022/023 feitos, DK-024 a fazer); M3 iniciado (DK-041 feito, DK-042 em andamento) |
-| Tarefas do roadmap marcadas | 20 (DK-001, 002, 003, 005, 006, 008, 011, 012, 013, 014, 131, 021, 022, 023, 024, 041, 042, 043) + retoques |
-| Tarefas concluídas | 20 (software); DK-009 P1–P4 feitos, P7/P6 em andamento |
-| Bloqueios conhecidos | Licença (DEC-01); hardware de referência (DEC-02); secret de assinatura e 1ª release (DEC-10); SDK para Spout/Link/gravação |
-| Release alvo | **0.4.0** ao fechar o M0 (decisão do mantenedor, 2026-10-30) |
+| Tarefa ativa | **Coordenador + 4 sessões (2026-10-30, mantenedor ausente com autonomia total):** 22 → DK-035 (Intelligent Show v2 sobre DK-031 + tela do mapa de automação), d7 → DK-009 P8 e depois DK-111/112 (MIDI Clock), 29 → DK-061/062 (vídeo: codecs, início/fim, fallback, limite de decodificação), cd → DK-082 (tela do celular). Cada sessão num `git worktree`, sem push/merge; o coordenador integra em `integ/onda-N`, publica e mantém roadmap/README/TUTORIAL/CHANGELOG |
+| Marco ativo | M0 fechado em software (faltam só itens do mantenedor: licença DEC-01 e DK-141 com som); M1 feito (DK-142 coberto; música aguarda DEC-09); M2 feito; **M3 gate atingido em software**; M4 quase feito (DK-033/034/051/052/053/143 feitos); M5 em andamento (OSC DK-091/092 e remoto DK-081 feitos; DK-082 em andamento) |
+| Tarefas do roadmap marcadas | ver §7 (contar `- [x]`); 2026-10-30: 33 marcadas |
+| Tarefas concluídas | 33 (software) + DK-009 P1–P4 e P7; P6 proposta; P8 em andamento |
+| Bloqueios conhecidos | Licença (DEC-01) e modelo de distribuição (DEC-08); hardware de referência (DEC-02); música no Show Pack (DEC-09); SDK/licença para Spout/Link (DEC-05/06); validação com som/projetor/controlador reais (DK-141 e itens NÃO VERIFICADO). Ver §8.5 Dívidas |
+| Release alvo | 0.3.x por lote de integração (ver §8.6); **0.4.0** quando o M0 fechar de verdade (licença + DK-141), conforme DEC-11 |
 
 **Cálculo de progresso:** contar apenas as linhas `- [x]` da seção 7 e dividir pelo número total de tarefas rastreadas da mesma seção. Separar sempre os percentuais **M0–M5** e **Pós-M5**, pois o segundo grupo é um backlog aberto. Opcionalmente manter esses indicadores em GitHub Projects; o Markdown continua sendo a fonte de verdade desta especificação.
 
@@ -768,19 +768,19 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 | Épico | Prioridade | Estado inicial | Dependências principais | Evidência/PR |
 |---|---|---|---|---|
 | Baseline, qualidade, segurança | P0 | IN_PROGRESS (DK-001 DONE; DK-004 parcial: release + updater) | Nenhuma | `docs/quality/BASELINE.md`; commits `ecf84ce` (updater/release) |
-| Show Pack | P0 | TODO | DK-001/002/003 | — |
-| Psy Engine | P0 | TODO | DK-002/003 | — |
-| Performance Mode | P0/P1 | TODO | Show Pack | — |
-| Intelligent Show | P0/P1 | IN_PROGRESS (parcial: `Frame.low` + efeitos "só no drop") | Indicadores de áudio + Performance | commit `e5bd0cf` |
+| Show Pack | P0 | DONE (software; música aguarda DEC-09) | DK-001/002/003 | DK-011/012/013/014/142; v0.3.2–0.3.3 |
+| Psy Engine | P0 | DONE (software; GPU real NÃO VERIFICADO) | DK-002/003 | DK-021/022/023/024; v0.3.3–0.3.4 |
+| Performance Mode | P0/P1 | DONE (software) | Show Pack | DK-041/042/043/044; gate M3 |
+| Intelligent Show | P0/P1 | IN_PROGRESS (DK-031/032/033/034 feitos; DK-035 v2 em andamento; áudio real NÃO VERIFICADO) | Indicadores de áudio + Performance | v0.3.5–0.3.6 |
 | Roteiro (DK-140) | P0/P1 | IN_PROGRESS (implementado, NÃO VERIFICADO com áudio real) | DK-141 → DK-010 → DK-030/040 | commits `bebb11f`, `257aeed`, `6afb446` |
-| Camadas | P1 | TODO | Renderer modular + Show Pack | — |
+| Camadas | P1 | DONE (software; vídeo como camada = DK-063) | Renderer modular + Show Pack | DK-051/052/053; `docs/quality/CAMADAS.md` |
 | Presets e conteúdo | P1 | TODO | Show Pack + shaders | — |
-| OSC | P1/P2 | TODO | Dispatcher | — |
-| Loops de vídeo | P1 | IN_PROGRESS (parcial: biblioteca, loop, velocidade, cenas, drop) | Camadas | commit `4174e24` |
+| OSC | P1/P2 | DONE (software; cliente real/LAN NÃO VERIFICADO) | Dispatcher | DK-091/092; `docs/OSC.md` |
+| Loops de vídeo | P1 | IN_PROGRESS (DK-061/062 em andamento) | Camadas | commit `4174e24` |
 | Exportação de vídeo | P1 | TODO | Spike de encoder | — |
-| Controle pelo celular | P2 | TODO | Dispatcher + segurança | — |
+| Controle pelo celular | P2 | IN_PROGRESS (DK-081 servidor autenticado feito; DK-082 tela em andamento) | Dispatcher + segurança | `docs/REMOTO.md` |
 | Spout | P2 | TODO | Spike de GPU/interop | — |
-| MIDI Clock/Link | P2 | TODO | Clock abstrato | — |
+| MIDI Clock/Link | P2 | READY (DK-111/112 na fila da d7; Link = DEC-06) | Clock abstrato | — |
 | Shader editor | P3 | TODO | Psy Engine + camadas | — |
 
 **Estados permitidos:** `TODO`, `READY`, `IN_PROGRESS`, `BLOCKED`, `DONE`, `DEFERRED`. Em caso de `BLOCKED`, registrar a decisão necessária e o responsável. A descrição “DONE” é inválida sem evidência.
@@ -825,7 +825,11 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 | 2026-10-30 | DK-091 | DONE (software) | `feat/dk-091-osc` @ `e7d96cf` (sessão cd) | Rust 20/20 (5 novos: parser, bundles, malformados, fumaça UDP), `osc.check.ts`, typecheck 0, build | DK-092 (UI, fonte `osc` liberada só com servidor ligado) na mesma sessão |
 | 2026-10-30 | DK-009 P7+resíduo | DONE (software) | `feat/dk-009-deteccao` @ `fc91e8a` (sessão d7) | 18/18 (3 novos: contratempo_com_chimbal, contratempo_espelho, breakdown_nao_solta_a_trava); estresse sem contratempo nem quedas | P6 proposta; d7 segue para DK-031 (indicadores em Rust, campos aditivos no `Frame`) |
 | 2026-10-30 | DK-032/033/034 | DONE (software) | `feat/dk-032-show-engine` @ `31a8a8f` (sessão 22) | `state.check.ts` + `rules.check.ts` (16/16), typecheck 0, build, mock 13/13 | 22 segue para DK-044 (stress) |
-| 2026-10-30 | COORD | onda 4 | `integ/onda-4` (wt-integ) = main `ef1a66a` + dk-143 + dk-051 + dk-009 (P7+resíduo) + dk-091 + dk-032 + docs; `validVisual` com `sanitizeLayers` | 19 checks, typecheck 0, build, cargo (ver linha da versão) | bump 0.3.5, ff `main`, push, CI, MSI (sem instalar: usuário ausente). Disco C: chegou a 20 MB livres durante um build: caches `target/` do checkout principal e de wt-dk011 apagados (MSIs copiados para `projetos/releases/`), 7,35 GB livres |
+| 2026-10-30 | COORD | onda 4 | `integ/onda-4` (wt-integ) = main `ef1a66a` + dk-143 + dk-051 + dk-009 (P7+resíduo) + dk-091 + dk-032 + docs; `validVisual` com `sanitizeLayers` | 19 checks, typecheck 0, build, Rust 23/23; **`main` @ `eae0b2d` = v0.3.5**, CI verde (run 41142405504); MSI 0.3.5 assinado em `projetos/releases/` (NÃO instalado: UAC, usuário ausente) | onda 5 = dk-044 (22), dk-053 (29), dk-031 (d7), dk-092 (cd). Disco C: chegou a 20 MB livres durante um build: caches `target/` do checkout principal e de wt-dk011 apagados (MSIs copiados para `projetos/releases/`), 7,35 GB livres |
+| 2026-10-30 | DK-053 | DONE (software) | `feat/dk-053-painel-camadas` @ `7880684` (sessão 29) | `layers.check`/`presets.check`/`commands.check` ampliados; typecheck 0; build; diff 0 no padrão | 29 segue para DK-061/062 (vídeo: codecs, início/fim, fallback) |
+| 2026-10-30 | DK-092 | DONE | `feat/dk-092-osc-ui` @ `44341b6` (sessão cd) | commands.check +bloco osc; exe real 21/21 | cd segue para DK-081 (remoto autenticado, desligado por padrão) |
+| 2026-10-30 | COORD | onda 5 | `integ/onda-5` (wt-integ) = main `eae0b2d` + dk-053 + dk-092 (+ handler de camada no App) | 19 checks, typecheck 0, build | + dk-044 (22), dk-031 (d7) conforme chegarem; 0.3.6 |
+| 2026-10-30 | DK-081 | DONE (software) | `feat/dk-081-remoto` @ `1e313db` (sessão cd) | Rust 26/26 (6 novos), commands.check bloco remote, typecheck 0, build; exe real 28/28 | cd segue para DK-082 (tela do celular em `GET /`) |
 | 2026-10-30 | COORD | 4ª sessão | sessão `doublek-sounds-cd` (ociosa há 1 h, nunca usada) | Brief **DK-091** (servidor OSC em Rust + `src/lib/osc.ts` → `ShowCommand`, `docs/OSC.md`), escopo disjunto das outras três | DK-092 (UI/status OSC) depois, com a sessão 22 |
 | 2026-10-30 | ONDA 3 → main | MERGEADA | `main` @ `ef1a66a` (v0.3.4, ff de `integ/onda-3`), push feito | DK-024(+024b), DK-043, docs; check 14/14, typecheck 0, build, `cargo test` 15/15; **CI verde** (run 41138897349); **MSI 0.3.4 assinado** em `wt-integ/src-tauri/target/release/bundle/msi/` (instalação pendente do mantenedor) | Onda 4 com DK-051/052 (29), DK-143 (22), DK-009 P7/P6 (d7) |
 | 2026-10-30 | DK-009 P2+P1 | DONE (software) | `feat/dk-009-deteccao` @ `8f748e6` (sessão d7) | `cargo test --release` 15/15 (coordenador); bench principal sem caso fora da meta; estresse 10 sementes; P6 como patch; **P7** achado (grade no contratempo) | **P7** → P6 (patch com guarda do estresse chimbal) → resíduos §4.8, mesma sessão; P5 fixtures reais dependem de DEC-01 |
@@ -843,8 +847,40 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 | DEC-07 | Limites de flashes e padrões de segurança | Mantenedor + agente | **RESOLVIDA 2026-10-30** (DK-006) | Política: ≤ 3 flashes/s (WCAG 2.3.1) ligado por padrão, desligável pelo operador com aviso; flash de tela ≤ 50%; PÂNICO separado do BLACKOUT. Mantenedor pode endurecer (ex.: travar o limite) |
 | DEC-08 | Modelo de distribuição (open source, freeware, comercial) | Mantenedor | PENDENTE | Decisão explícita antes de publicar |
 | DEC-09 | Música do roteiro dentro do Show Pack (direitos autorais, tamanho, opt-in) | Mantenedor + agente | PENDENTE | Política escrita antes de DK-142 |
-| DEC-10 | Cadastrar `TAURI_SIGNING_PRIVATE_KEY` no GitHub e autorizar a 1ª Release (push em `prod`) | Mantenedor | PARCIAL (secret cadastrado 2026-10-30) | Secret cadastrado; a chave privada em `%USERPROFILE%\.tauri\doublek.key` tem cópia segura |
+| DEC-10 | Cadastrar `TAURI_SIGNING_PRIVATE_KEY` no GitHub e autorizar a 1ª Release (push em `prod`) | Mantenedor | **RESOLVIDA 2026-10-30** | Secret cadastrado; v0.3.2 publicada; às ~20h45 o mantenedor autorizou o coordenador a publicar releases por lote ("vai subindo elas de acordo com os lotes de alteração"). Pendente só a cópia segura da chave `%USERPROFILE%\.tauri\doublek.key` (dívida D-07) |
 | DEC-11 | Numeração de versões | Mantenedor | **RESOLVIDA 2026-10-30** | Segue de 0.3.x: M0 = 0.4.0, cada marco sobe o número do meio |
+
+### 8.5. Dívidas (decisões adiadas pelo coordenador com o mantenedor ausente)
+
+Regra do mantenedor (2026-10-30): "decisões marque como dívida e continue o que é certeiro". Cada dívida diz o que vale hoje (padrão seguro) e o que destrava.
+
+| ID | Dívida | O que vale hoje (padrão seguro) | Para destravar |
+|---|---|---|---|
+| D-01 | Licença do código e das contribuições (DEC-01) e modelo de distribuição (DEC-08) | Repositório sem licença declarada = todos os direitos reservados; nada de fixtures de terceiros | Mantenedor escolhe a licença |
+| D-02 | Fixtures de áudio reais para DK-009 P5 e calibração do Intelligent Show | Só áudio sintético (`synth.rs`); limiares marcados NÃO VERIFICADO | D-01 + músicas com permissão |
+| D-03 | Música dentro do Show Pack (DEC-09) | `includeTracks` existe na biblioteca, sem botão; pacote nunca leva áudio | Política de direitos/tamanho |
+| D-04 | Limites do Show Pack (DEC-03) | 50 assets, 2 GiB, tetos de `limits.ts` | Mantenedor confirma |
+| D-05 | Mapa de automação dentro do Show Pack | `doublek.automation` fica fora do pacote (DK-035) | Decidir se o mapa é "do show" ou "da máquina" |
+| D-06 | OSC e celular sem o override manual de 8 s | Comandos de rede não pausam a automação (tratados como programa externo) | Mantenedor decide se rede conta como "mão" |
+| D-07 | Cópia segura da chave de assinatura `%USERPROFILE%\.tauri\doublek.key` | Só existe neste PC + secret do GitHub; perder a chave = o updater para de aceitar versões novas para quem já instalou | Mantenedor guarda uma cópia offline |
+| D-08 | Preencher `[PREENCHER]` do SECURITY.md (contato de segurança) | Sem canal privado de reporte | Mantenedor informa e-mail/canal |
+| D-09 | 0.4.0 / fechar o M0 | Releases seguem 0.3.x | D-01 + DK-141 com som real |
+| D-10 | Validação em hardware: GPU do notebook do show, projetor, controlador MIDI, ABNT2 físico, celular no Wi-Fi, firewall | Tudo marcado NÃO VERIFICADO; testes em mock/swiftshader | Sessão de teste com o mantenedor (DK-141 + checklist) |
+| D-11 | P6 (re-trava mais rápida) reprovado na guarda | Não incorporado | Sinal de "fase deslizando" que o ruído não imite, com fixtures reais |
+
+### 8.6. Plano de releases (publicadas por push em `prod`)
+
+Cada lote de integração (`integ/onda-N`) vira uma versão; publica-se quando o CI da `main` fica verde. Os instaladores também ficam em `C:\Users\Work\Documents\projetos\releases\`.
+
+| Versão | Lote | Conteúdo principal | Estado |
+|---|---|---|---|
+| 0.3.2 | onda 1 | base confiável: store versionado, telemetria, CSP, segurança visual, Show Pack (biblioteca), benchmark | publicada |
+| 0.3.3–0.3.5 | ondas 2–4 | Psy Engine, Show Pack na tela, bancos, dispatcher, macros, Preview/TAKE, camadas, OSC (servidor), Intelligent Show v1, roteiro pelo dispatcher, detecção P1–P4/P7 | na `main`; vão ao público junto com a 0.3.6 |
+| **0.3.6** | onda 5 | camadas nas cenas/solo/MIDI, OSC na tela, servidor do celular (sem a tela ainda), teclas/MIDI completos + stress, indicadores de energia no Rust | publicar |
+| 0.3.7 | onda 6 | tela do celular (DK-082), vídeo completo (DK-061/062), Intelligent Show v2 + mapa (DK-035), P8 | planejada |
+| 0.3.8 | onda 7 | MIDI Clock (DK-111/112), vídeo como camada (DK-063), testes de rede (DK-083), presets comunitários (DK-132) | planejada |
+| 0.3.9+ | ondas seguintes | spikes de gravação (DK-071) e Spout (DK-101), shaders (DK-121) | planejada |
+| 0.4.0 | fechamento M0 | depois de D-01 e DK-141 | bloqueada (D-09) |
 
 ---
 

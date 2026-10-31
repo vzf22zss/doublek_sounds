@@ -6,6 +6,21 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Não lançado]
 
+## [0.3.6] - 2026-10-30
+
+### Adicionado
+
+- DK-053: camadas dentro das cenas e presets (o pad guarda ordem, modos e opacidades), solo por camada, arrastar para reordenar e MIDI learn da opacidade e do liga/desliga de cada camada. Benchmark de 4 camadas em `docs/quality/CAMADAS.md`.
+- DK-092: seção "OSC (rede)" na aba Saída — ligar/desligar, porta, abrir para a rede local com aviso, contadores e erros; comandos OSC só entram com o servidor ligado.
+- DK-081: servidor local para o celular, desligado por padrão, com pareamento por código de 6 dígitos (2 min, uso único, bloqueio após 5 erros), token só em memória, limite de taxa e proteção contra DNS rebinding (`docs/REMOTO.md`). A página do celular com os botões chega na 0.3.7.
+- DK-044: todo comando de show tem tecla e id MIDI — **A** (modo de automação), **Alt+1..4** (abrir banco), **U/D/C/X** (macros), **V** (modo Preview); stress de 5 min sem erro, sem comando preso e sem vazamento (`docs/quality/DK-044-stress.md`).
+- DK-031: indicadores de energia no motor de áudio (energia, contraste entre compassos, estabilidade do relógio, kicks por compasso) para o Intelligent Show.
+
+### Corrigido
+
+- Ctrl+tecla (Ctrl+B, Ctrl+R…) disparava comandos de show; agora fica com o Windows.
+- Segurar uma tecla repetia o comando (vários Drops); só as setas de fase repetem.
+
 ## [0.3.5] - 2026-10-30
 
 ### Adicionado
@@ -118,7 +133,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 - Crossfade de cena, barra do topo em 1280px e selo MIDI nos pads.
 
-[Não lançado]: https://github.com/vzf22zss/doublek_sounds/compare/0f3dab9...main
+[Não lançado]: https://github.com/vzf22zss/doublek_sounds/compare/HASH036...main
+[0.3.6]: https://github.com/vzf22zss/doublek_sounds/compare/0f3dab9...HASH036
 [0.3.5]: https://github.com/vzf22zss/doublek_sounds/compare/ef1a66a...0f3dab9
 [0.3.4]: https://github.com/vzf22zss/doublek_sounds/compare/1c4ade7...ef1a66a
 [0.3.3]: https://github.com/vzf22zss/doublek_sounds/compare/7582b07...1c4ade7

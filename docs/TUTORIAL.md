@@ -347,6 +347,27 @@ Exemplos de cenas que já vêm prontas:
 
 ---
 
+### Camadas
+
+Cada módulo do Psy Engine, o rastro e o glitch são **camadas**: na aba Efeitos, a seção
+**Camadas** lista as sete na ordem em que são desenhadas (a de baixo da lista fica por cima).
+Em cada linha dá para ligar e desligar, escolher o **modo de mistura** e a **opacidade**, e
+mover com ▲▼. Os modos: **Normal** (a camada cobre o que está embaixo, custo zero), **Somar**
+(clareia: bom para partículas e mandala sobre o túnel), **Tela** (clareia mais suave) e
+**Multiplicar** (escurece: o túnel a 60 % em Multiplicar vira uma textura escura sobre a logo).
+Qualquer modo diferente de Normal, ou opacidade abaixo de 100 %, gasta um passe a mais de GPU
+por camada; a aba Efeitos mostra o custo. Fundo, foto, vídeo, logo e pós (vinheta, strobe,
+blackout) não são camadas: ficam sempre no lugar de sempre. As camadas fazem parte da cena:
+salvar um pad guarda ordem, modos e opacidades, e chamar a cena troca tudo de uma vez no meio
+do crossfade. **S** deixa só aquela camada desenhando (solo) sem mexer no liga/desliga das
+outras, com um aviso em laranja enquanto estiver ativo. Para reordenar, arraste pelo nome ou
+use ▲▼. No MIDI learn, a opacidade e o liga/desliga de cada camada aprendem como qualquer
+knob ou botão.
+
+![Seção Camadas da aba Efeitos: mandala em Somar a 70 %](img/camadas.png)
+
+---
+
 ## 11. O que no som move cada efeito
 
 Ao lado de vários ajustes há um seletor pequeno, em roxo. Ele escolhe **qual parte da música
@@ -506,6 +527,32 @@ teto); **Caos** sorteia aberração, tremor e giro do rastro a cada beat por 4 b
 **Reset** zera strobe, flash, tremor, aberração e rastro sem parar o roteiro (o **PÂNICO** para
 o roteiro também). Cada macro pode ser aprendida no MIDI learn como qualquer botão. Chamar uma
 cena, o PÂNICO ou outra macro interrompe a que estiver rodando.
+
+### Intelligent Show: o app lê o momento da música
+
+Na linha das macros, depois de "Só logo", um chip mostra o **estado estimado da música** e a
+confiança: **BREAK** (sem grave), **BUILD** (energia subindo, grave ainda fora), **GROOVE**
+(grave presente e estável), **DROP** (o grave acabou de voltar depois de um breakdown) ou **—**
+quando o app não tem certeza (começo, silêncio, sem BPM). É uma estimativa pelo sinal: o drop
+aparece no chip **depois** que ele acontece, nunca antes, e um breakdown mais curto que dois
+compassos não conta como breakdown.
+
+Ao lado, o seletor **Manual / Assistido / Automático** decide o que o app faz com isso:
+
+- **Manual** (padrão ao abrir): só mostra o chip. Nada muda sozinho.
+- **Assistido:** no breakdown as rampas baixam rastro, anéis e zoom aos poucos; no build-up
+  sobem por 16 beats; no drop dispara a macro **Drop** (respeitando o limite de flashes).
+  Nunca troca cena, banco nem vídeo.
+- **Automático:** tudo do Assistido e, se houver cenas marcadas para drop/groove no mapa de
+  automação (por enquanto só por arquivo; a tela vem depois), troca de cena no compasso.
+
+Regras que valem sempre: **qualquer comando seu** (pad, knob, tecla, MIDI) pausa a automação por
+8 segundos (o Diagnóstico mostra quanto falta); com um **roteiro tocando**, o roteiro manda e a
+automação não troca cena, banco nem vídeo; no modo **só roteiro** a automação fica desligada;
+**Reset** e **PÂNICO** desfazem o que a automação estava fazendo. As ações entram no próximo
+beat (drop) ou compasso (entradas de estado) quando o BPM está travado; sem trava, na hora.
+Para começar, deixe em **Assistido** durante um set inteiro e veja se as rampas acompanham o
+seu gosto antes de passar para Automático.
 
 ### Salvar e abrir um show (`.doublekshow`)
 
@@ -692,13 +739,49 @@ DoubleK. Para o visual, use um **controlador separado** (um pequeno e barato já
 
 ---
 
+### Controlar pela rede (OSC)
+
+Programas como TouchOSC, Pure Data, Max ou qualquer coisa que fale **OSC** podem mandar
+comandos para o app. Na aba **Saída**, seção **OSC (rede)**: escolha a porta (padrão 9000) e
+clique em **Ligar OSC**. Por padrão o app só escuta o próprio computador (`127.0.0.1`); para um
+tablet na mesma rede, marque **Abrir para a rede local** antes de ligar e leia o aviso: **não
+há senha** — quem estiver no mesmo Wi-Fi controla o show. Use só em rede sua, e desligue
+quando não precisar. O Windows pode perguntar sobre o firewall na primeira vez.
+
+Os endereços seguem `/doublek/v1/...` e cobrem tudo o que o teclado e o MIDI fazem: cenas
+(`/doublek/v1/scene/3`), bancos, macros, blackout, "só logo", PÂNICO, TAP, nudge, qualquer
+knob (`/doublek/v1/parameter/trail 0.5`) e o roteiro (go, stop). A lista completa, com tipos e
+faixas, está em [docs/OSC.md](OSC.md). Com o servidor ligado, a seção mostra **recebidas ·
+descartadas · recusadas** (descartadas = acima de 200 por segundo; recusadas = endereço ou
+valor inválido, que também aparecem no diário do Diagnóstico). Comando por OSC não pausa a
+automação do Intelligent Show (é tratado como outro programa, não como a sua mão); PÂNICO e
+BLACKOUT por OSC têm a mesma prioridade de sempre.
+
+### Celular na mesma rede (prévia)
+
+Na aba **Saída**, abaixo do OSC, a seção **Celular (rede)** liga um servidor local protegido por
+código: clique em **Ligar**, depois em **Mostrar código** e digite os 6 dígitos no celular, no
+endereço que aparece (`http://IP-do-notebook:8008`). O código vale 2 minutos e uma vez só; depois
+de 5 tentativas erradas o pareamento trava por 1 minuto. **Desconectar todos** derruba os
+celulares na hora, e fechar o app também. Enquanto alguém comanda pelo celular, um aviso laranja
+aparece no rodapé. A rede local não é criptografada: use só em Wi-Fi seu. Nesta versão a página
+do celular ainda só confirma o pareamento; os botões (cenas, macros, blackout, PÂNICO, TAP) chegam
+na 0.3.7. Detalhes de segurança em [docs/REMOTO.md](REMOTO.md).
+
 ## 18. Atalhos do teclado
 
 | Tecla | Ação |
 |---|---|
 | **Espaço** | TAP (bater o tempo) |
-| **← / →** | Adiantar / atrasar a fase 5 ms |
-| **1 … 8** | Chamar cena |
+| **← / →** | Adiantar / atrasar a fase 5 ms (segurar repete) |
+| **1 … 8** | Chamar cena (no modo Preview: preparar) |
+| **Shift + 1 … 8** | Preparar a cena no Preview, sem o telão ver |
+| **T** / **Shift + T** | TAKE (manda o Preview para o telão no próximo beat) / limpar o Preview |
+| **V** | Ligar/desligar o modo Preview dos pads |
+| **[ / ]** | Banco anterior / próximo |
+| **Alt + 1 … 4** | Abrir o banco 1 a 4 |
+| **U / D / C / X** | Macros Build-up / Drop / Caos / Reset |
+| **A** | Automação: Manual → Assistido → Automático |
 | **B** | Blackout (apaga o telão) |
 | **P** | Pânico (para o roteiro e zera os efeitos agressivos) |
 | **L** | Só logo |
@@ -709,6 +792,12 @@ DoubleK. Para o visual, use um **controlador separado** (um pequeno e barato já
 | **; / '** | Roteiro: −1 / +1 compasso |
 | **R** | Roteiro: compara com roteiro × só o som (com a música tocando) |
 | **Esc** | Sair do modo MIDI (no controle) · fechar o telão (no telão) |
+
+Os atalhos só valem sem **Ctrl** (ou Cmd): Ctrl+C, Ctrl+R e afins continuam com o Windows. Segurar
+uma tecla não repete o comando (segurar **D** dá um Drop só); só as setas de fase repetem. Todo
+comando desta tabela também tem um id para o **MIDI learn**: clique no botão correspondente com o
+modo MIDI ligado (para abrir um banco pelo MIDI, abra o banco e clique em "Banco N/M"; para o
+modo de automação, clique no chip de estado).
 
 ---
 
