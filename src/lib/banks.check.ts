@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { useStorage, SCHEMA } from './store.ts';
 import { loadScenes, VISUAL } from './settings.ts';
-import { addBank, loadBanks, MAX_BANKS, removeBank, renameBank, saveBanks, stepBank, usedScenes, validBanks, type Banks } from './banks.ts';
+import { addBank, loadBanks, MAX_BANKS, removeBank, renameBank, saveBanks, shiftAfterRemove, stepBank, usedScenes, validBanks, type Banks } from './banks.ts';
 
 const mem = new Map<string, string>();
 useStorage({ getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => void mem.set(k, v), removeItem: (k) => void mem.delete(k) });
@@ -96,6 +96,18 @@ mem.set('doublek.scenes', JSON.stringify(eight('Minha cena')));           // for
   assert.deepEqual([r.active, r.banks[0].name], [0, 'Banco 2']);
   const one = validBanks({ banks: [{ name: 'só', scenes: eight() }] });
   assert.equal(removeBank(one, 0), one);                                  // nunca o último
+}
+
+// --- referências a banco depois de apagar (DK-132 / dívida 2 da DK-035) ---
+{
+  assert.equal(shiftAfterRemove(undefined, 1), undefined, 'sem banco (= banco aberto) continua sem banco');
+  assert.equal(shiftAfterRemove(0, 1), 0, 'antes do apagado: igual');
+  assert.equal(shiftAfterRemove(1, 1), null, 'o apagado: perde a referência');
+  assert.equal(shiftAfterRemove(3, 1), 2, 'depois do apagado: desce 1');
+  // aponta para o MESMO banco (pelo nome) antes e depois
+  const b4 = validBanks({ banks: ['A', 'B', 'C', 'D'].map((name) => ({ name, scenes: eight() })) });
+  const after = removeBank(b4, 1);
+  for (const ref of [0, 2, 3]) assert.equal(after.banks[shiftAfterRemove(ref, 1)!].name, b4.banks[ref].name);
 }
 
 console.log('banks: ok');

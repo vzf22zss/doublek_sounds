@@ -54,6 +54,16 @@ export function removeBank(b: Banks, i: number): Banks {
   return { active, banks };
 }
 
+/**
+ * Referência a banco (índice) depois de apagar o banco `removed`: os de antes ficam, os de depois descem 1,
+ * o apagado vira null. Usado para `cue.bank` dos roteiros e as cenas do mapa de automação — a única operação que
+ * muda índices hoje é apagar; se um dia houver "mover banco", ele deve passar pelo mesmo tipo de remapeamento.
+ */
+export function shiftAfterRemove(ref: number | undefined, removed: number): number | undefined | null {
+  if (ref === undefined) return undefined;
+  return ref === removed ? null : ref > removed ? ref - 1 : ref;
+}
+
 export function renameBank(b: Banks, i: number, name: string): Banks {
   if (i < 0 || i >= b.banks.length) return b;
   return { ...b, banks: b.banks.map((x, j) => (j === i ? { ...x, name: bankName(name, i) } : x)) };
