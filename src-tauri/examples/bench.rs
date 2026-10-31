@@ -132,6 +132,61 @@ fn indicators() {
     }
 }
 
+/// Pausa de 3 s (silêncio digital ou só ruído de fundo) e a mesma faixa voltando com outra fase:
+/// recall nos 20 s depois da pausa e tempo até travar de novo na fase nova (meta: ≥ 0,9 e ≤ 4 s).
+fn pause() {
+    println!("
+### Pausa de 3 s + mesma faixa defasada (faixa do gênero)
+");
+    println!("| BPM | Pausa | Recall nos 20 s depois | Re-trava na fase nova | Fase final (beats) |");
+    println!("|---:|---|---:|---:|---:|");
+    for &bpm in &BPMS {
+        let (_, lo, hi) = genre(bpm);
+        for (name, noisy) in [("silêncio digital", false), ("ruído de fundo", true)] {
+            let r = pause_run(bpm, lo, hi, noisy);
+            println!(
+                "| {bpm:.0} | {name} | {:.2} | {} | {:.2} |",
+                r.0,
+                r.1.map_or("**não**".to_string(), |t| format!("{t:.1} s")),
+                r.2
+            );
+        }
+    }
+}
+
+/// (recall depois da pausa, segundos até travar na fase nova, distância da grade aos kicks no fim)
+fn pause_run(bpm: f64, lo: f32, hi: f32, noisy: bool) -> (f64, Option<f64>, f64) {
+    let mut x = Synth { bpm, secs: 20.0, ..Default::default() }.render().0;
+    if noisy {
+        x.extend(Synth { bpm, secs: 3.0, start: 99.0, seed: 3, ..Default::default() }.render().0);
+    } else {
+        x.extend(vec![0.0; 3 * 48000]);
+    }
+    let t0 = x.len() as f64 / 48000.0;
+    let (b, truth) = Synth { bpm, secs: 20.0, seed: 2, ..Default::default() }.render();
+    x.extend(b);
+    let truth: Vec<f64> = truth.iter().map(|t| t + t0).collect();
+    let mut an = Analyzer::new(48000.0);
+    let p = Params { bpm_min: lo, bpm_max: hi, ..Default::default() };
+    let (mut det, mut relock) = (vec![], None);
+    let on_new = |an: &Analyzer| {
+        let x = (truth[0] - an.beat.anchor) / an.beat.period;
+        an.beat.locked && (x - x.round()).abs() < 0.15
+    };
+    for (i, c) in x.chunks_exact(HOP).enumerate() {
+        let t = (i + 1) as f64 * HOP as f64 / 48000.0;
+        if an.process(c, &p).is_some() && t > t0 {
+            det.push(t);
+        }
+        if t > t0 && relock.is_none() && on_new(&an) {
+            relock = Some(t - t0);
+        }
+    }
+    let hits = truth.iter().filter(|&&k| det.iter().any(|&d| (d - k).abs() < TOL)).count();
+    let x = (truth[0] - an.beat.anchor) / an.beat.period;
+    (hits as f64 / truth.len() as f64, relock, (x - x.round()).abs())
+}
+
 /// Custo do `Analyzer::process` por hop: a mesma faixa (148 BPM, baixo rolante, 30 s) 7 vezes,
 /// fica a menor (a máquina tem outros processos; a mínima é a mais estável entre execuções).
 fn cost() -> f64 {
@@ -265,6 +320,7 @@ fn main() {
     }
     stress(secs);
     indicators();
+    pause();
     println!("
 Custo do `Analyzer::process`: **{:.2} µs por hop** (mínimo de 7 passadas; o hop dura {:.0} µs a 48 kHz).", cost(), HOP as f64 / 48.0 * 1000.0);
 }
