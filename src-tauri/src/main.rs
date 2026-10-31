@@ -16,6 +16,7 @@ struct Engine {
     run: Mutex<Option<(Arc<AtomicBool>, mpsc::Sender<BeatCmd>)>>,
     subs: Subs, // uma assinatura por janela (controle, saída)
     midi_devices: Arc<Mutex<Vec<String>>>,
+    clock: Arc<Mutex<midi::MidiClock>>, // MIDI Clock (pulsos da thread MIDI, lido pela análise)
     track: Mutex<Option<Arc<track::Track>>>, // faixa do roteiro carregada (pronta para tocar)
 }
 
@@ -114,8 +115,8 @@ fn subscribe(engine: State<Engine>, window: WebviewWindow, on_msg: Channel<audio
 #[tauri::command]
 fn start_input(engine: State<Engine>, device: Option<String>, channel: usize) {
     let (stop, rx) = engine.restart();
-    let (params, emit) = (engine.params.clone(), engine.broadcast());
-    std::thread::spawn(move || audio::run(device, channel, params, rx, stop, emit));
+    let (params, emit, clock) = (engine.params.clone(), engine.broadcast(), engine.clock.clone());
+    std::thread::spawn(move || audio::run(device, channel, params, clock, rx, stop, emit));
 }
 
 #[tauri::command]
@@ -181,6 +182,7 @@ fn main() {
         .setup(|app| {
             let (h1, h2) = (app.handle().clone(), app.handle().clone());
             let devs = app.state::<Engine>().midi_devices.clone();
+            let clock = app.state::<Engine>().clock.clone();
             std::thread::spawn(move || {
                 midi::watch(
                     move |m| { let _ = h1.emit_to("control", "midi", m); },
@@ -188,6 +190,7 @@ fn main() {
                         *devs.lock().unwrap() = d.clone();
                         let _ = h2.emit_to("control", "midi-devices", d);
                     },
+                    clock,
                 )
             });
             Ok(())
