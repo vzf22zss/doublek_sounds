@@ -32,7 +32,7 @@
   import { captureErrors, log, logEntries, NO_TELEMETRY, type Telemetry } from '../lib/telemetry';
   import { checkFile, EXT, ext } from '../lib/limits';
   import { OSC_PARAMS, oscToCommand, type OscArg } from '../lib/osc';
-  import type { Frame, Msg } from '../lib/types';
+  import type { AnalysisLogStatus, Frame, Msg, SpoutStatus } from '../lib/types';
   import { check, type Update } from '@tauri-apps/plugin-updater';
   import { relaunch } from '@tauri-apps/plugin-process';
 
@@ -42,7 +42,7 @@
     'Hi-tech': [175, 220],
     Auto: [80, 220],
   };
-  const DEFAULTS = { device: '', channel: 0, gain: 1, gate: 0.003, sens: 1.4, range: 'Psy', lock: false, needClick: true, monitor: 1, dropThr: 0.35, oscOn: false, oscPort: 9000, oscLan: false, remoteOn: false, remotePort: 8008, remoteLan: false };
+  const DEFAULTS = { device: '', channel: 0, gain: 1, gate: 0.003, sens: 1.4, range: 'Psy', lock: false, needClick: true, monitor: 1, dropThr: 0.35, oscOn: false, oscPort: 9000, oscLan: false, remoteOn: false, remotePort: 8008, remoteLan: false, spoutName: 'DoubleK Visuals' };
   const TABS = ['Áudio', 'Logo', 'Fundo', 'Efeitos', 'Saída', 'Roteiro'] as const;
 
   const load = () => storeLoad('doublek.settings', (r) => shaped(r, DEFAULTS), () => ({ ...DEFAULTS }));
@@ -605,6 +605,31 @@
     catch (e) { status = 'Não consegui abrir a saída: ' + e; }
   }
 
+  // Spout (DK-102): status 1×/s só com a aba Saída aberta
+  let spout = $state<SpoutStatus | null>(null);
+  $effect(() => {
+    if (tab !== 'Saída') return;
+    const tick = async () => { try { spout = await invoke<SpoutStatus>('spout_status'); } catch { spout = null; } };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  });
+  async function spoutToggle() {
+    try {
+      if (spout?.running) { await invoke('spout_stop'); spout = await invoke<SpoutStatus>('spout_status'); }
+      else spout = await invoke<SpoutStatus>('spout_start', { name: s.spoutName });
+    } catch (e) { status = 'Spout: ' + e; }
+  }
+
+  // Diário de análise (DK-144): só números, sem áudio; M marca "drop aqui"
+  let diario = $state<AnalysisLogStatus | null>(null);
+  async function diarioToggle() {
+    try {
+      diario = await invoke<AnalysisLogStatus>(diario?.running ? 'analysis_log_stop' : 'analysis_log_start');
+      status = diario.running ? 'Gravando a análise (sem áudio). M = marcar drop.' : `Análise salva em ${diario.path}`;
+    } catch (e) { status = 'Diário: ' + e; }
+  }
+
   function calibrate() {
     calMax = 0;
     calUntil = performance.now() + 2500;
@@ -690,6 +715,7 @@
     if (tag === 'SELECT' || (tag === 'INPUT' && (e.target as HTMLInputElement).type !== 'range' && (e.target as HTMLInputElement).type !== 'checkbox')) return;
     if (e.code === 'Escape' && midi.learning) { toggleLearn(); return; }
     if (e.code === 'KeyF' && !e.ctrlKey && !e.metaKey && !e.repeat) { fps ? invoke('close_output') : project(); return; } // janela, não comando de show
+    if (e.code === 'KeyM' && diario?.running && !e.ctrlKey && !e.metaKey && !e.repeat) { invoke('analysis_mark', { label: 'drop' }); status = 'Marca "drop" gravada na análise.'; return; } // marca do diário, não comando de show
     if (e.code === 'Space' || e.code === 'ArrowLeft' || e.code === 'ArrowRight') e.preventDefault();
     const c = keyCommand(e);
     if (c) dispatch(c, 'keyboard');
@@ -836,6 +862,9 @@
         <Slider label="Limiar do grave" bind:value={s.dropThr} min={0.1} max={0.8} step={0.01} def={0.35} fmt={pct} />
         <Slider label="Entrada/saída do drop" bind:value={vs.dropFade} learn="dropFade" min={0.25} max={8} step={0.25} def={VISUAL.dropFade} fmt={(v) => v + ' beat' + (v === 1 ? '' : 's')} />
         <p class="keys">Efeitos com o chip <b>drop</b> ligado somem no breakdown sem grave e entram quando o grave volta. A pílula DROP no topo acende quando o app ouve grave; se ela apaga com o grave tocando, baixe o limiar.</p>
+        <h2>Gravar análise (calibração)</h2>
+        <button class="wide" onclick={diarioToggle}>{diario?.running ? 'Parar gravação da análise' : 'Gravar análise (sem áudio)'}</button>
+        <p class="keys">Grava só números (BPM, grave, kicks), nunca o som, para ajustar a detecção com a sua música. Com a gravação ligada, aperte <b>M</b> no instante de cada drop.{diario?.lastError ? ' ⚠ ' + diario.lastError : ''}</p>
         <p class="keys">Espaço = tap · ← → = fase · 1–8 = cenas · B = blackout · L = só logo · F = telão</p>
 
       {:else if tab === 'Logo'}
@@ -960,6 +989,13 @@
           <button onclick={() => invoke('close_output')}>Fechar telão</button>
         </div>
         <p class="keys">No telão: Esc fecha.</p>
+        <h2>Spout (Resolume)</h2>
+        <div class="files">
+          <input class="wide" bind:value={s.spoutName} maxlength="200" disabled={spout?.running} aria-label="Nome do sender Spout" />
+          <button class:primary={!spout?.running} onclick={spoutToggle}>{spout?.running ? 'Desligar' : 'Ligar'}</button>
+        </div>
+        <p class="keys">{spout?.running ? `Enviando "${spout.name}" ${spout.width}×${spout.height} · ${spout.fps.toFixed(0)} fps · ${spout.frames} quadros` : spout?.lastError ? '⚠ ' + spout.lastError : 'Desligado. Projete o telão e ligue para o Resolume receber como fonte Spout.'}</p>
+        <p class="keys">A janela do telão não pode ficar minimizada: o Spout copia o que ela mostra.</p>
         <RecordPanel outputOpen={fps > 0} p95={tel.p95} />
         <h2>Sincronia</h2>
         <label class="check">
