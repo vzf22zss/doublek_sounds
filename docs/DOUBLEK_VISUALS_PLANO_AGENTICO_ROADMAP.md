@@ -752,14 +752,14 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 
 | Campo | Valor inicial |
 |---|---|
-| Última revisão do planejamento | 2026-10-30 (alinhado à v0.3.1) |
+| Última revisão do planejamento | 2026-10-30 (alinhado à v0.3.6) |
 | Commit/branch baseline validado | `main` @ `09a7677` (v0.3.1) — ver `docs/quality/BASELINE.md` |
-| Tarefa ativa | **Em paralelo (desde 2026-10-30, coordenador: sessão doublek-sounds-68):** DK-008 → sessão d7 (`feat/dk-008-benchmark`), DK-004 governança → sessão 29 (`docs/dk-004-governanca`), DK-011 → sessão 22 (`feat/dk-011-showpack-schema`); coordenador: plano de teste do DK-141 (`docs/coordenacao-m0`). Regras: cada sessão num `git worktree` próprio, escopo de arquivos disjunto, sem push/merge, só o coordenador edita roadmap/BASELINE/README |
-| Marco ativo | M0 quase fechado (faltam DK-004 licença/1ª Release e DK-141 com o mantenedor); M1 feito em software (gate depende de validação no app real + DEC-03/09); M2 em andamento (DK-021/022/023 feitos, DK-024 a fazer); M3 iniciado (DK-041 feito, DK-042 em andamento) |
-| Tarefas do roadmap marcadas | 20 (DK-001, 002, 003, 005, 006, 008, 011, 012, 013, 014, 131, 021, 022, 023, 024, 041, 042, 043) + retoques |
-| Tarefas concluídas | 20 (software); DK-009 P1–P4 feitos, P7/P6 em andamento |
-| Bloqueios conhecidos | Licença (DEC-01); hardware de referência (DEC-02); secret de assinatura e 1ª release (DEC-10); SDK para Spout/Link/gravação |
-| Release alvo | **0.4.0** ao fechar o M0 (decisão do mantenedor, 2026-10-30) |
+| Tarefa ativa | **Coordenador + 4 sessões (2026-10-30, mantenedor ausente com autonomia total):** 22 → DK-035 (Intelligent Show v2 sobre DK-031 + tela do mapa de automação), d7 → DK-009 P8 e depois DK-111/112 (MIDI Clock), 29 → DK-061/062 (vídeo: codecs, início/fim, fallback, limite de decodificação), cd → DK-082 (tela do celular). Cada sessão num `git worktree`, sem push/merge; o coordenador integra em `integ/onda-N`, publica e mantém roadmap/README/TUTORIAL/CHANGELOG |
+| Marco ativo | M0 fechado em software (faltam só itens do mantenedor: licença DEC-01 e DK-141 com som); M1 feito (DK-142 coberto; música aguarda DEC-09); M2 feito; **M3 gate atingido em software**; M4 quase feito (DK-033/034/051/052/053/143 feitos); M5 em andamento (OSC DK-091/092 e remoto DK-081 feitos; DK-082 em andamento) |
+| Tarefas do roadmap marcadas | ver §7 (contar `- [x]`); 2026-10-30: 33 marcadas |
+| Tarefas concluídas | 33 (software) + DK-009 P1–P4 e P7; P6 proposta; P8 em andamento |
+| Bloqueios conhecidos | Licença (DEC-01) e modelo de distribuição (DEC-08); hardware de referência (DEC-02); música no Show Pack (DEC-09); SDK/licença para Spout/Link (DEC-05/06); validação com som/projetor/controlador reais (DK-141 e itens NÃO VERIFICADO). Ver §8.5 Dívidas |
+| Release alvo | 0.3.x por lote de integração (ver §8.6); **0.4.0** quando o M0 fechar de verdade (licença + DK-141), conforme DEC-11 |
 
 **Cálculo de progresso:** contar apenas as linhas `- [x]` da seção 7 e dividir pelo número total de tarefas rastreadas da mesma seção. Separar sempre os percentuais **M0–M5** e **Pós-M5**, pois o segundo grupo é um backlog aberto. Opcionalmente manter esses indicadores em GitHub Projects; o Markdown continua sendo a fonte de verdade desta especificação.
 
@@ -768,19 +768,19 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 | Épico | Prioridade | Estado inicial | Dependências principais | Evidência/PR |
 |---|---|---|---|---|
 | Baseline, qualidade, segurança | P0 | IN_PROGRESS (DK-001 DONE; DK-004 parcial: release + updater) | Nenhuma | `docs/quality/BASELINE.md`; commits `ecf84ce` (updater/release) |
-| Show Pack | P0 | TODO | DK-001/002/003 | — |
-| Psy Engine | P0 | TODO | DK-002/003 | — |
-| Performance Mode | P0/P1 | TODO | Show Pack | — |
-| Intelligent Show | P0/P1 | IN_PROGRESS (parcial: `Frame.low` + efeitos "só no drop") | Indicadores de áudio + Performance | commit `e5bd0cf` |
+| Show Pack | P0 | DONE (software; música aguarda DEC-09) | DK-001/002/003 | DK-011/012/013/014/142; v0.3.2–0.3.3 |
+| Psy Engine | P0 | DONE (software; GPU real NÃO VERIFICADO) | DK-002/003 | DK-021/022/023/024; v0.3.3–0.3.4 |
+| Performance Mode | P0/P1 | DONE (software) | Show Pack | DK-041/042/043/044; gate M3 |
+| Intelligent Show | P0/P1 | IN_PROGRESS (DK-031/032/033/034 feitos; DK-035 v2 em andamento; áudio real NÃO VERIFICADO) | Indicadores de áudio + Performance | v0.3.5–0.3.6 |
 | Roteiro (DK-140) | P0/P1 | IN_PROGRESS (implementado, NÃO VERIFICADO com áudio real) | DK-141 → DK-010 → DK-030/040 | commits `bebb11f`, `257aeed`, `6afb446` |
-| Camadas | P1 | TODO | Renderer modular + Show Pack | — |
+| Camadas | P1 | DONE (software; vídeo como camada = DK-063) | Renderer modular + Show Pack | DK-051/052/053; `docs/quality/CAMADAS.md` |
 | Presets e conteúdo | P1 | TODO | Show Pack + shaders | — |
-| OSC | P1/P2 | TODO | Dispatcher | — |
-| Loops de vídeo | P1 | IN_PROGRESS (parcial: biblioteca, loop, velocidade, cenas, drop) | Camadas | commit `4174e24` |
+| OSC | P1/P2 | DONE (software; cliente real/LAN NÃO VERIFICADO) | Dispatcher | DK-091/092; `docs/OSC.md` |
+| Loops de vídeo | P1 | IN_PROGRESS (DK-061/062 em andamento) | Camadas | commit `4174e24` |
 | Exportação de vídeo | P1 | TODO | Spike de encoder | — |
-| Controle pelo celular | P2 | TODO | Dispatcher + segurança | — |
+| Controle pelo celular | P2 | IN_PROGRESS (DK-081 servidor autenticado feito; DK-082 tela em andamento) | Dispatcher + segurança | `docs/REMOTO.md` |
 | Spout | P2 | TODO | Spike de GPU/interop | — |
-| MIDI Clock/Link | P2 | TODO | Clock abstrato | — |
+| MIDI Clock/Link | P2 | READY (DK-111/112 na fila da d7; Link = DEC-06) | Clock abstrato | — |
 | Shader editor | P3 | TODO | Psy Engine + camadas | — |
 
 **Estados permitidos:** `TODO`, `READY`, `IN_PROGRESS`, `BLOCKED`, `DONE`, `DEFERRED`. Em caso de `BLOCKED`, registrar a decisão necessária e o responsável. A descrição “DONE” é inválida sem evidência.
@@ -847,8 +847,40 @@ Atualizar esta seção **ao final de cada tarefa**. Não marcar checkbox sem tes
 | DEC-07 | Limites de flashes e padrões de segurança | Mantenedor + agente | **RESOLVIDA 2026-10-30** (DK-006) | Política: ≤ 3 flashes/s (WCAG 2.3.1) ligado por padrão, desligável pelo operador com aviso; flash de tela ≤ 50%; PÂNICO separado do BLACKOUT. Mantenedor pode endurecer (ex.: travar o limite) |
 | DEC-08 | Modelo de distribuição (open source, freeware, comercial) | Mantenedor | PENDENTE | Decisão explícita antes de publicar |
 | DEC-09 | Música do roteiro dentro do Show Pack (direitos autorais, tamanho, opt-in) | Mantenedor + agente | PENDENTE | Política escrita antes de DK-142 |
-| DEC-10 | Cadastrar `TAURI_SIGNING_PRIVATE_KEY` no GitHub e autorizar a 1ª Release (push em `prod`) | Mantenedor | PARCIAL (secret cadastrado 2026-10-30) | Secret cadastrado; a chave privada em `%USERPROFILE%\.tauri\doublek.key` tem cópia segura |
+| DEC-10 | Cadastrar `TAURI_SIGNING_PRIVATE_KEY` no GitHub e autorizar a 1ª Release (push em `prod`) | Mantenedor | **RESOLVIDA 2026-10-30** | Secret cadastrado; v0.3.2 publicada; às ~20h45 o mantenedor autorizou o coordenador a publicar releases por lote ("vai subindo elas de acordo com os lotes de alteração"). Pendente só a cópia segura da chave `%USERPROFILE%\.tauri\doublek.key` (dívida D-07) |
 | DEC-11 | Numeração de versões | Mantenedor | **RESOLVIDA 2026-10-30** | Segue de 0.3.x: M0 = 0.4.0, cada marco sobe o número do meio |
+
+### 8.5. Dívidas (decisões adiadas pelo coordenador com o mantenedor ausente)
+
+Regra do mantenedor (2026-10-30): "decisões marque como dívida e continue o que é certeiro". Cada dívida diz o que vale hoje (padrão seguro) e o que destrava.
+
+| ID | Dívida | O que vale hoje (padrão seguro) | Para destravar |
+|---|---|---|---|
+| D-01 | Licença do código e das contribuições (DEC-01) e modelo de distribuição (DEC-08) | Repositório sem licença declarada = todos os direitos reservados; nada de fixtures de terceiros | Mantenedor escolhe a licença |
+| D-02 | Fixtures de áudio reais para DK-009 P5 e calibração do Intelligent Show | Só áudio sintético (`synth.rs`); limiares marcados NÃO VERIFICADO | D-01 + músicas com permissão |
+| D-03 | Música dentro do Show Pack (DEC-09) | `includeTracks` existe na biblioteca, sem botão; pacote nunca leva áudio | Política de direitos/tamanho |
+| D-04 | Limites do Show Pack (DEC-03) | 50 assets, 2 GiB, tetos de `limits.ts` | Mantenedor confirma |
+| D-05 | Mapa de automação dentro do Show Pack | `doublek.automation` fica fora do pacote (DK-035) | Decidir se o mapa é "do show" ou "da máquina" |
+| D-06 | OSC e celular sem o override manual de 8 s | Comandos de rede não pausam a automação (tratados como programa externo) | Mantenedor decide se rede conta como "mão" |
+| D-07 | Cópia segura da chave de assinatura `%USERPROFILE%\.tauri\doublek.key` | Só existe neste PC + secret do GitHub; perder a chave = o updater para de aceitar versões novas para quem já instalou | Mantenedor guarda uma cópia offline |
+| D-08 | Preencher `[PREENCHER]` do SECURITY.md (contato de segurança) | Sem canal privado de reporte | Mantenedor informa e-mail/canal |
+| D-09 | 0.4.0 / fechar o M0 | Releases seguem 0.3.x | D-01 + DK-141 com som real |
+| D-10 | Validação em hardware: GPU do notebook do show, projetor, controlador MIDI, ABNT2 físico, celular no Wi-Fi, firewall | Tudo marcado NÃO VERIFICADO; testes em mock/swiftshader | Sessão de teste com o mantenedor (DK-141 + checklist) |
+| D-11 | P6 (re-trava mais rápida) reprovado na guarda | Não incorporado | Sinal de "fase deslizando" que o ruído não imite, com fixtures reais |
+
+### 8.6. Plano de releases (publicadas por push em `prod`)
+
+Cada lote de integração (`integ/onda-N`) vira uma versão; publica-se quando o CI da `main` fica verde. Os instaladores também ficam em `C:\Users\Work\Documents\projetos\releases\`.
+
+| Versão | Lote | Conteúdo principal | Estado |
+|---|---|---|---|
+| 0.3.2 | onda 1 | base confiável: store versionado, telemetria, CSP, segurança visual, Show Pack (biblioteca), benchmark | publicada |
+| 0.3.3–0.3.5 | ondas 2–4 | Psy Engine, Show Pack na tela, bancos, dispatcher, macros, Preview/TAKE, camadas, OSC (servidor), Intelligent Show v1, roteiro pelo dispatcher, detecção P1–P4/P7 | na `main`; vão ao público junto com a 0.3.6 |
+| **0.3.6** | onda 5 | camadas nas cenas/solo/MIDI, OSC na tela, servidor do celular (sem a tela ainda), teclas/MIDI completos + stress, indicadores de energia no Rust | publicar |
+| 0.3.7 | onda 6 | tela do celular (DK-082), vídeo completo (DK-061/062), Intelligent Show v2 + mapa (DK-035), P8 | planejada |
+| 0.3.8 | onda 7 | MIDI Clock (DK-111/112), vídeo como camada (DK-063), testes de rede (DK-083), presets comunitários (DK-132) | planejada |
+| 0.3.9+ | ondas seguintes | spikes de gravação (DK-071) e Spout (DK-101), shaders (DK-121) | planejada |
+| 0.4.0 | fechamento M0 | depois de D-01 e DK-141 | bloqueada (D-09) |
 
 ---
 
