@@ -14,9 +14,8 @@
 
   let { getFrame, onstatus }: { getFrame: () => Frame | null; onstatus: (m: string) => void } = $props();
 
-  // o código fica no IndexedDB ao lado da mídia; a API pública de assets.ts só tipa logo/bg/vídeo, daí o cast
-  type AssetKey = Parameters<typeof setAsset>[0];
-  const codeKey = (id: string) => `fx:${id}` as unknown as AssetKey;
+  // o código fica no IndexedDB ao lado da mídia (chave fx:<id>)
+  const codeKey = (id: string) => `fx:${id}` as const;
 
   const saved = load('doublek.fx', validFxList, () => [] as FxEntry[]);
   let list = $state<FxEntry[]>(saved);
@@ -120,7 +119,11 @@
     return c;
   }
 
+  let setupToken = 0;
   async function setupGl(c: HTMLCanvasElement) {
+    const my = ++setupToken;
+    const img = await testImage(); // pode demorar (IndexedDB): se o painel fechou/trocou de aba no meio, desiste
+    if (my !== setupToken) return;
     gl = c.getContext('webgl2');
     if (!gl) { errors = [{ line: null, message: 'Este WebView não tem WebGL2 para a pré-visualização.' }]; return; }
     c.addEventListener('webglcontextlost', (e) => { e.preventDefault(); gl = null; prog = null; cancelAnimationFrame(raf); setHealth('lost'); });
@@ -130,7 +133,7 @@
     tex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, await testImage());
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
@@ -203,7 +206,7 @@
     const c = canvas;
     void canvasKey;
     if (c) setupGl(c);
-    return () => { cancelAnimationFrame(raf); clearTimeout(timer); gl = null; prog = null; };
+    return () => { setupToken++; cancelAnimationFrame(raf); clearTimeout(timer); gl = null; prog = null; };
   });
 
   function edit(v: string) { code = v; lastEdit = performance.now(); schedule(); }
