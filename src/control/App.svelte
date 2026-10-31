@@ -259,9 +259,11 @@
       liveFx = startRamp(liveFx, vs as any, c.key, c.to, liveBeat(), c.beats);
     },
     AUTOMATION_MODE: (c) => {
-      automationMode = c.mode;
-      status = c.mode === 'MANUAL' ? 'Automação: Manual (só mostra o estado da música).'
-        : c.mode === 'ASSIST' ? 'Automação: Assistido (knobs, rampas e macros; nunca troca cena).'
+      const order = ['MANUAL', 'ASSIST', 'AUTO'] as const;
+      automationMode = c.mode ?? order[(order.indexOf(automationMode) + 1) % order.length]; // sem modo = o próximo (tecla A, MIDI a:autoMode)
+      const m = automationMode;
+      status = m === 'MANUAL' ? 'Automação: Manual (só mostra o estado da música).'
+        : m === 'ASSIST' ? 'Automação: Assistido (knobs, rampas e macros; nunca troca cena).'
         : 'Automação: Automático (também troca cena do mapa). Qualquer comando seu pausa a automação por 8 s.';
     },
   };
@@ -295,7 +297,7 @@
     }
     return r;
   }
-  if ((import.meta as { env?: { DEV?: boolean } }).env?.DEV) (window as any).__dispatch = dispatch; // testes no mock (só no `vite` de desenvolvimento)
+  if ((import.meta as { env?: { DEV?: boolean } }).env?.DEV) Object.assign(window as any, { __dispatch: dispatch, __commands: commands }); // testes no mock (só no `vite` de desenvolvimento)
 
   // ---------- macros: curvas puras em lib/commands; aqui só aplica a cada quadro, no tempo do BPM ----------
   let macroId = $state<MacroId | null>(null);
@@ -615,7 +617,7 @@
     const tag = (e.target as HTMLElement).tagName;
     if (tag === 'SELECT' || (tag === 'INPUT' && (e.target as HTMLInputElement).type !== 'range' && (e.target as HTMLInputElement).type !== 'checkbox')) return;
     if (e.code === 'Escape' && midi.learning) { toggleLearn(); return; }
-    if (e.code === 'KeyF') { fps ? invoke('close_output') : project(); return; } // janela, não comando de show
+    if (e.code === 'KeyF' && !e.ctrlKey && !e.metaKey && !e.repeat) { fps ? invoke('close_output') : project(); return; } // janela, não comando de show
     if (e.code === 'Space' || e.code === 'ArrowLeft' || e.code === 'ArrowRight') e.preventDefault();
     const c = keyCommand(e);
     if (c) dispatch(c, 'keyboard');

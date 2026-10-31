@@ -272,7 +272,8 @@
   <div class="scenes">
     <div class="bankrow">
     <div class="bank" title="Banco de cenas · duplo clique no nome: renomear · [ e ]: trocar de banco">
-      <small>Banco {bk.active + 1}/{bk.banks.length}</small>
+      <!-- MIDI learn: com o banco N aberto, clicar aqui e apertar um botão do controlador = "ir ao banco N" -->
+      <small use:learnable={{ id: `a:bank:${bk.active + 1}`, label: `Ir ao banco ${bk.active + 1}` }}>Banco {bk.active + 1}/{bk.banks.length}</small>
       {#if editingBank}
         <!-- svelte-ignore a11y_autofocus -->
         <input bind:value={bk.banks[bk.active].name} maxlength="24" autofocus
@@ -342,8 +343,9 @@
         <button class:on={macro === m} onclick={() => cmd({ type: 'MACRO', id: m })} title={MACRO_NAMES[m][1]} use:learnable={{ id: `a:macro:${m}`, label: 'Macro ' + MACRO_NAMES[m][0] }}>{MACRO_NAMES[m][0]}</button>
       {/each}
       <button class:on={vs.logoOnly} onclick={() => cmd({ type: 'LOGO_ONLY' })} title="L" use:learnable={{ id: 'a:logoOnly', label: 'Só logo' }}>Só logo</button>
-      <span class="state" class:hot={show.state === 'DROP' || show.state === 'BUILD_UP'} class:dim={show.state === 'UNKNOWN'}
-        title="Estado estimado da música e confiança (0–1). É uma estimativa pelo som: o drop aparece depois de detectado, nunca antes.">{STATE_LABEL[show.state]} {show.confidence.toFixed(1)}</span>
+      <button class="state" class:hot={show.state === 'DROP' || show.state === 'BUILD_UP'} class:dim={show.state === 'UNKNOWN'}
+        onclick={() => cmd({ type: 'AUTOMATION_MODE' })} use:learnable={{ id: 'a:autoMode', label: 'Modo de automação' }}
+        title="Estado estimado da música e confiança (0–1). É uma estimativa pelo som: o drop aparece depois de detectado, nunca antes. Clique (ou A): troca Manual → Assistido → Automático.">{STATE_LABEL[show.state]} {show.confidence.toFixed(1)}</button>
       <select data-automation value={automationMode} onchange={(e) => cmd({ type: 'AUTOMATION_MODE', mode: e.currentTarget.value as AutomationMode })}
         title="Manual: só mostra o estado · Assistido: knobs, rampas e macros, nunca troca cena · Automático: também troca cena. Qualquer comando seu pausa a automação por 8 s.">
         <option value="MANUAL">Manual</option>
@@ -402,8 +404,8 @@
   .btn input { display: none; }
   .btn.disabled { opacity: .5; pointer-events: none; }
   .row select { padding: 4px 8px; font-size: 12px; }
-  .state { min-width: 74px; text-align: center; padding: 3px 8px; border: 1px solid var(--line); border-radius: 8px; font-weight: 700; letter-spacing: .04em; color: var(--text); font-variant-numeric: tabular-nums; }
-  .state.hot { border-color: var(--kick); color: var(--kick); }
-  .state.dim { color: var(--muted); }
+  .row > .state { min-width: 74px; text-align: center; padding: 3px 8px; border: 1px solid var(--line); border-radius: 8px; font-weight: 700; letter-spacing: .04em; color: var(--text); font-variant-numeric: tabular-nums; }
+  .row > .state.hot { border-color: var(--kick); color: var(--kick); }
+  .row > .state.dim { color: var(--muted); }
   .desc { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 </style>
