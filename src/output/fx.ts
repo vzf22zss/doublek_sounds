@@ -38,7 +38,7 @@ export function fxTelao(o: { renderer: () => Renderer | null; visual: () => Visu
     const my = ++seq;
     const items = (await Promise.all(want.map(async (e) => {
       const blob = await getAsset(`fx:${e.manifest.id}` as unknown as AssetKey).catch(() => undefined);
-      return { id: e.manifest.id, code: blob ? await blob.text() : '', values: e.values };
+      return { id: e.manifest.id, code: blob ? await blob.text() : '', values: e.values, params: e.manifest.params }; // params: faixa e `mod` (D-21a)
     }))).filter((i) => i.code);
     if (my !== seq || o.renderer() !== r) return; // outra recarga chegou, ou o renderer foi recriado
     if (items.length) { // se o telão morrer compilando/desenhando nos próximos 10 s, a próxima abertura é segura

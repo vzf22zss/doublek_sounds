@@ -47,10 +47,11 @@ import { GlitchEffect } from './effects/glitch';
 import { VideoEffect } from './effects/video';
 import { Compose } from './effects/compose';
 import { FxEffect } from './effects/fx';
+import type { FxParamSpec } from './fxparams';
 import { drawsLayer, needsCompose, sanitizeLayers, VIDEO_LAYER, type Layer } from './layers';
 
 /** Efeito da comunidade pronto para o telão (DK-123): id do manifesto, código do autor e os valores salvos. */
-export type FxItem = { id: string; code: string; values: number[] };
+export type FxItem = { id: string; code: string; values: number[]; params?: FxParamSpec[] };
 
 export type Cost = { id: string; cpuMs: number; gpuMs: number | null };
 export type { BudgetInfo };
@@ -170,10 +171,10 @@ export class Renderer {
     for (const [id, e] of this.fx) if (!keep.has(id)) { e.dispose(); this.fx.delete(id); this.off.delete(id); this.fxOver.delete(id); }
     for (const it of items) {
       const id = `fx:${it.id}`, old = this.fx.get(id);
-      if (old && old.code === it.code) { old.setValues(it.values); continue; } // desligado por lentidão continua desligado
+      if (old && old.code === it.code) { old.setValues(it.values, it.params ?? []); continue; } // desligado por lentidão continua desligado
       old?.dispose();
       this.off.delete(id); this.fxOver.delete(id);
-      const e = new FxEffect(it.id, it.code, it.values);
+      const e = new FxEffect(it.id, it.code, it.values, it.params ?? []);
       this.fx.set(id, e);
       this.guard(e, () => e.init(this.gl, this.h));
       if (this.fbW) this.guard(e, () => e.resize(this.fbW, this.fbH));
