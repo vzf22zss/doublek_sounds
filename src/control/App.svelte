@@ -16,6 +16,7 @@
   import { createMusicState, type StateName } from '../lib/show-engine/state';
   import { plan, quantizeDelay } from '../lib/show-engine/rules';
   import { loadAutomation, saveAutomation } from '../lib/show-engine/config';
+  import { shiftAfterRemove } from '../lib/banks';
   import AutomationPanel from './AutomationPanel.svelte';
   import { busy as fxBusy, clear as clearFx, EMPTY as NO_FX, startBurst, startRamp, step as stepFx, type Running } from '../lib/roteiro-fx';
   import { createDispatcher, fromTarget, keyCommand, routePad, startMacro, type AutomationMode, type Handlers, type MacroId, type MacroRun, type ShowCommand, type Source } from '../lib/commands';
@@ -273,6 +274,24 @@
   const commands = createDispatcher(handlers, { roteiroRunning: () => rt.running });
 
   /** Tudo o que está "em andamento" (macro, efeitos com duração e rampas do roteiro). PÂNICO e RESET chamam isto. */
+  // Banco apagado: pontos de roteiro e cenas do mapa que apontam por índice são remapeados (DK-132, dívida 2 da DK-035)
+  const bankRefs = (i: number) =>
+    rt.list.reduce((n, r) => n + r.cues.filter((c) => c.kind === 'scene' && c.bank === i).length, 0)
+    + [rulesCfg.dropScene, rulesCfg.grooveScene].filter((s) => s?.bank === i).length;
+  function bankRemoved(i: number) {
+    let lost = 0, moved = 0;
+    for (const r of rt.list) for (const c of r.cues) {
+      const to = shiftAfterRemove(c.bank, i);
+      if (to === null) { delete c.bank; lost++; } else if (to !== c.bank) { c.bank = to; moved++; }
+    }
+    for (const k of ['dropScene', 'grooveScene'] as const) {
+      const s = rulesCfg[k];
+      const to = shiftAfterRemove(s?.bank, i);
+      if (to === null) { rulesCfg[k] = null; lost++; } else if (s && to !== undefined && to !== s.bank) { rulesCfg[k] = { ...s, bank: to }; moved++; }
+    }
+    if (lost || moved) status += ` ${lost ? `${lost} referência(s) ao banco apagado foram soltas` : ''}${lost && moved ? '; ' : ''}${moved ? `${moved} ajustada(s) para a nova numeração` : ''}.`;
+  }
+
   function cancelRunning() {
     stopMacro();
     roteiroCancelFx();
@@ -934,7 +953,7 @@
     </div>
   </aside>
 
-  <Performance bind:this={perf} bind:vs {beatInfo} onstatus={(m) => (status = m)} cmd={(c) => dispatch(c, 'ui')} macro={macroId} {previewMode} {show} {automationMode} />
+  <Performance bind:this={perf} bind:vs {beatInfo} onstatus={(m) => (status = m)} cmd={(c) => dispatch(c, 'ui')} macro={macroId} {previewMode} {show} {automationMode} {bankRefs} onbankremoved={bankRemoved} />
 
   <footer class="status">
     <span>{status}</span>

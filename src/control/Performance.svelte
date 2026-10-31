@@ -18,7 +18,7 @@
   import { afterRemoveBank, resolve, stage, take as takeOf, type PreviewRef, type Take } from '../lib/preview';
 
   // `cmd`: pads, bancos, "Só logo" e macros passam pelo dispatcher (fonte 'ui'), que chama de volta recall/saveScene/…
-  let { vs = $bindable(), beatInfo, onstatus, cmd, macro = null, previewMode = false, show = { state: 'UNKNOWN', confidence: 0, staleGrid: false }, automationMode = 'MANUAL' }: {
+  let { vs = $bindable(), beatInfo, onstatus, cmd, macro = null, previewMode = false, show = { state: 'UNKNOWN', confidence: 0, staleGrid: false }, automationMode = 'MANUAL', bankRefs = () => 0, onbankremoved = () => {} }: {
     vs: Visual;
     beatInfo: () => { bpm: number; ph: number } | null;
     onstatus: (s: string) => void;
@@ -27,6 +27,8 @@
     previewMode?: boolean;  // DK-043: tocar um pad prepara a cena em vez de chamar
     show?: { state: StateName; confidence: number; staleGrid?: boolean }; // DK-032: estado estimado da música (staleGrid = guarda P8)
     automationMode?: AutomationMode;
+    bankRefs?: (i: number) => number;    // quantos pontos de roteiro / cenas do mapa usam o banco i
+    onbankremoved?: (i: number) => void; // App remapeia essas referências (banks.shiftAfterRemove)
   } = $props();
   const STATE_LABEL: Record<StateName, string> = { UNKNOWN: '—', BREAKDOWN: 'BREAK', BUILD_UP: 'BUILD', GROOVE: 'GROOVE', DROP: 'DROP' };
 
@@ -123,11 +125,15 @@
     if (b !== bk) setBanks(b, `Banco ${b.active + 1} criado, vazio: grave cenas nos pads.`);
   }
   function dropBank() {
-    const n = usedScenes(bank);
-    if (n && !confirm(`Apagar o banco "${bank.name}" e as ${n} cena(s) gravadas nele?`)) return;
+    const n = usedScenes(bank), refs = bankRefs(bk.active), i = bk.active;
+    const usos = refs ? `
+
+${refs} ponto(s) de roteiro/automação usam este banco: passam a usar o banco aberto (roteiro) ou "nenhuma" (automação).` : '';
+    if ((n || refs) && !confirm(`Apagar o banco "${bank.name}"${n ? ` e as ${n} cena(s) gravadas nele` : ''}?${usos}`)) return;
     const name = bank.name;
-    pref = afterRemoveBank(pref, bk.active);
-    setBanks(removeBank($state.snapshot(bk), bk.active), `Banco "${name}" apagado.`);
+    pref = afterRemoveBank(pref, i);
+    setBanks(removeBank($state.snapshot(bk), i), `Banco "${name}" apagado.`);
+    onbankremoved(i);
   }
 
   export function saveScene(i: number) {
