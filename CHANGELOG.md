@@ -6,6 +6,19 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Não lançado]
 
+## [0.3.8] - 2026-10-31
+
+### Adicionado
+
+- DK-061/062: vídeo de fundo completo — o app testa o arquivo na importação (recusa o que este Windows não toca, como HEVC, e diz como converter), início e fim do loop por vídeo, "reiniciar no compasso", volta sozinho para a foto/cor se o vídeo der erro ou travar, e no máximo um vídeo tocando e um preparado (`docs/quality/VIDEO.md`).
+- DK-111/112: MIDI Clock — o andamento (e, com Start, o 1º tempo) vem do equipamento do DJ; selo "MIDI CLK" na bolinha de BPM; volta para o som 2 s depois do último pulso (`docs/MIDI-CLOCK.md`).
+- DK-073: gravação vertical 9:16 (1080×1920 ou 720×1280) com zoom e posição do recorte e prévia no PREVIEW.
+- DK-121/122: efeitos da comunidade — formato `.doublekfx`, validação, editor com pré-visualização reagindo ao som, erros por linha, reverter para o último válido e proteção contra efeito que derruba a placa (`docs/SHADERS.md`). No telão, na próxima versão.
+
+### Segurança
+
+- DK-083: o servidor do celular não fica mais refém de conexões lentas (slowloris): prazo de 2 s por pedido e fila de espera quando lotado; testes com 10 mil entradas aleatórias no HTTP e no OSC.
+
 ## [0.3.7] - 2026-10-30
 
 ### Adicionado
