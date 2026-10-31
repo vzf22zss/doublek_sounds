@@ -535,7 +535,10 @@ confiança: **BREAK** (sem grave), **BUILD** (energia subindo, grave ainda fora)
 (grave presente e estável), **DROP** (o grave acabou de voltar depois de um breakdown) ou **—**
 quando o app não tem certeza (começo, silêncio, sem BPM). É uma estimativa pelo sinal: o drop
 aparece no chip **depois** que ele acontece, nunca antes, e um breakdown mais curto que dois
-compassos não conta como breakdown.
+compassos não conta como breakdown. Se aparecer **GRADE?**, o app ouve grave mas nenhum kick cai
+no tempo que ele tinha travado (típico depois de trocar de faixa com uma pausa): a automação fica
+parada até os kicks voltarem a bater; um **TAP** (Espaço) no tempo novo resolve na hora. Clicar no
+chip (ou a tecla **A**) alterna o modo.
 
 Ao lado, o seletor **Manual / Assistido / Automático** decide o que o app faz com isso:
 
@@ -543,8 +546,14 @@ Ao lado, o seletor **Manual / Assistido / Automático** decide o que o app faz c
 - **Assistido:** no breakdown as rampas baixam rastro, anéis e zoom aos poucos; no build-up
   sobem por 16 beats; no drop dispara a macro **Drop** (respeitando o limite de flashes).
   Nunca troca cena, banco nem vídeo.
-- **Automático:** tudo do Assistido e, se houver cenas marcadas para drop/groove no mapa de
-  automação (por enquanto só por arquivo; a tela vem depois), troca de cena no compasso.
+- **Automático:** tudo do Assistido e, se houver cena marcada para o drop ou para o groove no
+  mapa de automação, chama essa cena (abrindo o banco dela) no compasso.
+
+**Mapa de automação:** no topo da aba **Efeitos**, abra **Mapa de automação**. Ali dá para
+desligar cada regra (breakdown, build-up, drop, groove), escolher até onde as rampas levam
+rastro, anéis, zoom do fundo e aberração em cada momento (duplo clique volta ao padrão) e
+escolher a cena do drop e a do groove (banco e pad, ou "nenhuma"). Mexer no mapa não pausa a
+automação. O mapa fica salvo neste computador e ainda não vai junto no Show Pack.
 
 Regras que valem sempre: **qualquer comando seu** (pad, knob, tecla, MIDI) pausa a automação por
 8 segundos (o Diagnóstico mostra quanto falta); com um **roteiro tocando**, o roteiro manda e a
