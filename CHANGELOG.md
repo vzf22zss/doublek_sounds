@@ -6,6 +6,22 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Não lançado]
 
+## [0.3.7] - 2026-10-30
+
+### Adicionado
+
+- DK-082: tela do celular servida pelo próprio app — pareamento por código, BPM e estado da música, bancos e pads com nomes, BLACKOUT, SÓ LOGO, macros, TAP, fase, 4 sliders e PÂNICO; aviso de "sem conexão" e reconexão sozinha; CSP estrita.
+- DK-071/072: gravação da saída do telão em MP4/H.264 (sem áudio), em pedaços direto para o disco, com qualidade e FPS, indicador REC, limite de 4 GB e de 1 GB livre, e aviso se pesar no telão (`docs/quality/GRAVACAO.md`).
+- DK-035: Intelligent Show v2 — usa os indicadores do motor de áudio, aviso "GRADE?" quando o BPM travado não bate mais com os kicks (troca de faixa com pausa) e painel **Mapa de automação** na aba Efeitos.
+- DK-132: presets `.doublekpreset` — exportar o visual atual e importar presets de outros DJs na seção "Importados" do Catálogo (`docs/PRESETS.md`).
+- OSC: endereço `/doublek/v1/nudge` para a fase do beat.
+
+### Corrigido
+
+- DK-009 P8: depois de uma pausa, uma faixa no mesmo BPM em outra fase ficava até 30 s sem kicks detectados; agora re-trava em até 2,3 s.
+- Apagar um banco renumera os pontos de roteiro e o mapa de automação que apontavam para os bancos seguintes.
+- Contadores de OSC/celular não quebram mais se o servidor não responder.
+
 ## [0.3.6] - 2026-10-30
 
 ### Adicionado
