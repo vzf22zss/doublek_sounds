@@ -133,8 +133,9 @@ export class Renderer {
 
   /** Vídeo em loop no fundo (tem prioridade sobre a foto). Só sobe para a GPU quando chega quadro novo. */
   setBgVideo(el: HTMLVideoElement | null) {
-    this.video = el;
     this.vidFresh = !!el;
+    if (el === this.video) return; // mesmo vídeo (ressincronia): a cadeia de quadros já existe; uma segunda dobrava
+    this.video = el;
     const watch = () => {
       if (this.video !== el || !el) return;
       this.vidFresh = true;

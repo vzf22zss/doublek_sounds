@@ -36,11 +36,18 @@ export function loopWindow(v: Pick<VideoInfo, 'start' | 'end'>, duration: number
   return { start, end, native: start === 0 && end === d };
 }
 
-/** Tempo atual → para onde voltar (s), ou null se está dentro da janela. Antes do início também volta
- *  (o vídeo pode ter sido trocado parado em outro ponto). */
-export function wrapTarget(t: number, w: LoopWindow): number | null {
+/** A cada quadro: passou do fim → volta ao início (s); senão null. Nada durante um seek, nem "antes do início":
+ *  enquanto busca o início, o quadro mostrado é o quadro-chave ANTERIOR ao destino (ex.: 0,417 s para início 1 s),
+ *  e reagir a ele mandava buscar de novo, em laço — o vídeo parava (fix/video-loop). */
+export function wrapTarget(t: number, w: LoopWindow, seeking = false): number | null {
+  if (w.native || seeking) return null;
+  return t >= w.end - 0.02 ? w.start : null;
+}
+
+/** Ao entrar na tela: parado fora da janela (antes do início ou depois do fim) → vai para o início; senão null. */
+export function entryTarget(t: number, w: LoopWindow): number | null {
   if (w.native) return null;
-  return t >= w.end - 0.02 || t < w.start - 0.05 ? w.start : null;
+  return t < w.start - 0.05 || t >= w.end - 0.02 ? w.start : null;
 }
 
 /** "Reiniciar no compasso": quanto esperar (ms) até o próximo 1º tempo. Sem BPM travado: 0 (na hora). */
