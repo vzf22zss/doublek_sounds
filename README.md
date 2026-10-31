@@ -21,7 +21,8 @@ Feito para psytrance, dark/forest e hi-tech (135–220 BPM).
   aos hats, ao beat, ao compasso ou a um LFO.
 - **Efeitos só no drop.** O app percebe quando o grave some (breakdown) e quando volta; cada
   efeito pode entrar só no drop.
-- **Vídeo em loop no fundo**, com a mesma reação ao beat da foto.
+- **Vídeo em loop no fundo**, com a mesma reação ao beat da foto, início/fim do loop,
+  reinício no compasso e volta automática para a foto se o vídeo travar.
 - **8 cenas** com crossfade que começa no próximo beat. Presets exportáveis em `.json`.
 - **Roteiro por música.** Você sobe a faixa, marca os pontos na timeline (cena, strobe, vídeo,
   knob) e roda com o app tocando o arquivo ou com o DJ nos decks (GO). Funciona no modo
@@ -45,8 +46,12 @@ Feito para psytrance, dark/forest e hi-tech (135–220 BPM).
 - **Celular na mesma rede:** pads, bancos, macros, BLACKOUT, TAP, sliders e PÂNICO pelo
   navegador do celular, sem instalar nada; servidor desligado por padrão e pareado por código
   de 6 dígitos (`docs/REMOTO.md`).
-- **Gravar o telão:** grava em MP4 (sem som) o que está sendo projetado, para postar depois.
+- **Gravar o telão:** grava em MP4 (sem som) o que está sendo projetado, em 16:9 ou vertical
+  9:16 para Reels/TikTok.
 - **Presets compartilháveis:** exporte e importe `.doublekpreset` no Catálogo (`docs/PRESETS.md`).
+- **Efeitos da comunidade:** editor de shaders com pré-visualização e pacotes `.doublekfx`
+  (`docs/SHADERS.md`).
+- **MIDI Clock:** segue o andamento do mixer/CDJ/software do DJ (`docs/MIDI-CLOCK.md`).
 - **Teclado e MIDI completos:** todo comando de show tem atalho e id de MIDI learn.
 - **Show Pack (`.doublekshow`):** salva e abre o show inteiro (cenas, bancos, roteiros, logo,
   foto, vídeos, MIDI) com backup automático antes de substituir.
