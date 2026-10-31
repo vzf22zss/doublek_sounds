@@ -43,11 +43,28 @@ Porta, rede local e ligado/desligado ficam em `doublek.settings`; ao abrir o app
 - **Desligado por padrão** e em `127.0.0.1`; rede local só com a opção marcada.
 - **Sem pareamento, sem acesso:** `/cmd` e `/state` exigem o token; o token (32 bytes do gerador do sistema, `BCryptGenRandom`) só existe na memória do app e é comparado em tempo constante.
 - **Código:** 6 dígitos, 2 min, uso único; **5 erros bloqueiam o pareamento por 1 minuto** (mostrar um código novo no app zera o bloqueio). Na pior das hipóteses, ~10 palpites por código em 10⁶.
-- **Limites:** 20 pedidos/s por token (`429`), corpo ≤ 4 KB, cabeçalho ≤ 8 KB, até 32 conexões simultâneas, 3 s de tempo-limite por conexão; o comando só aceita o formato `{addr, args}` (até 16 argumentos de tipo OSC) — nada de arquivo, caminho ou execução.
+- **Limites:** 20 pedidos/s por token (`429`), corpo ≤ 4 KB, cabeçalho ≤ 8 KB, até 32 conexões simultâneas, **2 s para o pedido inteiro** (não por leitura: quem manda 1 byte/s é cortado) e, lotado, quem chega espera na fila do sistema em vez de ser derrubado; o comando só aceita o formato `{addr, args}` (até 16 argumentos de tipo OSC) — nada de arquivo, caminho ou execução.
 - **Navegador de outro site:** sem `Access-Control-Allow-*` (nada de CORS aberto), `OPTIONS` = 405, `Origin` diferente do próprio endereço = 403, `Host` precisa ser IP ou `localhost` (barra DNS rebinding). Cabeçalhos `no-store`, `nosniff`, `X-Frame-Options: DENY` e CSP estrita (`default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'`…, nada inline). A página do celular só escreve dados do app como texto (nomes de cena não viram HTML).
 - **LAN sem TLS:** na rede local o tráfego é HTTP puro. Quem estiver na mesma rede e capturar pacotes pode ver o código no momento do pareamento e o token depois — e então mandar comandos. Mitigações: o código expira em 2 min e é de uso único; **Desconectar todos** derruba os tokens na hora; desligar o serviço também. Use só rede confiável (roteador do palco, sem Wi-Fi aberto ao público).
 - **Firewall do Windows:** na primeira vez que o serviço abre para a rede local, o Windows pode pedir "Permitir acesso"; sem liberar (rede privada), o celular não conecta.
 - Se a rede cair, o show segue: o servidor roda em threads próprias, não toca a thread de áudio nem o BLACKOUT, e todos os comandos locais continuam funcionando.
+
+## O que foi testado (DK-083)
+
+Segurança, tempo-limite e perda de rede, para o celular e o OSC.
+
+| Teste | Onde | Resultado |
+|---|---|---|
+| Fuzz do parser HTTP + rotas: 10 mil pedidos (modelos válidos de `/`, `/app.js`, `/pair`, `/cmd`, `/state` mutados — troca, insere, apaga, corta — e lixo puro) | `remote::tests::fuzz_http_10_mil` | sem pânico; nenhum pedido > 50 ms; > 1000 chegam às rotas |
+| Fuzz do parser OSC: 10 mil pacotes (mensagens, blob, bundle aninhado mutados e lixo puro) | `osc::tests::fuzz_10_mil` | sem pânico; nenhum > 50 ms |
+| Slowloris: 32 conexões mandando 1 byte/s; uma 33ª pareia | `remote::tests::slowloris_nao_trava_o_pareamento` + exe real | pareia em < 3 s (exe: 1,9 s); `stop` < 500 ms com elas abertas |
+| 100 clientes que somem no meio do corpo | `remote::tests::cliente_some_no_meio_do_pedido` | o próximo pedido é atendido em < 1 s |
+| Token depois de desligar e religar o serviço | `remote::tests::token_morre_no_stop_start` + exe real | `401` |
+| "A rede cai" com o show rodando: telão aberto, OSC e celular ligados, celular pareado, 32 conexões lentas + 1 cortada; o app fecha os dois servidores | exe real (WebView2 isolado) | `remote_stop` 113 ms, `osc_stop` 159 ms, janela sem travar; cliente passa a receber "conexão recusada"; teclado (B) e MIDI (nota mapeada) ligam/desligam o BLACKOUT; telão segue no mesmo fps; console sem erros |
+
+**Corrigido nesta rodada:** antes, o tempo-limite era de 3 s *por leitura* (1 byte/s nunca estourava: uma conexão podia ficar presa por horas) e, com 32 conexões ocupadas, a 33ª era derrubada na hora — 32 conexões lentas bloqueavam o pareamento, e 100 clientes que caíam juntos faziam o próximo pedido ser recusado. Os dois testes acima falhavam com o código antigo e passam com o novo (prazo total de 2 s por pedido, fila do sistema quando lotado, e a drenagem final também com prazo).
+
+A perda de rede foi simulada fechando os servidores pelo app; desligar o adaptador de rede não foi testado.
 
 ## Verificado / pendente
 
