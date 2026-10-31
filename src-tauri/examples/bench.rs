@@ -1,12 +1,14 @@
 //! Benchmark de detecção de kick/BPM em faixas sintéticas (DK-008):
 //!   cargo run --release --example bench            → tabelas Markdown no stdout
 //!   cargo run --release --example bench -- 30      → duração de cada faixa em segundos (padrão 30)
+//!   cargo run --release --example bench -- custo   → só o custo do Analyzer::process (µs por hop)
 //! No fim, um estresse com 10 sementes por cenário: uma semente só esconde casos que dependem
 //! de quais kicks se perdem no aquecimento (ex.: grade no contratempo com chimbal).
 //! Só mede; não muda parâmetros nem algoritmo. O relatório fica em docs/quality/DETECCAO.md.
 
 use doublek_lib::analysis::{Analyzer, Params, HOP};
 use doublek_lib::synth::Synth;
+use std::time::Instant;
 
 const BPMS: [f64; 7] = [135.0, 140.0, 148.0, 160.0, 175.0, 200.0, 220.0];
 const TOL: f64 = 0.030; // ±30 ms conta como acerto
@@ -92,6 +94,62 @@ fn measure(s: &Synth, lo: f32, hi: f32) -> Res {
     }
 }
 
+/// Indicadores de energia (DK-031) por BPM, faixa do gênero. Build-up = 8 compassos de groove,
+/// 16 de breakdown com ruído subindo nos 8 últimos, 8 de groove. Groove = baixo rolante, 30 s.
+fn indicators() {
+    let frames = |s: &Synth, lo: f32, hi: f32| {
+        let (x, _) = s.render();
+        let mut an = Analyzer::new(s.sr);
+        let p = Params { bpm_min: lo, bpm_max: hi, ..Default::default() };
+        let mut out = vec![];
+        for (i, c) in x.chunks_exact(HOP).enumerate() {
+            an.process(c, &p);
+            if i % 2 == 1 {
+                out.push(((i + 1) as f64 * HOP as f64 / s.sr as f64, an.snapshot()));
+            }
+        }
+        out
+    };
+    println!("
+### Indicadores de energia (DK-031)
+");
+    println!("| BPM | Faixa | Contraste máx. groove | Contraste máx. no build-up | Kicks/compasso groove | Kicks/compasso breakdown (máx.) | Estabilidade groove (mín. após 8 s) |");
+    println!("|---:|---|---:|---:|---:|---:|---:|");
+    for &bpm in &BPMS {
+        let (name, lo, hi) = genre(bpm);
+        let bar = 4.0 * 60.0 / bpm;
+        let g = frames(&Synth { bpm, secs: 30.0, ..Default::default() }, lo, hi);
+        let b = frames(&Synth { bpm, secs: 32.0 * bar, breakdown: Some((8.0 * bar, 24.0 * bar)), riser: Some((16.0 * bar, 24.0 * bar)), ..Default::default() }, lo, hi);
+        let late = || g.iter().filter(|(t, _)| *t > 8.0).map(|(_, f)| f);
+        let (rmin, rmax) = late().fold((9f32, 0f32), |(a, z), f| (a.min(f.kick_rate), z.max(f.kick_rate)));
+        println!(
+            "| {bpm:.0} | {name} | {:.2} | {:.2} | {rmin:.1}–{rmax:.1} | {:.1} | {:.2} |",
+            g.iter().map(|(_, f)| f.contrast).fold(0.0, f32::max),
+            b.iter().filter(|(t, _)| (16.0 * bar..24.0 * bar).contains(t)).map(|(_, f)| f.contrast).fold(0.0, f32::max),
+            b.iter().filter(|(t, _)| (10.0 * bar..24.0 * bar).contains(t)).map(|(_, f)| f.kick_rate).fold(0.0, f32::max),
+            late().map(|f| f.stability).fold(1.0, f32::min),
+        );
+    }
+}
+
+/// Custo do `Analyzer::process` por hop: a mesma faixa (148 BPM, baixo rolante, 30 s) 7 vezes,
+/// fica a menor (a máquina tem outros processos; a mínima é a mais estável entre execuções).
+fn cost() -> f64 {
+    let (x, _) = Synth { bpm: 148.0, secs: 30.0, ..Default::default() }.render();
+    let p = Params { bpm_min: 135.0, bpm_max: 150.0, ..Default::default() };
+    let hops = x.len() / HOP;
+    (0..7)
+        .map(|_| {
+            let mut an = Analyzer::new(48000.0);
+            let t0 = Instant::now();
+            for c in x.chunks_exact(HOP) {
+                std::hint::black_box(an.process(c, &p));
+            }
+            t0.elapsed().as_nanos() as f64 / hops as f64 / 1000.0
+        })
+        .fold(f64::INFINITY, f64::min)
+}
+
 /// Mesmos cenários com 10 sementes × 7 BPM, faixa do gênero. Conta tudo junto e lista as faixas
 /// com problema como BPM/semente (para reproduzir: `Synth { bpm, seed, .. }`).
 fn stress(secs: f64) {
@@ -149,6 +207,10 @@ fn ratio_error(est: f64, bpm: f64) -> &'static str {
 }
 
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some("custo") {
+        println!("{:.3}", cost()); // só o custo, para comparar binários lado a lado
+        return;
+    }
     let secs: f64 = std::env::args().nth(1).map_or(30.0, |a| a.parse().expect("duração em segundos"));
     println!("<!-- gerado por `cargo run --release --example bench` (src-tauri); faixas de {secs:.0} s a 48 kHz, HOP {HOP}, janela ±{:.0} ms, medido após {WARMUP:.0} s -->", TOL * 1000.0);
     let mut worst: Vec<String> = vec![];
@@ -202,4 +264,7 @@ fn main() {
         println!("- {w}");
     }
     stress(secs);
+    indicators();
+    println!("
+Custo do `Analyzer::process`: **{:.2} µs por hop** (mínimo de 7 passadas; o hop dura {:.0} µs a 48 kHz).", cost(), HOP as f64 / 48.0 * 1000.0);
 }

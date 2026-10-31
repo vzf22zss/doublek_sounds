@@ -14,6 +14,11 @@ export type Frame = {
   spectrum: number[];
   low: number; // 1 = grave tocando (drop), 0 = breakdown sem grave
   pos: number; // posição na faixa tocada pelo app (s); -1 = entrada ao vivo
+  // indicadores de energia musical (DK-031); opcionais até todo consumidor atualizar
+  energy?: number; // (rms + médio + agudo)/3 absoluto, suavizado em ~1 compasso
+  contrast?: number; // energia dos últimos 4 compassos ÷ 4 anteriores (1 = estável; > 1 subindo)
+  stability?: number; // 0..1: confiança no relógio do beat (jitter × tempo desde a trava)
+  kickRate?: number; // kicks por compasso nos últimos 8 beats (0 no breakdown, ~4 no groove)
 };
 
 export type Msg = { t: 'frame'; v: Frame } | { t: 'status'; v: string };

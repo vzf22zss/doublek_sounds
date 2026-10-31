@@ -20,6 +20,7 @@ pub struct Beat {
     last: f64,
     count: i64, // mantém o índice do beat contínuo quando a âncora muda
     fixed: bool, // grade vinda da análise do arquivo: os kicks não mexem nela
+    pub jitter: f64, // desvio (s) dos kicks em torno da grade no último ajuste
     scored: VecDeque<(f64, f32)>, // candidatos com click (aceitos ou não): instante e punch
 }
 
@@ -62,8 +63,9 @@ impl Beat {
                     (x - x.round()).abs() < TOL
                 };
                 if self.locked && n < 6 && ks.iter().all(on_old) {
-                    if let Some((_, a1, _, _)) = fit(ks, p0, None, true) {
+                    if let Some((_, a1, _, sd1)) = fit(ks, p0, None, true) {
                         self.rebase(a1, p0);
+                        self.jitter = sd1;
                     }
                     return;
                 }
@@ -76,6 +78,7 @@ impl Beat {
                 };
                 self.rebase(a, p);
                 self.locked = same || (n >= 6 && sd < 0.035 * p);
+                self.jitter = sd;
                 return;
             }
         }

@@ -20,12 +20,13 @@ pub struct Synth {
     pub jitter_ms: f64,                // cada kick desloca ± até isto (uniforme)
     pub hats: f32,                     // chimbal no contratempo (ruído agudo de 30 ms): pico; 0 = sem
     pub kick: f32,                     // volume do kick (sub e click); 1 = padrão
+    pub riser: Option<(f64, f64)>,     // build-up: ruído subindo de 0 a 0,25 entre os dois instantes
     pub seed: u32,
 }
 
 impl Default for Synth {
     fn default() -> Self {
-        Self { bpm: 140.0, secs: 20.0, sr: 48000.0, start: 0.05, rolling: true, noise: 0.02, gain: 1.0, breakdown: None, jitter_ms: 0.0, hats: 0.0, kick: 1.0, seed: 1 }
+        Self { bpm: 140.0, secs: 20.0, sr: 48000.0, start: 0.05, rolling: true, noise: 0.02, gain: 1.0, breakdown: None, jitter_ms: 0.0, hats: 0.0, kick: 1.0, riser: None, seed: 1 }
     }
 }
 
@@ -83,6 +84,12 @@ impl Synth {
             let (i0, i1) = ((a * sr as f64) as usize, ((b * sr as f64) as usize).min(out.len()));
             for i in i0..i1 {
                 out[i] += 0.15 * (2.0 * PI * 880.0 * (i - i0) as f32 / sr).sin();
+            }
+        }
+        if let Some((a, b)) = self.riser {
+            let (i0, i1) = ((a * sr as f64) as usize, ((b * sr as f64) as usize).min(out.len()));
+            for i in i0..i1 {
+                out[i] += 0.25 * ((i - i0) as f32 / (i1 - i0) as f32) * noise();
             }
         }
         for s in &mut out {
