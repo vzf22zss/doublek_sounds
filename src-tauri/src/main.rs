@@ -160,6 +160,10 @@ async fn open_output(app: AppHandle, monitor: usize) -> Result<(), String> {
     win.set_position(*m.position()).map_err(e)?;
     win.set_fullscreen(true).map_err(e)?;
     win.show().map_err(e)?;
+    // Spout ligado: o telão pode ter mudado de monitor (e de GPU); religa no adaptador novo
+    if let Some(s) = app.state::<Engine>().spout.lock().unwrap().as_mut() {
+        s.restart();
+    }
     Ok(())
 }
 

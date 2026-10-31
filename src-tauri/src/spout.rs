@@ -35,6 +35,8 @@ pub struct Status {
 
 /// Sender em execução (thread de captura). `stop` (ou Drop) encerra e libera tudo.
 pub struct Spout {
+    hwnd: isize,
+    name: String,
     stop: Arc<AtomicBool>,
     status: Arc<Mutex<Status>>,
     thread: Option<JoinHandle<()>>,
@@ -46,7 +48,7 @@ impl Spout {
     pub fn start(hwnd: isize, name: String) -> Self {
         let stop = Arc::new(AtomicBool::new(false));
         let status = Arc::new(Mutex::new(Status { running: true, name: name.clone(), ..Default::default() }));
-        let (s, st) = (stop.clone(), status.clone());
+        let (s, st, n) = (stop.clone(), status.clone(), name.clone());
         let thread = std::thread::Builder::new()
             .name("spout".into())
             .spawn(move || {
@@ -62,7 +64,15 @@ impl Spout {
                 }
             })
             .ok();
-        Self { stop, status, thread }
+        Self { hwnd, name: n, stop, status, thread }
+    }
+
+    /// Para e liga de novo com a mesma janela e o mesmo nome: depois de mover o telão para outro
+    /// monitor, o device é recriado no adaptador do monitor novo. O stop termina antes (o nome sai
+    /// da lista), então o sender volta com o mesmo nome, não como `nome_1`.
+    pub fn restart(&mut self) {
+        self.stop();
+        *self = Self::start(self.hwnd, self.name.clone());
     }
 
     pub fn status(&self) -> Status {
@@ -631,6 +641,36 @@ pub mod win {
             };
             println!("BENCH send 1920×1080 ({} quadros): CPU mediana {:.3} ms, p95 {:.3} ms · até a GPU terminar: mediana {:.3} ms, p95 {:.3} ms",
                 cpu.len(), p(cpu.clone(), 0.5), p(cpu, 0.95), p(gpu.clone(), 0.5), p(gpu, 0.95));
+        }
+
+        /// Religar (telão mudou de monitor): volta com o mesmo nome, uma vez só na lista, e captura.
+        #[test]
+        #[ignore = "abre uma janela e captura pela tela (WGC); rode com --ignored numa sessão com desktop"]
+        fn religar_mantem_o_nome() {
+            let win = TestWindow::new((200, 30, 30));
+            win.pump(300);
+            let name = format!("DoubleK religa {}", std::process::id());
+            let mut sp = Spout::start(win.0 .0 as isize, name.clone());
+            let wait = |sp: &Spout| {
+                let t = Instant::now();
+                while sp.status().frames == 0 && sp.status().running && t.elapsed() < Duration::from_secs(5) {
+                    win.pump(50);
+                }
+            };
+            wait(&sp);
+            assert!(sp.status().frames > 0, "{:?}", sp.status());
+            unsafe {
+                let _ = SetWindowPos(win.0, None, 400, 300, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+            }
+            sp.restart();
+            wait(&sp);
+            let st = sp.status();
+            assert!(st.running && st.frames > 0 && st.name == name, "{st:?}");
+            let list = read_names(&peek("SpoutSenderNames", MAX_SENDERS * NAME_LEN).unwrap());
+            assert_eq!(list.iter().filter(|n| n.starts_with(&name)).count(), 1, "{list:?}");
+            let (px, _, _) = receive_pixel(&name, 160, 100).unwrap();
+            assert!(px[2] > 180 && px[1] < 60, "pixel {px:?} não é o vermelho da janela");
+            sp.stop();
         }
 
         /// Captura de verdade: janela de teste verde → Spout → receptor lê verde; stop libera tudo.
