@@ -276,11 +276,21 @@ os kicks. Use quando o BPM estiver certo e você não quiser que ele oscile.
 
 ![Vídeo no fundo, com a logo na frente](img/video-telao.png)
 
-1. Em **Vídeo em loop**, clique em **Adicionar vídeo** (mp4 ou webm), ou **arraste o vídeo
-   para cima da janela**. Ele fica guardado no app, na sua biblioteca de vídeos.
+1. Em **Vídeo em loop**, clique em **Adicionar vídeo** (mp4, webm ou mov), ou **arraste o vídeo
+   para cima da janela**. O app testa o arquivo antes de guardar: se este Windows não consegue
+   tocar (por exemplo HEVC/H.265, comum em vídeo de iPhone), ele recusa e diz para converter
+   para **MP4 H.264** ou **WebM VP9**. Aceito, o vídeo fica guardado na sua biblioteca.
 2. Clique no nome de um vídeo para usá-lo, ou em **Sem vídeo** para voltar à foto ou cor.
    O **×** tira o vídeo da biblioteca.
 3. **Velocidade do vídeo:** de 0,25× (câmera lenta) a 2×.
+4. **Início e fim do loop:** com o vídeo na tela, escolha de que segundo a que segundo ele
+   repete (fim 0 = até o final). Bom para aproveitar só o trecho bonito de um clipe.
+5. **Reiniciar no compasso:** quando esse vídeo entra (por cena ou roteiro), ele volta ao
+   começo no próximo 1º tempo da música, em vez de entrar no meio.
+
+Se um vídeo der erro ou travar no meio do show, o telão volta sozinho para a foto ou a cor de
+fundo e avisa no Diagnóstico, sem tela preta. Para o notebook não sofrer, o app deixa no máximo
+um vídeo tocando e um preparado (o próximo do roteiro); os outros ficam parados.
 
 O vídeo usa os mesmos ajustes da foto (opacidade, desfoque, brilho, matiz, zoom e brilho no
 beat). Ele também pode ficar **só no drop** (seção 12). As **cenas** guardam qual vídeo está
@@ -365,6 +375,20 @@ use ▲▼. No MIDI learn, a opacidade e o liga/desliga de cada camada aprendem 
 knob ou botão.
 
 ![Seção Camadas da aba Efeitos: mandala em Somar a 70 %](img/camadas.png)
+
+### Efeitos da comunidade (shaders)
+
+Quem programa shaders pode criar efeitos novos. Na aba **Efeitos**, abra **Efeitos da
+comunidade (FX)**: **Importar** traz um arquivo `.doublekfx`, **Novo** abre um modelo para
+escrever o seu, **Exportar** gera o arquivo para compartilhar. O editor mostra uma
+pré-visualização sobre a sua logo, reagindo ao som de verdade, e aponta o erro com a linha; se
+algo quebrar, **Reverter para o último válido** volta ao código que funcionava. Cada efeito
+pode ter até 8 controles deslizantes. Por enquanto os efeitos aparecem só na pré-visualização
+do editor; levar para o telão vem na próxima versão.
+
+> ⚠ Código de shader de outra pessoa pode travar a placa de vídeo. Importe só de quem você
+> confia. Um efeito que derruba a pré-visualização fica marcado como **suspeito** e, depois de
+> 3 falhas, é desligado até você reativar. O formato está em [docs/SHADERS.md](SHADERS.md).
 
 ---
 
@@ -458,6 +482,12 @@ abre em qualquer player). Se a gravação pesar no telão, o app avisa para baix
 Leve; se algo der errado (disco cheio, telão fechado), a gravação para com uma mensagem e **o
 telão continua normal**. A gravação para sozinha em 4 GB ou se o disco ficar com menos de 1 GB
 livre. Apague as gravações antigas de vez em quando: o app não apaga nada sozinho.
+
+**Vertical (9:16) para Reels/TikTok:** em **Formato**, escolha **Vertical**. Um retângulo ciano
+aparece por cima do PREVIEW mostrando o pedaço do telão que vai ser gravado; ajuste o **Zoom do
+recorte** e a **Posição horizontal** (dá para mexer gravando). O arquivo sai em 1080×1920
+(720×1280 na qualidade Leve) com `V9x16` no nome. O vertical pesa mais no notebook: prefira
+Leve ou 30 fps.
 
 ## 14. Acertar o atraso do projetor (offset)
 
@@ -769,6 +799,16 @@ DoubleK. Para o visual, use um **controlador separado** (um pequeno e barato já
 > Se o knob do controlador estiver numa posição diferente do knob da tela, o valor **pula**
 > para a posição do controlador no primeiro movimento. Antes de começar, deixe os knobs na
 > posição dos da tela.
+
+### MIDI Clock: o BPM vindo do equipamento do DJ
+
+Se o mixer, a CDJ ou o software do DJ (Traktor, Rekordbox, Ableton) manda **MIDI Clock** para
+uma porta que o DoubleK está usando, o app passa a seguir o andamento do equipamento em vez de
+adivinhar pelo som, e a bolinha de BPM mostra **MIDI CLK**. Quando o equipamento manda
+**Start**, o 1º tempo também vem dele. Se o clock parar de chegar, depois de 2 segundos o app
+volta a ouvir o som sozinho, já no andamento certo. A porta precisa estar livre (veja a nota
+acima sobre "(ocupado)"); um cabo MIDI ou interface USB-MIDI separado resolve. Detalhes e roteiro
+de teste em [docs/MIDI-CLOCK.md](MIDI-CLOCK.md).
 
 ---
 
