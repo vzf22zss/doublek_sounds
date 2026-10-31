@@ -24,7 +24,7 @@ function start() {
   try {
     r = new Renderer(canvas, v);
     // vídeo que não abre, dá erro ou trava: o fundo volta para a foto/cor e o controle fica sabendo (DK-062)
-    sync = assetSync(r, { beat: () => lastFrame, onVideoFail: (msg) => report('warn', msg) });
+    sync = assetSync(r, { beat: () => lastFrame, onVideoFail: (msg) => report('warn', msg), onImageFail: (msg) => report('warn', msg) });
     sync(v, true);
     r.onBudget = (i) => emitTo('control', 'psy-budget', i); // orçamento do Psy Engine só no telão (o preview roda a 30 fps)
     if (lastFrame) r.setFrame(lastFrame);

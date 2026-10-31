@@ -52,10 +52,13 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-async function imageFrom(blob: Blob | undefined, fallback?: string) {
-  if (!blob) return fallback ? loadImage(fallback) : null;
-  const url = URL.createObjectURL(blob);
-  try { return await loadImage(url); } finally { URL.revokeObjectURL(url); }
+/** Imagem guardada; bytes que não decodificam (arquivo renomeado, IndexedDB corrompido) caem no `fallback` e chamam `onBad`. */
+async function imageFrom(blob: Blob | undefined, fallback?: string, onBad?: () => void) {
+  if (blob) {
+    const url = URL.createObjectURL(blob);
+    try { return await loadImage(url); } catch { onBad?.(); } finally { URL.revokeObjectURL(url); }
+  }
+  return fallback ? loadImage(fallback) : null;
 }
 
 function canvas(w: number, h: number) {
@@ -68,8 +71,8 @@ export const LOGO_PAD = 0.25; // margem em volta da logo para o glow caber
 
 export type Prepared = { image: HTMLCanvasElement; glow?: HTMLCanvasElement; aspect: number };
 
-async function prepareLogo(v: Visual): Promise<Prepared> {
-  const img = (await imageFrom(await getAsset('logo'), DEFAULT_LOGO))!;
+async function prepareLogo(v: Visual, onBad?: () => void): Promise<Prepared> {
+  const img = (await imageFrom(await getAsset('logo'), DEFAULT_LOGO, onBad))!;
   const s = Math.min(1, 1024 / Math.max(img.naturalWidth, img.naturalHeight));
   const w = Math.round(img.naturalWidth * s), h = Math.round(img.naturalHeight * s);
   const [c, x] = canvas(Math.round(w * (1 + 2 * LOGO_PAD)), Math.round(h * (1 + 2 * LOGO_PAD)));
@@ -91,8 +94,8 @@ async function prepareLogo(v: Visual): Promise<Prepared> {
   return { image: c, glow: g, aspect: h / w };
 }
 
-async function prepareBg(v: Visual): Promise<Prepared | null> {
-  const img = await imageFrom(await getAsset('bg'));
+async function prepareBg(v: Visual, onBad?: () => void): Promise<Prepared | null> {
+  const img = await imageFrom(await getAsset('bg'), undefined, onBad);
   if (!img) return null;
   const s = Math.min(1, 2560 / Math.max(img.naturalWidth, img.naturalHeight));
   const w = Math.round(img.naturalWidth * s), h = Math.round(img.naturalHeight * s);
@@ -304,6 +307,8 @@ export type SyncOpts = {
   beat?: () => BeatLike | null;
   /** Vídeo falhou e o fundo voltou para a foto/cor: mensagem pronta para o diário. */
   onVideoFail?: (msg: string) => void;
+  /** Logo ou foto guardada não decodifica: o telão usa a logo padrão / a cor de fundo. */
+  onImageFail?: (msg: string) => void;
 };
 
 /** Reprocessa logo/fundo só quando o arquivo ou um ajuste que os afeta mudou; troca o vídeo do fundo.
@@ -326,8 +331,8 @@ export function assetSync(r: { setLogo(p: Prepared): void; setBg(p: Prepared | n
     const lk = `${v.rmWhite}|${v.white}`, bk = `${v.bgBlur}`;
     const doLogo = force || lk !== logoKey, doBg = force || bk !== bgKey;
     logoKey = lk; bgKey = bk;
-    if (doLogo) r.setLogo(await prepareLogo(v));
-    if (doBg) r.setBg(await prepareBg(v));
+    if (doLogo) r.setLogo(await prepareLogo(v, () => o.onImageFail?.('Logo guardada inválida: o telão está usando a logo padrão. Carregue a logo de novo.')));
+    if (doBg) r.setBg(await prepareBg(v, () => o.onImageFail?.('Foto de fundo guardada inválida: o telão está usando a cor de fundo. Carregue a foto de novo.')));
     if (force || v.bgVideo !== vid) {
       const changed = v.bgVideo !== vid, my = ++token;
       vid = v.bgVideo;
