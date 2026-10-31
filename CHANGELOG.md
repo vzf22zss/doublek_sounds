@@ -19,6 +19,12 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 - DK-083: o servidor do celular não fica mais refém de conexões lentas (slowloris): prazo de 2 s por pedido e fila de espera quando lotado; testes com 10 mil entradas aleatórias no HTTP e no OSC.
 
+### Corrigido
+
+- Celular: o último valor de um slider arrastado rápido às vezes perdia para o penúltimo; resposta atrasada do pareamento apagava a contagem de espera.
+- Logo ou foto guardada com arquivo inválido gerava erro repetido nas duas janelas; agora o telão usa a logo padrão / a cor de fundo e avisa no Diagnóstico.
+- Editor de efeitos quebrava ao trocar de aba enquanto carregava a imagem de teste.
+
 ## [0.3.7] - 2026-10-30
 
 ### Adicionado
