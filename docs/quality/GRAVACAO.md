@@ -64,3 +64,20 @@ O MP4 do Chromium é fragmentado por keyframe: sem pedir keyframe a cada 1 s, um
 - **Custo no telão em hardware de show** (p95 com e sem gravação, 1080p60 Alta): o aviso automático existe, a medida real não (DEC-02).
 - Abrir o MP4 gravado em player externo (Filmes e TV/VLC): o arquivo do mock começa com `ftyp` e o Chromium toca; player externo não testado.
 - DK-073 (vertical 9:16) fora desta entrega.
+
+## 6. Vertical 9:16 (DK-073)
+
+**Como funciona.** Na seção Gravação, **Formato: Telão (16:9) | Vertical (9:16)**. No vertical o telão não muda: um canvas 2D fora da tela, **1080×1920** (ou **720×1280** na qualidade Leve), copia a cada quadro o recorte do canvas WebGL (`drawImage`, a única cópia) e é ele que vai para o MediaRecorder. Recorte (`cropRect` em `src/lib/recorder.ts`): o maior retângulo 9:16 que cabe no telão, dividido pelo **zoom (1–3×)**, centrado na vertical (a logo fica no centro) e deslizado na horizontal pela **posição (−1 esquerda … 1 direita)**. Zoom e posição dá para mexer gravando (evento `rec-frame`). Na janela de controle, um **retângulo 9:16 por cima do PREVIEW** mostra o recorte (calculado no aspecto do monitor escolhido para o telão). Arquivo: `<AAAAMMDD>T<HHMMSS>V9x16.mp4` (o sufixo é só letras e números, aceito pelo `track::check_id`; nenhum código Rust novo).
+
+**Detalhe técnico que o mock confirmou.** O canvas WebGL do telão não guarda o quadro (`preserveDrawingBuffer: false`): `drawImage` dele fora de um `requestAnimationFrame` sai **preto** (0% dos pixels acesos); dentro do rAF, logo depois do desenho do telão, sai certo (28% acesos). O laço de cópia é registrado depois do laço de desenho, então roda na ordem certa a cada quadro.
+
+**Custo medido** (mock, Edge headless com GPU Intel UHD, telão 1280×720, p95 do quadro do telão, mediana de ~8 s; duas rodadas):
+
+| Rodada | Sem gravar | Gravando 16:9 | Gravando 9:16 (1080×1920) |
+|---|---|---|---|
+| 1 | 19,8 ms | 19,9 ms | 24,5 ms (+24%) |
+| 2 | 30,9 ms | 30,7 ms | 48,1 ms (+56%) |
+
+Gravar o telão direto (16:9) não pesa nada mensurável; o vertical pesa, porque a cópia WebGL → 2D a 1080×1920 acontece a cada quadro (e neste teste o recorte de 405×720 ainda era ampliado 2,7×). O aviso automático (p95 > 1,3×) cobre isso ao vivo; recomendação na interface: **Leve (720×1280) ou 30 fps** para o vertical. Ver "Dívidas" no relatório: caminho sem cópia (recorte de `VideoFrame` por WebCodecs) se o custo pesar em hardware de show.
+
+**Testes:** `recorder.check.ts` varre 2142 combinações (7 aspectos de telão, inclusive retrato e ultra-wide; 2 tamanhos de saída; zoom 1–3; posição −1…1): o recorte fica sempre dentro do canvas e com o aspecto 9:16; casos exatos (faixa central, encostar nas bordas, zoom 2 centrado na logo, valores fora da faixa trazidos para dentro); nome `…V9x16.mp4`. Mock: retângulo 9:16 no PREVIEW (188×333 px), 10 s gravando vertical → arquivo **1080×1920**, 9 pedaços, 4,3 MB, toca, e um quadro do meio tem imagem (36,6% dos pixels acesos).

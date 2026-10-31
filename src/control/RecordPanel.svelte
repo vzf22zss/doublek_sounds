@@ -1,14 +1,23 @@
 <script lang="ts">
   // Gravação da saída visual (DK-072), na aba Saída: grava o que o telão mostra, sem áudio.
-  import { QUALITY_NAMES, recLabel, type Quality } from '../lib/recorder';
-  import { openRecDir, rec, startRec, stopRec } from './rec.svelte';
+  import Slider from './Slider.svelte';
+  import { FORMAT_NAMES, QUALITY_NAMES, recLabel, verticalSize, ZOOM_MAX, ZOOM_MIN, type Format, type Quality } from '../lib/recorder';
+  import { openRecDir, rec, sendFraming, startRec, stopRec } from './rec.svelte';
 
   let { outputOpen, p95 }: { outputOpen: boolean; p95: number } = $props();
   const busy = $derived(rec.s.phase !== 'idle');
+  // enquadramento do vertical pode mudar gravando: o telão aplica na hora
+  $effect(() => { void rec.zoom; void rec.offset; sendFraming(); });
+  const vsize = $derived(verticalSize(rec.quality));
 </script>
 
 <h2>Gravação</h2>
 <div class="files">
+  <label class="field">Formato
+    <select bind:value={rec.format} disabled={busy}>
+      {#each Object.entries(FORMAT_NAMES) as [f, n]}<option value={f as Format}>{n}</option>{/each}
+    </select>
+  </label>
   <label class="field">Qualidade
     <select bind:value={rec.quality} disabled={busy}>
       {#each Object.entries(QUALITY_NAMES) as [q, n]}<option value={q as Quality}>{n}</option>{/each}
@@ -21,6 +30,11 @@
     </select>
   </label>
 </div>
+{#if rec.format === 'VERTICAL'}
+  <Slider label="Zoom do recorte" bind:value={rec.zoom} min={ZOOM_MIN} max={ZOOM_MAX} step={0.05} def={1} fmt={(v) => v.toFixed(2) + '×'} />
+  <Slider label="Posição horizontal" bind:value={rec.offset} min={-1} max={1} step={0.05} def={0} fmt={(v) => (v === 0 ? 'centro' : v < 0 ? `${(-v * 100).toFixed(0)}% esq.` : `${(v * 100).toFixed(0)}% dir.`)} />
+  <p class="keys">Vertical {vsize.w}×{vsize.h} para Reels/TikTok: o retângulo no PREVIEW mostra o recorte (o telão não muda). Dá para ajustar gravando. O vertical copia cada quadro e pesa mais no telão: prefira Leve ou 30 fps.</p>
+{/if}
 <div class="files">
   {#if busy}
     <button class="stop" onclick={stopRec} disabled={rec.s.phase === 'stopping'}>{rec.s.phase === 'stopping' ? 'Finalizando…' : 'Parar'}</button>

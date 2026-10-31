@@ -1,6 +1,6 @@
 // npm run check — gravação (DK-072): codec, nome, máquina de estados e aviso de desempenho.
 import assert from 'node:assert/strict';
-import { BITRATE, IDLE, pickMime, recLabel, recName, reduce, type RecEvent, type RecState } from './recorder.ts';
+import { BITRATE, cropRect, IDLE, pickMime, recLabel, recName, reduce, verticalSize, type RecEvent, type RecState } from './recorder.ts';
 
 // codec: MP4/H.264 primeiro (nível certo para o fps), depois WebM
 const all = () => true, only = (...ok: string[]) => (m: string) => ok.includes(m);
@@ -57,5 +57,41 @@ assert.ok(w.warned);
 assert.match(w.message, /pesando no telão \(p95 10\.0 → 13\.5 ms\): baixe para 30 fps ou qualidade Leve/);
 assert.equal(reduce(w, { t: 'telemetry', p95: 30, at: 9000 }).message, '', 'avisa uma vez só');
 assert.equal(run([{ t: 'start', id: n, mime: 'video/mp4', at: 0, p95: 0 }, { t: 'started', at: 0 }, { t: 'telemetry', p95: 99, at: 9000 }]).warned, false, 'sem telemetria de antes: não compara');
+
+// --- vertical 9:16 (DK-073) ---
+{
+  assert.equal(recName(new Date(2026, 9, 30, 23, 5, 9), 'mp4', true), '20261030T230509V9x16.mp4');
+  assert.match(recName(new Date(), 'webm', true), /^[A-Za-z0-9]+\.(mp4|webm)$/, 'nome vertical aceito pelo track::check_id');
+  assert.deepEqual(verticalSize('LEVE'), { w: 720, h: 1280 });
+  assert.deepEqual(verticalSize('ALTA'), { w: 1080, h: 1920 });
+  // padrão no telão 1920×1080: faixa central 9:16 da altura inteira
+  const c0 = cropRect(1920, 1080, 1080, 1920, { zoom: 1, offset: 0 });
+  assert.deepEqual([c0.sx, c0.sy, c0.sh].map((x) => +x.toFixed(3)), [656.25, 0, 1080]);
+  assert.ok(Math.abs(c0.sw - 607.5) < 1e-9);
+  assert.equal(cropRect(1920, 1080, 1080, 1920, { zoom: 1, offset: -1 }).sx, 0, 'offset −1 encosta na esquerda');
+  const r = cropRect(1920, 1080, 1080, 1920, { zoom: 1, offset: 1 });
+  assert.ok(Math.abs(r.sx + r.sw - 1920) < 1e-9, 'offset 1 encosta na direita');
+  const z2 = cropRect(1920, 1080, 1080, 1920, { zoom: 2, offset: 0 });
+  assert.ok(Math.abs(z2.sh - 540) < 1e-9 && Math.abs(z2.sy - 270) < 1e-9, 'zoom 2: metade da altura, centrado na logo');
+  // fora da faixa é trazido para dentro
+  assert.deepEqual(cropRect(1920, 1080, 1080, 1920, { zoom: 9, offset: 5 }), cropRect(1920, 1080, 1080, 1920, { zoom: 3, offset: 1 }));
+  assert.deepEqual(cropRect(1920, 1080, 1080, 1920, { zoom: 0.2, offset: NaN }), cropRect(1920, 1080, 1080, 1920, { zoom: 1, offset: 0 }));
+  // varredura: qualquer telão (paisagem, 4:3, ultra-wide, retrato), qualquer zoom/offset → dentro do canvas e com o aspecto da saída
+  let n = 0;
+  for (const [W, H] of [[1920, 1080], [1280, 720], [1024, 768], [3440, 1440], [1080, 1920], [800, 800], [641, 359]])
+    for (const [ow, oh] of [[1080, 1920], [720, 1280]])
+      for (let z = 1; z <= 3; z += 0.25)
+        for (let o = -1; o <= 1; o += 0.125) {
+          const q = cropRect(W, H, ow, oh, { zoom: z, offset: o });
+          const eps = 1e-6;
+          assert.ok(q.sx >= -eps && q.sy >= -eps && q.sx + q.sw <= W + eps && q.sy + q.sh <= H + eps, `${W}×${H} z${z} o${o}: dentro`);
+          assert.ok(Math.abs(q.sw / q.sh - ow / oh) < 1e-9, 'aspecto da saída');
+          assert.ok(q.sw > 0 && q.sh > 0);
+          n++;
+        }
+  assert.equal(n, 7 * 2 * 9 * 17, `${n} combinações conferidas`);
+}
+
+assert.match(run([{ t: 'start', id: 'x.mp4', mime: 'video/mp4', at: 0, p95: 0, vertical: true }, { t: 'started', at: 0 }]).message, /\(MP4, vertical 9:16, sem áudio\)/);
 
 console.log('recorder: ok');

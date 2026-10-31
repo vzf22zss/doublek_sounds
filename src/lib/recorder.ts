@@ -23,10 +23,36 @@ export function pickMime(fps: Fps, isSupported: (m: string) => boolean, noMp4 = 
   return mime ? { mime, ext: mime.startsWith('video/mp4') ? 'mp4' : 'webm' } : null;
 }
 
-/** `<AAAAMMDD>T<HHMMSS>.<ext>` na hora local (o Rust só aceita letras, números e um ponto). */
-export function recName(d: Date, ext: 'mp4' | 'webm') {
+/** `<AAAAMMDD>T<HHMMSS>[V9x16].<ext>` na hora local (o Rust só aceita letras, números e um ponto). */
+export function recName(d: Date, ext: 'mp4' | 'webm', vertical = false) {
   const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}T${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.${ext}`;
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}T${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}${vertical ? 'V9x16' : ''}.${ext}`;
+}
+
+// ---------- vertical 9:16 (DK-073): promo para Reels/TikTok, recortada do telão ----------
+
+export type Format = 'TELAO' | 'VERTICAL';
+export const FORMAT_NAMES: Record<Format, string> = { TELAO: 'Telão (16:9)', VERTICAL: 'Vertical (9:16)' };
+/** Tamanho do vídeo vertical: 720×1280 no Leve, 1080×1920 nos outros. */
+export const verticalSize = (q: Quality) => (q === 'LEVE' ? { w: 720, h: 1280 } : { w: 1080, h: 1920 });
+export const ZOOM_MIN = 1, ZOOM_MAX = 3;
+export type Framing = { zoom: number; offset: number }; // zoom 1–3×, deslocamento horizontal −1 (esquerda) … 1 (direita)
+
+/**
+ * Pedaço do telão (srcW×srcH) que vai para o vídeo de saída (outW×outH): o maior retângulo com o aspecto da saída
+ * que cabe no telão, dividido pelo zoom, centrado na vertical (a logo fica no centro) e deslizado na horizontal pelo
+ * deslocamento. Sempre dentro do canvas, para qualquer aspecto de telão.
+ */
+export function cropRect(srcW: number, srcH: number, outW: number, outH: number, f: Framing) {
+  const z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Number.isFinite(f.zoom) ? f.zoom : 1));
+  const off = Math.min(1, Math.max(-1, Number.isFinite(f.offset) ? f.offset : 0));
+  const a = outW / outH;
+  let sh = srcH, sw = sh * a;
+  if (sw > srcW) { sw = srcW; sh = sw / a; } // telão mais estreito que a saída (ex.: retrato)
+  sw /= z; sh /= z;
+  const sx = (srcW - sw) / 2 + off * ((srcW - sw) / 2);
+  const sy = (srcH - sh) / 2;
+  return { sx, sy, sw, sh };
 }
 
 export type Phase = 'idle' | 'starting' | 'recording' | 'stopping';
@@ -41,11 +67,12 @@ export type RecState = {
   message: string;    // para a linha de status ('' = nada novo)
   p95Base: number;    // p95 do telão antes de gravar (0 = sem telemetria)
   warned: boolean;
+  vertical: boolean;  // DK-073: recorte 9:16
 };
-export const IDLE: RecState = { phase: 'idle', id: '', mime: '', startedAt: 0, ms: 0, bytes: 0, path: '', message: '', p95Base: 0, warned: false };
+export const IDLE: RecState = { phase: 'idle', id: '', mime: '', startedAt: 0, ms: 0, bytes: 0, path: '', message: '', p95Base: 0, warned: false, vertical: false };
 
 export type RecEvent =
-  | { t: 'start'; id: string; mime: string; at: number; p95: number }
+  | { t: 'start'; id: string; mime: string; at: number; p95: number; vertical?: boolean }
   | { t: 'started'; at: number }
   | { t: 'progress'; bytes: number; at: number } // duração pelo relógio do controle
   | { t: 'stop' }
@@ -61,9 +88,9 @@ export function reduce(s: RecState, e: RecEvent): RecState {
   switch (e.t) {
     case 'start':
       if (s.phase !== 'idle') return { ...s, message: 'Já está gravando.' };
-      return { ...IDLE, path: s.path, phase: 'starting', id: e.id, mime: e.mime, startedAt: e.at, p95Base: e.p95, message: '' };
+      return { ...IDLE, path: s.path, phase: 'starting', id: e.id, mime: e.mime, startedAt: e.at, p95Base: e.p95, vertical: !!e.vertical, message: '' };
     case 'started':
-      return s.phase === 'starting' ? { ...s, phase: 'recording', startedAt: e.at, message: `Gravando a saída do telão (${s.mime.split(';')[0].split('/')[1].toUpperCase()}, sem áudio).` } : s;
+      return s.phase === 'starting' ? { ...s, phase: 'recording', startedAt: e.at, message: `Gravando a saída do telão (${s.mime.split(';')[0].split('/')[1].toUpperCase()}${s.vertical ? ', vertical 9:16' : ''}, sem áudio).` } : s;
     case 'progress':
       return s.phase === 'recording' || s.phase === 'stopping' ? { ...s, bytes: e.bytes, ms: Math.max(0, e.at - s.startedAt), message: '' } : s;
     case 'stop':

@@ -2,9 +2,9 @@
 // para o telão por evento e a máquina de estados de lib/recorder. O telão grava; o Rust escreve o arquivo.
 import { invoke } from '@tauri-apps/api/core';
 import { emitTo, listen } from '@tauri-apps/api/event';
-import { BITRATE, IDLE, pickMime, recName, reduce, type Fps, type Quality, type RecEvent } from '../lib/recorder';
+import { BITRATE, IDLE, pickMime, recName, reduce, verticalSize, type Format, type Fps, type Quality, type RecEvent } from '../lib/recorder';
 
-export const rec = $state({ s: IDLE, quality: 'MEDIA' as Quality, fps: 30 as Fps });
+export const rec = $state({ s: IDLE, quality: 'MEDIA' as Quality, fps: 30 as Fps, format: 'TELAO' as Format, zoom: 1, offset: 0 });
 let say: (m: string) => void = () => {};
 let lastProgress = 0;
 let noMp4 = false; // este WebView não fragmenta MP4: grava em WebM daqui em diante
@@ -36,10 +36,12 @@ export async function startRec(outputOpen: boolean, p95: number) {
   if (!outputOpen) return say('Abra o telão (Projetar ou F) para gravar: a gravação é o que ele mostra.');
   const pick = typeof MediaRecorder !== 'undefined' ? pickMime(rec.fps, (m) => MediaRecorder.isTypeSupported(m), noMp4) : null;
   if (!pick) return say('Este WebView não tem codificador de vídeo para gravar.');
-  const id = recName(new Date(), pick.ext);
-  send({ t: 'start', id, mime: pick.mime, at: performance.now(), p95 });
+  const vertical = rec.format === 'VERTICAL';
+  const id = recName(new Date(), pick.ext, vertical);
+  send({ t: 'start', id, mime: pick.mime, at: performance.now(), p95, vertical });
   try {
-    await emitTo('output', 'rec-start', { id, mime: pick.mime, fps: rec.fps, bitrate: BITRATE[rec.quality] });
+    await emitTo('output', 'rec-start', { id, mime: pick.mime, fps: rec.fps, bitrate: BITRATE[rec.quality],
+      ...(vertical ? { vertical: { ...verticalSize(rec.quality), zoom: rec.zoom, offset: rec.offset } } : {}) });
   } catch (e) {
     send({ t: 'error', message: String(e) });
   }
@@ -51,6 +53,9 @@ export function stopRec() {
   send({ t: 'stop' });
   emitTo('output', 'rec-stop').catch((e) => send({ t: 'error', message: String(e) }));
 }
+
+/** Enquadramento mexido durante uma gravação vertical: o telão aplica na hora. */
+export const sendFraming = () => { if (rec.s.phase === 'recording' && rec.format === 'VERTICAL') emitTo('output', 'rec-frame', { zoom: rec.zoom, offset: rec.offset }).catch(() => {}); };
 
 export const recTelemetry = (p95: number) => send({ t: 'telemetry', p95, at: performance.now() });
 export const openRecDir = () => invoke('rec_open_dir').catch((e) => say('Não consegui abrir a pasta das gravações: ' + e));
