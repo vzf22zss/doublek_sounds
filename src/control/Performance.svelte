@@ -18,14 +18,14 @@
   import { afterRemoveBank, resolve, stage, take as takeOf, type PreviewRef, type Take } from '../lib/preview';
 
   // `cmd`: pads, bancos, "Só logo" e macros passam pelo dispatcher (fonte 'ui'), que chama de volta recall/saveScene/…
-  let { vs = $bindable(), beatInfo, onstatus, cmd, macro = null, previewMode = false, show = { state: 'UNKNOWN', confidence: 0 }, automationMode = 'MANUAL' }: {
+  let { vs = $bindable(), beatInfo, onstatus, cmd, macro = null, previewMode = false, show = { state: 'UNKNOWN', confidence: 0, staleGrid: false }, automationMode = 'MANUAL' }: {
     vs: Visual;
     beatInfo: () => { bpm: number; ph: number } | null;
     onstatus: (s: string) => void;
     cmd: (c: ShowCommand) => unknown;
     macro?: MacroId | null; // macro rodando agora (acende o botão)
     previewMode?: boolean;  // DK-043: tocar um pad prepara a cena em vez de chamar
-    show?: { state: StateName; confidence: number }; // DK-032: estado estimado da música
+    show?: { state: StateName; confidence: number; staleGrid?: boolean }; // DK-032: estado estimado da música (staleGrid = guarda P8)
     automationMode?: AutomationMode;
   } = $props();
   const STATE_LABEL: Record<StateName, string> = { UNKNOWN: '—', BREAKDOWN: 'BREAK', BUILD_UP: 'BUILD', GROOVE: 'GROOVE', DROP: 'DROP' };
@@ -345,7 +345,7 @@
       <button class:on={vs.logoOnly} onclick={() => cmd({ type: 'LOGO_ONLY' })} title="L" use:learnable={{ id: 'a:logoOnly', label: 'Só logo' }}>Só logo</button>
       <button class="state" class:hot={show.state === 'DROP' || show.state === 'BUILD_UP'} class:dim={show.state === 'UNKNOWN'}
         onclick={() => cmd({ type: 'AUTOMATION_MODE' })} use:learnable={{ id: 'a:autoMode', label: 'Modo de automação' }}
-        title="Estado estimado da música e confiança (0–1). É uma estimativa pelo som: o drop aparece depois de detectado, nunca antes. Clique (ou A): troca Manual → Assistido → Automático.">{STATE_LABEL[show.state]} {show.confidence.toFixed(1)}</button>
+        title={show.staleGrid ? 'Grave tocando mas quase nenhum kick na grade: a grade do beat deve estar defasada (faixa nova?). A automação espera até os kicks voltarem. Um TAP ajuda.' : 'Estado estimado da música e confiança (0–1). É uma estimativa pelo som: o drop aparece depois de detectado, nunca antes. Clique (ou A): troca Manual → Assistido → Automático.'}>{show.staleGrid ? 'GRADE?' : STATE_LABEL[show.state]} {show.confidence.toFixed(1)}</button>
       <select data-automation value={automationMode} onchange={(e) => cmd({ type: 'AUTOMATION_MODE', mode: e.currentTarget.value as AutomationMode })}
         title="Manual: só mostra o estado · Assistido: knobs, rampas e macros, nunca troca cena · Automático: também troca cena. Qualquer comando seu pausa a automação por 8 s.">
         <option value="MANUAL">Manual</option>

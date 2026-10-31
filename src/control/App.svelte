@@ -14,7 +14,9 @@
   import { VISUAL, loadVisual, saveVisual } from '../lib/settings';
   import { SAFE_LOOK, strobeRate } from '../lib/safety';
   import { createMusicState, type StateName } from '../lib/show-engine/state';
-  import { DEFAULT_RULES, plan, quantizeDelay } from '../lib/show-engine/rules';
+  import { plan, quantizeDelay } from '../lib/show-engine/rules';
+  import { loadAutomation, saveAutomation } from '../lib/show-engine/config';
+  import AutomationPanel from './AutomationPanel.svelte';
   import { busy as fxBusy, clear as clearFx, EMPTY as NO_FX, startBurst, startRamp, step as stepFx, type Running } from '../lib/roteiro-fx';
   import { createDispatcher, fromTarget, keyCommand, routePad, startMacro, type AutomationMode, type Handlers, type MacroId, type MacroRun, type ShowCommand, type Source } from '../lib/commands';
   import { applyLayerParam } from '../render/layers';
@@ -158,15 +160,16 @@
   // O motor sempre estima o estado (o chip mostra); as regras só mandam comandos em Assistido/Automático, pela fonte
   // 'automation' (o dispatcher já descarta durante o override manual e não deixa trocar cena com o roteiro tocando).
   const music = createMusicState();
-  const rulesCfg = structuredClone(DEFAULT_RULES);
+  let rulesCfg = $state(loadAutomation()); // mapa de automação editável na aba Efeitos (DK-035), salvo em doublek.automation
+  $effect(() => saveAutomation($state.snapshot(rulesCfg)));
   let automationMode = $state<AutomationMode>('MANUAL');
-  let show = $state({ state: 'UNKNOWN' as StateName, confidence: 0 });
-  let prevState: StateName = 'UNKNOWN', autoTurn = 0;
+  let show = $state({ state: 'UNKNOWN' as StateName, confidence: 0, staleGrid: false });
+  let prevState: StateName = 'UNKNOWN';
   function automate(f: Frame) {
     const m = music.update(f);
-    if (m.state !== show.state || Math.abs(m.confidence - show.confidence) >= 0.05) show = { state: m.state, confidence: m.confidence };
+    if (m.state !== show.state || m.staleGrid !== show.staleGrid || Math.abs(m.confidence - show.confidence) >= 0.05) show = { state: m.state, confidence: m.confidence, staleGrid: m.staleGrid };
     if (!m.dropEvent && m.state === prevState) return;
-    const steps = plan(prevState, m, rulesCfg, { mode: automationMode, scriptOnly: !vs.react, turn: autoTurn++ });
+    const steps = plan(prevState, m, rulesCfg, { mode: automationMode, scriptOnly: !vs.react });
     prevState = m.state;
     for (const st of steps) {
       const d = quantizeDelay(st.quantize, f);
@@ -528,7 +531,7 @@
       control: { maxFrameGapMs: Math.round(uiGap), jsHeapMB: mem ? Math.round(mem.usedJSHeapSize / 1048576) : null },
       visual: $state.snapshot(vs), roteiro: rt.cur ? { name: rt.list.find((r) => r.id === rt.cur)?.name, running: rt.running, mode: rt.mode, source: rt.source } : null,
       commands: commands.history(),
-      show: { ...$state.snapshot(show), mode: automationMode, rules: rulesCfg.enabled, manualLeftMs: commands.manualLeft() },
+      show: { ...$state.snapshot(show), mode: automationMode, automation: $state.snapshot(rulesCfg), manualLeftMs: commands.manualLeft() },
       log: logEntries(),
     };
     const a = document.createElement('a');
@@ -832,6 +835,7 @@
         <Slider label="Brilho do fundo" bind:value={vs.bgFlash} learn="bgFlash" bind:mod={vs.mod.bgFlash} bind:drop={vs.drop.bgFlash} min={0} max={1} step={0.01} def={VISUAL.bgFlash} fmt={f2} />
 
       {:else if tab === 'Efeitos'}
+        <AutomationPanel bind:cfg={rulesCfg} bankNames={() => perf?.bankNames() ?? []} sceneNames={(b: number) => perf?.sceneNames(b) ?? []} />
         <PsyEffects bind:vs />
         <Slider label="Flash" bind:value={vs.fxFlash} learn="fxFlash" bind:mod={vs.mod.fxFlash} bind:drop={vs.drop.fxFlash} min={0} max={1} step={0.01} def={VISUAL.fxFlash} fmt={f2} />
         <Slider label="Anéis a cada kick" bind:value={vs.fxRings} learn="fxRings" bind:drop={vs.drop.fxRings} min={0} max={1} step={0.01} def={VISUAL.fxRings} fmt={f2} />
