@@ -20,6 +20,7 @@
   import AutomationPanel from './AutomationPanel.svelte';
   import RecordPanel from './RecordPanel.svelte';
   import { initRec, rec, recTelemetry } from './rec.svelte';
+  import { cropRect } from '../lib/recorder';
   import { busy as fxBusy, clear as clearFx, EMPTY as NO_FX, startBurst, startRamp, step as stepFx, type Running } from '../lib/roteiro-fx';
   import { createDispatcher, fromTarget, keyCommand, routePad, startMacro, type AutomationMode, type Handlers, type MacroId, type MacroRun, type ShowCommand, type Source } from '../lib/commands';
   import { applyLayerParam } from '../render/layers';
@@ -54,6 +55,13 @@
   try { carried = sessionStorage.getItem('doublek.status'); sessionStorage.removeItem('doublek.status'); } catch {}
   let status = $state(carried ?? 'Escolha a entrada de áudio e clique em Ouvir.');
   initRec((m) => (status = m)); // DK-072: eventos da gravação do telão
+  // DK-073: recorte 9:16 desenhado por cima do PREVIEW (só aqui; o telão não muda), no aspecto do monitor do telão
+  const crop916 = $derived.by(() => {
+    if (rec.format !== 'VERTICAL') return null;
+    const m = monitors[+s.monitor], W = m?.width || 1920, H = m?.height || 1080;
+    const c = cropRect(W, H, 1080, 1920, rec);
+    return { l: (c.sx / W) * 100, t: (c.sy / H) * 100, w: (c.sw / W) * 100, h: (c.sh / H) * 100 };
+  });
   let frame = $state.raw<Frame | null>(null);
   let frameAt = 0;
   let kickAt = $state(-1e9);
@@ -766,6 +774,7 @@
   <section class="left">
     <div class="panel previewBox">
       <canvas bind:this={previewCanvas}></canvas>
+      {#if crop916}<div class="crop916" style:left="{crop916.l}%" style:top="{crop916.t}%" style:width="{crop916.w}%" style:height="{crop916.h}%" title="Recorte do vídeo vertical 9:16"><b>9:16</b></div>{/if}
       <span class="tag" class:stagedTag={!!staged}>{staged ? `PREVIEW: ${staged.name} — T para TAKE` : 'PREVIEW'}</span>
       {#if vs.blackout}<span class="tag blackTag">BLACKOUT</span>{/if}
     </div>
@@ -1009,6 +1018,8 @@
   .bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding: 10px 14px; flex-wrap: wrap; }
   .panic { font-weight: 700; letter-spacing: .04em; font-size: 11px; padding: 7px 8px; color: #ffb84d; border-color: rgba(255,184,77,.45); }
   .panic:hover { background: rgba(255,184,77,.15); }
+  .crop916 { position: absolute; border: 2px solid #22d3ee; box-shadow: 0 0 0 9999px rgba(0, 0, 0, .45); pointer-events: none; border-radius: 4px; }
+  .crop916 b { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #22d3ee; letter-spacing: .1em; }
   .recDot { color: #ff3b3b; font-size: 11px; animation: recblink 1s steps(2, start) infinite; }
   @keyframes recblink { to { visibility: hidden; } }
   .stagedTag { color: #062a30; background: #22d3ee; padding: 2px 8px; border-radius: 6px; font-weight: 800; letter-spacing: .06em; }
