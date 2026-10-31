@@ -8,6 +8,8 @@ const KEY = 'doublek.token'; // sessionStorage: fechou a aba, esqueceu
 let token = null;
 try { token = sessionStorage.getItem(KEY); } catch {}
 let state = {}, fails = 0, polling = false, blockedUntil = 0;
+const held = {}; // toggle tocado agora: o otimista vale 1,2 s (um /state que já estava a caminho não desfaz)
+let toggleQ = Promise.resolve(); // toggles em fila: dois toques rápidos chegam no app na ordem certa
 
 function saveToken(t) {
   token = t;
@@ -106,7 +108,9 @@ function buttons(box, n, fill) {
 }
 
 function render(s) {
-  state = s || {};
+  s = s || {};
+  for (const k of ['blackout', 'logoOnly']) if (Date.now() < (held[k] || 0)) s[k] = state[k];
+  state = s;
   $('bpm').textContent = typeof s.bpm === 'number' ? s.bpm.toFixed(1) : '---.-';
   $('music').textContent = s.music || '';
   $('drop').classList.toggle('on', !!s.drop);
@@ -153,7 +157,12 @@ $('ctl').addEventListener('click', async (e) => {
   if (!b || b.disabled) return;
   if (b.id === 'blackout' || b.id === 'logo') {
     const key = b.id === 'blackout' ? 'blackout' : 'logoOnly', on = !state[key];
-    if (await send(P + b.id, [bool(on)], b)) { state[key] = on; b.classList.toggle('on', on); } // o próximo /state confirma
+    // otimista já no toque (2º toque rápido lê o valor novo); volta se não chegou
+    state[key] = on;
+    held[key] = Date.now() + 1200;
+    b.classList.toggle('on', on);
+    const ok = await (toggleQ = toggleQ.then(() => send(P + b.id, [bool(on)], b)));
+    if (!ok) { state[key] = !on; held[key] = 0; b.classList.toggle('on', !on); }
     return;
   }
   if (b.dataset.addr) send(b.dataset.addr, b.dataset.arg ? [{ t: 'i', v: +b.dataset.arg }] : [], b);
