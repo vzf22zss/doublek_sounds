@@ -522,8 +522,11 @@
     clearTimeout(remoteWarnT);
     remoteWarnT = setTimeout(() => (remoteWarn = false), 3000) as unknown as number;
     const r = oscToCommand(e.payload.addr, e.payload.args);
-    if ('cmd' in r) dispatch(r.cmd, 'remote');
-    else netErr(`Celular (${e.payload.client}): ${r.error}`);
+    if ('cmd' in r) {
+      dispatch(r.cmd, 'remote');
+      // o /state já sai com o efeito do comando: sem isso o celular lê o valor velho por até 1 s (toggle "piscava")
+      invoke('remote_set_state', { state: remoteState() });
+    } else netErr(`Celular (${e.payload.client}): ${r.error}`);
   });
   onEvent<string>('remote-paired', (e) => {
     pairCode = null; // o código é de uso único
