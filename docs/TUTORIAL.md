@@ -757,6 +757,17 @@ valor inválido, que também aparecem no diário do Diagnóstico). Comando por O
 automação do Intelligent Show (é tratado como outro programa, não como a sua mão); PÂNICO e
 BLACKOUT por OSC têm a mesma prioridade de sempre.
 
+### Celular na mesma rede (prévia)
+
+Na aba **Saída**, abaixo do OSC, a seção **Celular (rede)** liga um servidor local protegido por
+código: clique em **Ligar**, depois em **Mostrar código** e digite os 6 dígitos no celular, no
+endereço que aparece (`http://IP-do-notebook:8008`). O código vale 2 minutos e uma vez só; depois
+de 5 tentativas erradas o pareamento trava por 1 minuto. **Desconectar todos** derruba os
+celulares na hora, e fechar o app também. Enquanto alguém comanda pelo celular, um aviso laranja
+aparece no rodapé. A rede local não é criptografada: use só em Wi-Fi seu. Nesta versão a página
+do celular ainda só confirma o pareamento; os botões (cenas, macros, blackout, PÂNICO, TAP) chegam
+na 0.3.7. Detalhes de segurança em [docs/REMOTO.md](REMOTO.md).
+
 ## 18. Atalhos do teclado
 
 | Tecla | Ação |
