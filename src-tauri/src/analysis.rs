@@ -246,6 +246,7 @@ pub struct Analyzer {
     sub_over: bool,
     no_click: bool, // o cruzamento atual do sub foi recusado só por falta de click
     pend: Vec<(f64, f32)>, // candidatos com click acumulando o punch (30 ms) para a fase da grade
+    orphans: Vec<f64>,     // candidatos com click recusados fora da grade desde o último kick aceito
     last_click: f64,
     last_soft_click: f64, // click mais fraco, só vale no beat previsto
     last_kick: f64,
@@ -258,6 +259,8 @@ pub struct Analyzer {
     low_lvl: f32, // grave (sub+bass) suavizado
     low_ref: f32, // maior grave recente, decai em ~1 min
     low_on: bool,
+    last_low: f64,   // último hop com grave (low_on)
+    last_quiet: f64, // último hop em silêncio digital
     pub beat: Beat,
     trend: Trend,
     ring: Vec<f32>,
@@ -290,6 +293,7 @@ impl Analyzer {
             sub_over: false,
             no_click: false,
             pend: vec![],
+            orphans: vec![],
             last_click: -1.0,
             last_soft_click: -1.0,
             last_kick: -1.0,
@@ -302,6 +306,8 @@ impl Analyzer {
             low_lvl: 0.0,
             low_ref: 1e-4,
             low_on: false,
+            last_low: 0.0,
+            last_quiet: 0.0,
             beat: Beat::default(),
             trend: Trend::default(),
             ring: vec![0.0; FFT],
@@ -361,7 +367,11 @@ impl Analyzer {
         self.low_lvl += (r - self.low_lvl) * (1.0 - (-dt / 0.25).exp());
         self.low_ref = self.low_lvl.max(self.low_ref * (-dt / 60.0).exp()).max(1e-4);
         let ratio = self.low_lvl / self.low_ref;
+        let had_low = self.last_low; // antes deste hop: o grave do kick atual ainda não subiu
         self.low_on = self.rms >= p.gate && ratio > if self.low_on { 0.7 * p.drop_thr } else { p.drop_thr };
+        if self.low_on {
+            self.last_low = t;
+        }
 
         let e = (self.rms + ms[2].sqrt() + ms[4].sqrt()) / 3.0;
         self.trend.step(t, dt, e, self.rms < p.gate, &self.beat);
@@ -406,7 +416,13 @@ impl Analyzer {
         }
 
         let (lo, hi) = (p.bpm_min.min(p.bpm_max) as f64, p.bpm_min.max(p.bpm_max) as f64);
-        if !rising || pk < p.gate || t - self.last_kick < 0.6 * 60.0 / hi {
+        // depois de silêncio digital (zeros, não só baixo: −20 dB fica abaixo do gate entre kicks), o
+        // próprio ruído de fundo voltando sobe dezenas de vezes e tem
+        // "click": não é kick (e roubaria o refratário do kick de verdade logo depois)
+        if self.rms < 1e-5 {
+            self.last_quiet = t;
+        }
+        if !rising || pk < p.gate || t - self.last_kick < 0.6 * 60.0 / hi || t - self.last_quiet < 0.02 {
             return None;
         }
         let click_ok = !p.need_click || click_now;
@@ -419,13 +435,52 @@ impl Analyzer {
         };
         if !accept {
             self.no_click = !click_ok;
+            if grid == Some(false) && click_ok && p.need_click {
+                self.orphan(t);
+            }
             return None;
         }
         self.no_click = false;
+        self.orphans.clear();
+        // fase pulou: kick forte fora da grade depois de ≥ 1 compasso sem kick ou sem grave
+        // (pausa, corte; um falso no ruído da pausa não liga o grave)
+        let gap = 4.0 * self.beat.period;
+        if grid == Some(false) && (t - self.last_kick > gap || t - had_low > gap) {
+            self.beat.jump(t); // fase pulou depois de pausa/corte (P8)
+        }
         self.last_kick = t;
         self.trend.kicks.push_back(t);
         self.beat.on_kick(t, lo, hi, p.lock);
         Some((0.5 + (ds / thr - 1.0) * 0.5).clamp(0.3, 1.0))
+    }
+
+    /// Pausa e a faixa voltou com outra fase (ou corte em que o kick volta defasado): a grade
+    /// travada segura até 30 s (`HOLD`, feito para o breakdown) e os kicks novos, fora dela, são
+    /// recusados. Se há grave tocando, nenhum kick aceito há mais de 1 compasso e ≥ 3
+    /// candidatos com click recusados fora da grade com espaçamento de beats inteiros, a grade
+    /// não explica mais a música: recomeça a partir desses candidatos. No groove há kick aceito
+    /// a cada beat e no breakdown não há grave nem candidato, então nenhum dos dois dispara.
+    fn orphan(&mut self, t: f64) {
+        let p = self.beat.period;
+        if !self.beat.locked || p <= 0.0 {
+            return;
+        }
+        self.orphans.retain(|&o| o > t - 8.0 * p);
+        if self.orphans.last().is_some_and(|&o| t - o < 0.25 * p) {
+            return; // o mesmo kick pode virar candidato 2× (borda + click que chegou depois)
+        }
+        self.orphans.push(t);
+        if !self.low_on || t - self.last_kick < 4.0 * p || self.orphans.len() < 3 {
+            return;
+        }
+        let regular = self.orphans.windows(2).filter(|w| {
+            let x = (w[1] - w[0]) / p;
+            x.round() >= 1.0 && (x - x.round()).abs() < 0.12
+        });
+        if regular.count() * 4 >= (self.orphans.len() - 1) * 3 {
+            let ks = std::mem::take(&mut self.orphans);
+            self.beat.restart(&ks);
+        }
     }
 
     /// Estado atual para a UI/render (inclui espectro de 64 faixas log, 30 Hz–16 kHz).
@@ -724,6 +779,42 @@ mod tests {
         let pre = f.iter().find(|(t, _)| *t > 19.0).unwrap().1.contrast;
         let reset = f.iter().filter(|(t, _)| (21.5..23.0).contains(t)).all(|(_, f)| f.contrast == 1.0);
         assert!(pre > 0.0 && reset, "silêncio não zerou o contraste");
+    }
+
+    /// P8: pausa de 3 s (silêncio digital ou só ruído de fundo) e a mesma faixa voltando com
+    /// outra fase. A grade velha segurava até 30 s e os kicks novos, fora dela, eram recusados
+    /// (recall ~0 nos 20 s seguintes). Agora a grade pula para o kick forte fora dela ou recomeça
+    /// pelos candidatos recusados (DETECCAO.md §4.9).
+    #[test]
+    fn pausa_e_faixa_defasada() {
+        for noisy in [false, true] {
+            let mut x = Synth { bpm: 148.0, secs: 20.0, ..Default::default() }.render().0;
+            if noisy {
+                x.extend(Synth { bpm: 148.0, secs: 3.0, start: 99.0, seed: 3, ..Default::default() }.render().0);
+            } else {
+                x.extend(vec![0.0; 3 * 48000]);
+            }
+            let (b, truth) = Synth { bpm: 148.0, secs: 20.0, seed: 2, ..Default::default() }.render();
+            x.extend(b);
+            let truth: Vec<f64> = truth.iter().map(|t| t + 23.0).collect();
+            let mut an = Analyzer::new(48000.0);
+            let p = Params { bpm_min: 135.0, bpm_max: 150.0, ..Default::default() };
+            let (mut det, mut relock) = (vec![], None);
+            for (i, c) in x.chunks_exact(HOP).enumerate() {
+                let t = (i + 1) as f64 * HOP as f64 / 48000.0;
+                if an.process(c, &p).is_some() && t > 23.0 {
+                    det.push(t);
+                }
+                let fase = (truth[0] - an.beat.anchor) / an.beat.period;
+                if t > 23.0 && relock.is_none() && an.beat.locked && (fase - fase.round()).abs() < 0.15 {
+                    relock = Some(t - 23.0);
+                }
+            }
+            let recall = truth.iter().filter(|&&k| det.iter().any(|&d| (d - k).abs() < 0.03)).count() as f64 / truth.len() as f64;
+            println!("pausa (ruído {noisy}): recall {recall:.2}, re-trava {relock:?}");
+            assert!(recall >= 0.9, "ruído {noisy}: recall {recall:.2}");
+            assert!(relock.is_some_and(|r| r <= 4.0), "ruído {noisy}: re-trava {relock:?}");
+        }
     }
 
     #[test]

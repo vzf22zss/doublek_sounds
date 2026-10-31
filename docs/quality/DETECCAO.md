@@ -43,9 +43,9 @@ A saída é Markdown; cole-a na seção 3 deste arquivo ao regenerar. O bench é
 
 **Estresse** (desde DK-009, última tabela): os cenários limpo, baixo rolante, breakdown e ruído alto, mais **chimbal no contratempo** (`hats` = 0,15: ruído agudo de 30 ms a meio beat, junto com a 2ª nota do baixo) e chimbal + breakdown, cada um com 10 sementes × 7 BPM na faixa do gênero. Agrega precisão/recall, soma quedas de trava e grades no contratempo, e lista as faixas com problema como BPM/semente (reproduzir com `Synth { bpm, seed, .. }`).
 
-## 3. Resultados (gerado em 2026-10-30, `feat/dk-031-indicadores`)
+## 3. Resultados (gerado em 2026-10-30, `feat/dk-009-p8`)
 
-Depois das tabelas de detecção vêm o **estresse** (10 sementes × 7 BPM por cenário), os **indicadores de energia** (DK-031, seção 9) e o custo do `Analyzer::process`.
+Depois das tabelas de detecção vêm o **estresse** (10 sementes × 7 BPM por cenário), os **indicadores de energia** (DK-031, seção 9), a **pausa + faixa defasada** (P8, 4.9) e o custo do `Analyzer::process`.
 
 <!-- gerado por `cargo run --release --example bench` (src-tauri); faixas de 30 s a 48 kHz, HOP 256, janela ±30 ms, medido após 3 s -->
 
@@ -170,7 +170,26 @@ Nenhum.
 | 200 | Hi-tech | 1.01 | 1.40 | 3.5–4.0 | 0.0 | 0.83 |
 | 220 | Hi-tech | 1.01 | 1.40 | 3.5–4.0 | 0.0 | 0.92 |
 
-Custo do `Analyzer::process`: **3.44 µs por hop** (mínimo de 7 passadas; o hop dura 5333 µs a 48 kHz).
+### Pausa de 3 s + mesma faixa defasada (faixa do gênero)
+
+| BPM | Pausa | Recall nos 20 s depois | Re-trava na fase nova | Fase final (beats) |
+|---:|---|---:|---:|---:|
+| 135 | silêncio digital | 0.93 | 1.4 s | 0.02 |
+| 135 | ruído de fundo | 0.89 | 2.3 s | 0.02 |
+| 140 | silêncio digital | 1.00 | 0.1 s | 0.02 |
+| 140 | ruído de fundo | 1.00 | 0.1 s | 0.02 |
+| 148 | silêncio digital | 1.00 | 0.1 s | 0.03 |
+| 148 | ruído de fundo | 1.00 | 0.1 s | 0.03 |
+| 160 | silêncio digital | 0.92 | 1.6 s | 0.02 |
+| 160 | ruído de fundo | 1.00 | 0.1 s | 0.02 |
+| 175 | silêncio digital | 1.00 | 0.0 s | 0.02 |
+| 175 | ruído de fundo | 0.98 | 0.0 s | 0.02 |
+| 200 | silêncio digital | 0.89 | 2.2 s | 0.04 |
+| 200 | ruído de fundo | 1.00 | 0.1 s | 0.04 |
+| 220 | silêncio digital | 0.96 | 0.9 s | 0.02 |
+| 220 | ruído de fundo | 1.00 | 0.1 s | 0.02 |
+
+Custo do `Analyzer::process`: **7.26 µs por hop** (mínimo de 7 passadas; o hop dura 5333 µs a 48 kHz).
 
 ## 4. Leitura dos resultados e casos degradados
 
@@ -257,9 +276,23 @@ Limite: com o kick a ≤ 0,3 do volume (≈ −10 dB do padrão) ele **nem é de
 - **Ruído alto — conhecido:** 160/s7 e 175/s5 com recall 0,94 (4 kicks perdidos em ~70, isolados, sem padrão). É o limite do click suave de P1 a 0,75×; 0,6× ganharia um pouco (4.1). Não corrigido.
 - **Breakdown com o detector original:** com 10 sementes já havia falsos no breakdown (precisão 0,998); a semente 1 do bench mostrava 0.
 
-### 4.9. Pausa e faixa nova no mesmo andamento: kicks ignorados até 30 s (achado em DK-031, não corrigido)
+### 4.9. Pausa e faixa nova no mesmo andamento: kicks ignorados até 30 s — **resolvido em DK-009 (P8)**
 
-Medido ao testar o reset dos indicadores: 20 s de groove a 148 BPM, 3 s de silêncio digital (ou só ruído de fundo), outra faixa a 148 BPM com outra fase. A grade velha continua travada (`HOLD` = 30 s, feito para segurar breakdowns) e os kicks novos caem fora dela, onde precisam de `click && strong`: **1 de 49 kicks detectado** em 20 s, BPM e fase presos na faixa velha. **Já existia no detector do DK-008** (mesmo resultado); não é regressão de DK-009/031. No show: troca de faixa com pausa ou corte em que o kick volta defasado. Os indicadores novos denunciam o estado (kicks/compasso ≈ 0 com grave tocando e grade travada). Proposta P8.
+Cenário (tabela "Pausa de 3 s + mesma faixa defasada"): 20 s de groove, 3 s de silêncio digital **ou** só ruído de fundo, a mesma faixa voltando com outra fase. A grade velha segurava a trava (`HOLD` = 30 s, feito para o breakdown) e os kicks novos, fora dela, precisavam de `click && strong`: recall **0,00–0,08** nos 20 s seguintes, sem re-travar (a exceção, 175 BPM, é a fase nova coincidindo por acaso com a velha). Já existia no detector do DK-008.
+
+**Traços** (148 e 200 BPM): (1) o 1º kick depois da pausa sobe ~14 e infla o limiar fora da grade de ~3,1 para ~4,1 por ~2 s — os kicks seguintes, sob o baixo, sobem ~2,8 e nem viram candidatos; (2) no ruído da pausa, um falso **na** grade (ruído + click suave de P1) conta como "último kick"; (3) depois de silêncio digital, o próprio ruído de fundo voltando sobe dezenas de vezes, tem "click" e vira kick, pondo o kick real no refratário; (4) cada kick pode virar 2 candidatos a ~10 ms (borda + click que chegou depois).
+
+**Correção (P8):**
+
+- **Salto de fase:** kick forte aceito fora da grade depois de ≥ 1 compasso sem kick **ou sem grave** (o falso no ruído não liga o grave) → âncora nele, mesmo período, trava mantida, janela recomeça (`Beat::jump`).
+- **Recomeço pelos órfãos:** com grave, sem kick aceito há > 1 compasso e ≥ 3 candidatos com click recusados fora da grade (sem duplicatas a < 1/4 de beat), espaçados em beats inteiros → solta e semeia a janela com eles (`Beat::restart`); a 1ª janela limpa com 4 kicks já trava.
+- **Silêncio digital:** 20 ms depois de um hop com rms < 1e-5 não há candidato. (Com "abaixo do gate" o cenário −20 dB quebrava: fica abaixo do gate entre os kicks.)
+
+**Resultado:** recall **0,89–1,00** e re-trava **0,0–2,3 s** em todos os 14 casos (meta: ≥ 0,9 e ≤ 4 s; 135/ruído e 200/silêncio ficam em 0,89). Tabelas principais, estresse e indicadores idênticos; estresse avulso hostil (chimbal 0,3–0,6 × ruído × breakdown) idêntico. Teste `pausa_e_faixa_defasada` (falha sem P8: recall 0,02).
+
+**Descartado:** limitar a subida que alimenta o limiar adaptativo (2× ou 3× o limiar) — mudava 32–46 linhas do bench sem fechar a pausa. "2 beats sem kick" em vez de 1 compasso nos órfãos levaria 135/ruído a 0,91, mas no estresse hostil (chimbal 0,6 + ruído + breakdown) quedas 0 → 2 e falsos 65 → 84.
+
+**Risco:** um impacto forte fora do tempo (FX com sub e click) logo depois de breakdown move a grade; os órfãos a trazem de volta em ~1 compasso + 3 kicks. NÃO VERIFICADO com música real.
 
 ## 5. Latência captura → evento (conta analítica)
 
@@ -296,7 +329,7 @@ Soma do que é conhecido ou estimado por software: **≈ 14–28 ms** entre o ki
 | P4 | 4.4 ½ Auto | **Feito em DK-009** (seção 8): testa p/2 quando cabe na faixa e fica com ela se explicar mais kicks | em Auto, música real a 80–110 BPM com falsos no contratempo poderia dobrar; o teste cobre 90 e 100 BPM limpos |
 | P6 | 4.6 troca de música | **Medido duas vezes, não entrou** (4.6): soltar a trava quando, em 2 s, recusados com click ≥ 4 e > 2× aceitos; re-trava 7,26 → 4,51 s, mas com chimbal + ruído + breakdown 22 quedas e 3× os falsos; ignorando o contratempo, não ajuda mais (7,94 s) | precisa de um sinal de "fase deslizando" que o ruído não imite |
 | P7 | 4.7 contratempo | **Feito em DK-009** (seção 8): escolhe a fase da grade pelo punch (banda de 160 Hz, 30 ms) dos candidatos com click | baixo real com muito médio-grave pode ter punch de kick; kick ≤ −10 dB não é detectado |
-| P8 | 4.9 pausa + faixa defasada | Soltar a trava (ou abaixar a exigência fora da grade) quando há grave tocando (`low`) e candidatos com click consistentes fora da grade por ~2 compassos sem nenhum kick aceito; ou zerar a grade depois de ≥ 1 s de silêncio | o breakdown com pad e sem kick não pode soltar (P3); fill de kick fora da grade |
+| P8 | 4.9 pausa + faixa defasada | **Feito em DK-009** (4.9): salto de fase no kick forte fora da grade depois de ≥ 1 compasso sem kick/grave; recomeço pelos órfãos; nada de candidato 20 ms depois de silêncio digital | impacto forte fora do tempo depois do breakdown move a grade por ~1 compasso |
 | P5 | drift/real | Gravar 3–4 trechos reais (line-in e mic) rotulados no Rekordbox e acrescentar ao bench como fixtures opcionais (`examples/analyze` já lê mp3/wav) | tamanho do repo; licença das faixas (DEC-01) |
 
 **Limites de regressão propostos** a partir destes dados (para o CI, quando o bench entrar como teste): tabela principal sem nenhum caso fora da meta (precisão ≥ 0,98, recall ≥ 0,95, erro ≤ 0,2 BPM, nenhum ½/×2, nenhuma queda de trava). Estresse: zero quedas de trava e zero grades no contratempo em todos os cenários; precisão ≥ 0,998; recall ≥ 0,98 por cenário (ruído alto tem 2 faixas a 0,94, conhecidas).
@@ -384,6 +417,20 @@ Troca de música igual (7,26 s); P3 (`drop_breakdown`) verde.
 ### P6 — medido duas vezes, não entrou
 
 Re-trava na troca 148 → 175: 7,26 → 4,51 s com bench e estresse idênticos, mas reprovado na guarda com chimbal + ruído + breakdown (22 quedas, 3× os falsos); a versão que passa na guarda não ajuda (7,94 s). Detalhes em 4.6.
+
+### P8 — pausa e faixa defasada (`f666235`)
+
+| BPM | Pausa | Recall antes → depois | Re-trava antes → depois |
+|---:|---|---|---|
+| 135 | silêncio / ruído | 0,00 / 0,00 → 0,93 / 0,89 | não → 1,4 / 2,3 s |
+| 140 | silêncio / ruído | 0,00 / 0,02 → 1,00 / 1,00 | não → 0,1 / 0,1 s |
+| 148 | silêncio / ruído | 0,00 / 0,02 → 1,00 / 1,00 | não → 0,1 / 0,1 s |
+| 160 | silêncio / ruído | 0,04 / 0,06 → 0,92 / 1,00 | não → 1,6 / 0,1 s |
+| 175 | silêncio / ruído | 0,00 / 0,98 → 1,00 / 0,98 | (fase coincidia) |
+| 200 | silêncio / ruído | 0,00 / 0,02 → 0,89 / 1,00 | não → 2,2 / 0,1 s |
+| 220 | silêncio / ruído | 0,07 / 0,08 → 0,96 / 1,00 | não → 0,9 / 0,1 s |
+
+Tabelas principais, estresse e indicadores idênticos.
 
 ## 9. Indicadores de energia musical (DK-031)
 

@@ -20,6 +20,7 @@ pub struct Beat {
     last: f64,
     count: i64, // mantém o índice do beat contínuo quando a âncora muda
     fixed: bool, // grade vinda da análise do arquivo: os kicks não mexem nela
+    fresh: bool, // recomeçou a partir de kicks já conferidos (restart): trava com 4 limpos
     pub jitter: f64, // desvio (s) dos kicks em torno da grade no último ajuste
     scored: VecDeque<(f64, f32)>, // candidatos com click (aceitos ou não): instante e punch
 }
@@ -38,6 +39,7 @@ impl Beat {
             return;
         }
         let ks = self.kicks.make_contiguous();
+        let n_all = ks.len();
         // primeiro tenta manter o andamento atual; se a música mudou, recomeça pela mediana
         let tries = [(self.period > 0.0).then_some(self.period), median_ioi(ks, lo, hi)];
         for p0 in tries.into_iter().flatten() {
@@ -77,7 +79,9 @@ impl Beat {
                     (x - x.round()).abs() < TOL
                 };
                 self.rebase(a, p);
-                self.locked = same || (n >= 6 && sd < 0.035 * p);
+                let fresh = self.fresh && n == n_all && n >= 4 && sd < 0.035 * p;
+                self.locked = same || fresh || (n >= 6 && sd < 0.035 * p);
+                self.fresh &= !self.locked;
                 self.jitter = sd;
                 return;
             }
@@ -180,6 +184,30 @@ impl Beat {
 
     pub fn nudge(&mut self, dt: f64) {
         self.anchor += dt;
+    }
+
+    /// Kick forte fora da grade depois de ≥ 1 compasso sem nenhum kick (pausa, corte): a fase
+    /// pulou. A grade passa a ter âncora nele, com o mesmo período e a trava mantida; a janela do
+    /// ajuste recomeça (os kicks velhos estão na fase velha).
+    pub fn jump(&mut self, t: f64) {
+        if self.fixed || !self.locked || self.period <= 0.0 {
+            return;
+        }
+        self.rebase(t, self.period);
+        self.kicks.clear();
+        self.scored.clear();
+    }
+
+    /// A grade travada não explica mais os kicks (ex.: pausa e a faixa voltou com outra fase):
+    /// solta a trava e recomeça a janela com os kicks que ela recusava. O período fica.
+    pub fn restart(&mut self, kicks: &[f64]) {
+        if self.fixed {
+            return;
+        }
+        self.locked = false;
+        self.fresh = true;
+        self.kicks = kicks.iter().copied().collect();
+        self.scored.clear();
     }
 
     pub fn scale_tempo(&mut self, factor: f64) {
