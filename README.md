@@ -35,14 +35,18 @@ Feito para psytrance, dark/forest e hi-tech (135–220 BPM).
   separado do **BLACKOUT**, limite de **3 flashes/s** ligado por padrão.
 - **Intelligent Show:** o app estima o momento da música (breakdown, build-up, groove, drop)
   e mostra num chip com a confiança; em **Assistido** mexe em rampas e dispara a macro Drop,
-  em **Automático** pode trocar cena no compasso. Comando manual pausa a automação por 8 s;
-  roteiro tocando tem precedência. Abre sempre em **Manual**.
+  em **Automático** pode trocar cena no compasso, seguindo um **mapa de automação** editável
+  (regras, tetos por momento, cena do drop e do groove). Comando manual pausa a automação por
+  8 s; roteiro tocando tem precedência. Abre sempre em **Manual**.
 - **Camadas:** os módulos do Psy Engine, o rastro e o glitch têm ordem, opacidade, modo de
   mistura (normal, somar, tela, multiplicar) e solo; entram nas cenas e aprendem no MIDI.
 - **OSC (rede):** ligue na aba Saída e controle tudo por `/doublek/v1/...` a partir do
   TouchOSC, Pd ou Max (`docs/OSC.md`).
-- **Celular (prévia):** servidor local desligado por padrão, pareado por código de 6 dígitos
-  (`docs/REMOTO.md`); a tela com os botões chega na 0.3.7.
+- **Celular na mesma rede:** pads, bancos, macros, BLACKOUT, TAP, sliders e PÂNICO pelo
+  navegador do celular, sem instalar nada; servidor desligado por padrão e pareado por código
+  de 6 dígitos (`docs/REMOTO.md`).
+- **Gravar o telão:** grava em MP4 (sem som) o que está sendo projetado, para postar depois.
+- **Presets compartilháveis:** exporte e importe `.doublekpreset` no Catálogo (`docs/PRESETS.md`).
 - **Teclado e MIDI completos:** todo comando de show tem atalho e id de MIDI learn.
 - **Show Pack (`.doublekshow`):** salva e abre o show inteiro (cenas, bancos, roteiros, logo,
   foto, vídeos, MIDI) com backup automático antes de substituir.

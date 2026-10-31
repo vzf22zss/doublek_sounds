@@ -447,6 +447,18 @@ limpa, e no drop os efeitos entram.
 
 ---
 
+### Gravar o telão
+
+Na aba **Saída**, seção **Gravação**, o app grava exatamente o que o telão está mostrando (sem
+som), para postar depois. Escolha a qualidade (**Leve**, **Média** ou **Alta**) e 30 ou 60 quadros
+por segundo e clique em **Gravar** (precisa do telão aberto). Enquanto grava, a seção mostra
+`● REC` com o tempo e o tamanho, e uma bolinha vermelha pisca no rodapé. **Parar** fecha o
+arquivo; **Abrir pasta das gravações** mostra onde ficou (um `.mp4` com data e hora no nome, que
+abre em qualquer player). Se a gravação pesar no telão, o app avisa para baixar para 30 fps ou
+Leve; se algo der errado (disco cheio, telão fechado), a gravação para com uma mensagem e **o
+telão continua normal**. A gravação para sozinha em 4 GB ou se o disco ficar com menos de 1 GB
+livre. Apague as gravações antigas de vez em quando: o app não apaga nada sozinho.
+
 ## 14. Acertar o atraso do projetor (offset)
 
 Todo projetor atrasa a imagem (30 a 80 ms é comum). Se nada for feito, o pulso parece
@@ -502,7 +514,19 @@ atual (pergunta antes se ele tem cenas). Duplo clique no nome do banco para reno
 **[** e **]** trocam de banco; com o MIDI learn ligado, clique em ‹ ou › e mexa num botão do
 controlador para trocar de banco pelo MIDI. Os pads 1–8, as teclas 1–8, os botões MIDI já
 aprendidos e os pontos de cena do roteiro agem sempre no **banco que está aberto**. Quem já
-tinha cenas encontra todas no banco 1, "Principal".
+tinha cenas encontra todas no banco 1, "Principal". Ao apagar um banco, os pontos de roteiro e
+o mapa de automação que apontavam para os bancos seguintes são renumerados sozinhos; os que
+apontavam para o banco apagado passam a usar o banco aberto (roteiro) ou "nenhuma" (automação),
+e a confirmação avisa quantos são.
+
+### Catálogo e presets compartilhados
+
+O botão **Catálogo** lista os 23 presets de fábrica por estilo: **Aplicar agora** muda o visual,
+**Gravar no pad** guarda num pad. Para trocar presets com outros DJs, **Exportar preset** salva o
+visual atual num arquivo `.doublekpreset` (pequeno, só os ajustes: sem logo, foto nem vídeo) e
+**Importar preset** traz um arquivo desses para a seção **Importados** do Catálogo (até 100;
+**Apagar** remove um importado). Arquivos que não são preset, ou de uma versão mais nova do app,
+são recusados com o motivo. O formato está em [docs/PRESETS.md](PRESETS.md).
 
 ### Preview e TAKE
 
@@ -535,7 +559,10 @@ confiança: **BREAK** (sem grave), **BUILD** (energia subindo, grave ainda fora)
 (grave presente e estável), **DROP** (o grave acabou de voltar depois de um breakdown) ou **—**
 quando o app não tem certeza (começo, silêncio, sem BPM). É uma estimativa pelo sinal: o drop
 aparece no chip **depois** que ele acontece, nunca antes, e um breakdown mais curto que dois
-compassos não conta como breakdown.
+compassos não conta como breakdown. Se aparecer **GRADE?**, o app ouve grave mas nenhum kick cai
+no tempo que ele tinha travado (típico depois de trocar de faixa com uma pausa): a automação fica
+parada até os kicks voltarem a bater; um **TAP** (Espaço) no tempo novo resolve na hora. Clicar no
+chip (ou a tecla **A**) alterna o modo.
 
 Ao lado, o seletor **Manual / Assistido / Automático** decide o que o app faz com isso:
 
@@ -543,8 +570,14 @@ Ao lado, o seletor **Manual / Assistido / Automático** decide o que o app faz c
 - **Assistido:** no breakdown as rampas baixam rastro, anéis e zoom aos poucos; no build-up
   sobem por 16 beats; no drop dispara a macro **Drop** (respeitando o limite de flashes).
   Nunca troca cena, banco nem vídeo.
-- **Automático:** tudo do Assistido e, se houver cenas marcadas para drop/groove no mapa de
-  automação (por enquanto só por arquivo; a tela vem depois), troca de cena no compasso.
+- **Automático:** tudo do Assistido e, se houver cena marcada para o drop ou para o groove no
+  mapa de automação, chama essa cena (abrindo o banco dela) no compasso.
+
+**Mapa de automação:** no topo da aba **Efeitos**, abra **Mapa de automação**. Ali dá para
+desligar cada regra (breakdown, build-up, drop, groove), escolher até onde as rampas levam
+rastro, anéis, zoom do fundo e aberração em cada momento (duplo clique volta ao padrão) e
+escolher a cena do drop e a do groove (banco e pad, ou "nenhuma"). Mexer no mapa não pausa a
+automação. O mapa fica salvo neste computador e ainda não vai junto no Show Pack.
 
 Regras que valem sempre: **qualquer comando seu** (pad, knob, tecla, MIDI) pausa a automação por
 8 segundos (o Diagnóstico mostra quanto falta); com um **roteiro tocando**, o roteiro manda e a
@@ -757,16 +790,27 @@ valor inválido, que também aparecem no diário do Diagnóstico). Comando por O
 automação do Intelligent Show (é tratado como outro programa, não como a sua mão); PÂNICO e
 BLACKOUT por OSC têm a mesma prioridade de sempre.
 
-### Celular na mesma rede (prévia)
+### Celular na mesma rede
 
-Na aba **Saída**, abaixo do OSC, a seção **Celular (rede)** liga um servidor local protegido por
-código: clique em **Ligar**, depois em **Mostrar código** e digite os 6 dígitos no celular, no
-endereço que aparece (`http://IP-do-notebook:8008`). O código vale 2 minutos e uma vez só; depois
-de 5 tentativas erradas o pareamento trava por 1 minuto. **Desconectar todos** derruba os
-celulares na hora, e fechar o app também. Enquanto alguém comanda pelo celular, um aviso laranja
-aparece no rodapé. A rede local não é criptografada: use só em Wi-Fi seu. Nesta versão a página
-do celular ainda só confirma o pareamento; os botões (cenas, macros, blackout, PÂNICO, TAP) chegam
-na 0.3.7. Detalhes de segurança em [docs/REMOTO.md](REMOTO.md).
+Dá para comandar o show pelo celular, sem instalar nada: na aba **Saída**, seção **Celular
+(rede)**, marque **Abrir para a rede local**, clique em **Ligar** e depois em **Mostrar código**.
+No celular (no mesmo Wi-Fi), abra o endereço que aparece (`http://IP-do-notebook:8008`) e digite
+os 6 dígitos. O código vale 2 minutos e uma vez só; depois de 5 tentativas erradas o pareamento
+trava por 1 minuto.
+
+| ![Celular em pé](img/celular-retrato.png) | ![Celular deitado](img/celular-paisagem.png) |
+|---|---|
+
+A tela do celular mostra o BPM, o estado da música e o DROP, e tem: os bancos e os 8 pads com os
+nomes das cenas (o pad aceso é a cena no telão), **BLACKOUT** e **SÓ LOGO**, as 4 macros, **TAP**
+e ajuste de fase (◀ ▶), quatro sliders (pulso, glow, flash, rastro) e o **PÂNICO**, grande e
+separado. Se o celular perder o app (Wi-Fi caiu, app fechado), aparece uma faixa "sem conexão" e
+os botões ficam desligados até voltar; o show no notebook continua normal.
+
+**Desconectar todos** derruba os celulares na hora, e fechar o app também. Enquanto alguém
+comanda pelo celular, um aviso laranja aparece no rodapé. A rede local não é criptografada: use
+só em Wi-Fi seu. O Windows pode perguntar sobre o firewall na primeira vez. Detalhes de
+segurança em [docs/REMOTO.md](REMOTO.md).
 
 ## 18. Atalhos do teclado
 
