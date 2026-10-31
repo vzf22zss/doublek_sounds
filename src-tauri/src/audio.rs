@@ -2,6 +2,7 @@
 //! O callback de áudio só copia amostras; toda a análise roda fora dele.
 
 use crate::analysis::{Analyzer, BeatCmd, Frame, Params, HOP};
+use crate::midi::{self, MidiClock};
 use crate::track::Track;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, Sample, SizedSample};
@@ -186,10 +187,12 @@ where
 
 /// Roda até `stop`. Se a interface for desplugada, tenta reabrir a cada 1 s.
 /// `channel`: 0 = soma dos canais, 1..n = só aquele canal.
+/// `clock`: MIDI Clock; enquanto chegar pulso, ele manda no andamento (e na fase, depois de Start).
 pub fn run(
     device: Option<String>,
     channel: usize,
     params: Arc<Mutex<Params>>,
+    clock: Arc<Mutex<MidiClock>>,
     cmds: Receiver<BeatCmd>,
     stop: Arc<AtomicBool>,
     mut emit: impl FnMut(Msg) -> bool,
@@ -214,6 +217,11 @@ pub fn run(
                         an.command(c);
                     }
                     let p = *params.lock().unwrap();
+                    // relógio do MIDI → tempo da análise (o fim deste hop ≈ agora; a latência da
+                    // entrada fica para o offset visual, como no resto)
+                    let now = midi::now();
+                    let hop_end = an.time() + HOP as f64 / sr as f64;
+                    an.ext = clock.lock().ok().and_then(|c| c.state(now)).map(|e| e.shifted(hop_end - now));
                     if let Some(k) = an.process(&buf, &p) {
                         kick = kick.max(k);
                     }

@@ -5,6 +5,7 @@
 //! Com o andamento travado, candidatos fora da grade precisam ser bem mais fortes.
 
 use crate::beat::Beat;
+use crate::midi::ExtClock;
 use realfft::{num_complex::Complex, RealFftPlanner, RealToComplex};
 use serde::{Deserialize, Serialize};
 use std::f32::consts::PI;
@@ -66,6 +67,7 @@ pub struct Frame {
     pub contrast: f32,  // energia média dos últimos 4 compassos ÷ 4 anteriores (1 = estável; sem trava, blocos de 2 s)
     pub stability: f32, // 0..1: quanto o relógio do beat é confiável (jitter dos kicks × tempo desde a trava)
     pub kick_rate: f32, // kicks por compasso nos últimos 8 beats (0 no breakdown, ~4 no groove)
+    pub clock: &'static str, // quem manda no relógio do beat: "audio" | "midi" (DK-112)
 }
 
 /// Indicadores de energia musical por compasso (DK-031), para o show-engine escolher cenas.
@@ -262,6 +264,8 @@ pub struct Analyzer {
     last_low: f64,   // último hop com grave (low_on)
     last_quiet: f64, // último hop em silêncio digital
     pub beat: Beat,
+    /// Relógio externo (MIDI Clock) já no tempo da análise; `None` = o áudio manda.
+    pub ext: Option<ExtClock>,
     trend: Trend,
     ring: Vec<f32>,
     ring_pos: usize,
@@ -309,6 +313,7 @@ impl Analyzer {
             last_low: 0.0,
             last_quiet: 0.0,
             beat: Beat::default(),
+            ext: None,
             trend: Trend::default(),
             ring: vec![0.0; FFT],
             ring_pos: 0,
@@ -317,6 +322,11 @@ impl Analyzer {
             fout: fft.make_output_vec(),
             fft,
         }
+    }
+
+    /// Instante (s) do fim do último hop processado.
+    pub fn time(&self) -> f64 {
+        self.t
     }
 
     pub fn command(&mut self, c: BeatCmd) {
@@ -385,6 +395,10 @@ impl Analyzer {
             self.last_soft_click = t;
         }
         let (ds, ts) = self.on_sub.step(ms[0], k);
+        self.beat.external = self.ext.is_some();
+        if let Some(e) = self.ext {
+            self.beat.follow(t, e.period, e.beat);
+        }
         self.beat.tick(t);
         let grid = self.beat.on_grid(t);
         // perto do beat previsto o limiar cai: pega kicks fracos sob o baixo rolante
@@ -450,7 +464,7 @@ impl Analyzer {
         }
         self.last_kick = t;
         self.trend.kicks.push_back(t);
-        self.beat.on_kick(t, lo, hi, p.lock);
+        self.beat.on_kick(t, lo, hi, p.lock || self.ext.is_some());
         Some((0.5 + (ds / thr - 1.0) * 0.5).clamp(0.3, 1.0))
     }
 
@@ -519,6 +533,7 @@ impl Analyzer {
             contrast: self.trend.contrast,
             stability: self.trend.stability,
             kick_rate: self.trend.kick_rate,
+            clock: if self.ext.is_some() { "midi" } else { "audio" },
         }
     }
 }
@@ -814,6 +829,45 @@ mod tests {
             println!("pausa (ruído {noisy}): recall {recall:.2}, re-trava {relock:?}");
             assert!(recall >= 0.9, "ruído {noisy}: recall {recall:.2}");
             assert!(relock.is_some_and(|r| r <= 4.0), "ruído {noisy}: re-trava {relock:?}");
+        }
+    }
+
+    /// DK-112: com MIDI Clock o andamento é o dele (o áudio toca a 148, o clock manda 140) e o
+    /// Frame diz "midi"; sem clock (`ext` = None, como 2 s depois do último pulso) o áudio volta
+    /// a mandar e re-trava no andamento da música.
+    #[test]
+    fn relogio_midi_manda_e_devolve() {
+        let (x, _) = Synth { bpm: 148.0, secs: 30.0, ..Default::default() }.render();
+        let mut an = Analyzer::new(48000.0);
+        let p = Params { bpm_min: 135.0, bpm_max: 150.0, ..Default::default() };
+        let (mut midi_ok, mut volta) = (true, None);
+        for (i, c) in x.chunks_exact(HOP).enumerate() {
+            let t = (i + 1) as f64 * HOP as f64 / 48000.0;
+            an.ext = (t < 10.0).then_some(ExtClock { period: 60.0 / 140.0, beat: None });
+            an.process(c, &p);
+            let f = an.snapshot();
+            if (1.0..10.0).contains(&t) {
+                midi_ok &= f.clock == "midi" && (f.bpm - 140.0).abs() < 0.01 && f.locked;
+            }
+            if t > 10.0 && volta.is_none() && f.clock == "audio" && f.locked && (f.bpm - 148.0).abs() < 0.5 {
+                volta = Some(t - 10.0);
+            }
+        }
+        assert!(midi_ok, "com MIDI Clock o andamento tem de ser o dele");
+        let volta = volta.expect("o áudio não voltou a mandar");
+        println!("áudio re-travou em 148 {volta:.2} s depois do MIDI Clock sumir");
+        assert!(volta < 6.0, "demorou {volta:.2} s");
+
+        // com Start a fase também é a do MIDI (beat 0 em 0,123 s), não a dos kicks do áudio
+        let mut an = Analyzer::new(48000.0);
+        let e = ExtClock { period: 60.0 / 140.0, beat: Some((0.123, 0)) };
+        for (i, c) in x.chunks_exact(HOP).enumerate().take(2000) {
+            let t = (i + 1) as f64 * HOP as f64 / 48000.0;
+            an.ext = Some(e);
+            an.process(c, &p);
+            let f = an.snapshot();
+            let x = (t - 0.123) / e.period;
+            assert!((f.beat_phase as f64 - x.rem_euclid(1.0)).abs() < 1e-3 && f.beat == x.floor() as i64, "{t:.2}: fase {} beat {}", f.beat_phase, f.beat);
         }
     }
 

@@ -20,6 +20,8 @@ pub struct Beat {
     last: f64,
     count: i64, // mantém o índice do beat contínuo quando a âncora muda
     fixed: bool, // grade vinda da análise do arquivo: os kicks não mexem nela
+    pub external: bool, // um relógio externo (MIDI Clock) manda: os kicks só acertam a fase
+    ext_phase: bool,    // ... e nem isso, se ele trouxe a fase (Start)
     fresh: bool, // recomeçou a partir de kicks já conferidos (restart): trava com 4 limpos
     pub jitter: f64, // desvio (s) dos kicks em torno da grade no último ajuste
     scored: VecDeque<(f64, f32)>, // candidatos com click (aceitos ou não): instante e punch
@@ -40,6 +42,17 @@ impl Beat {
         }
         let ks = self.kicks.make_contiguous();
         let n_all = ks.len();
+        if self.external {
+            // MIDI Clock manda no andamento; sem Start os kicks alinham a fase, com o período dele
+            if self.ext_phase {
+                return;
+            }
+            if let Some((_, a, n, _)) = fit(ks, self.period, None, true).filter(|f| f.2 * 10 >= n_all * 6) {
+                let _ = n;
+                self.rebase(a, self.period);
+            }
+            return;
+        }
         // primeiro tenta manter o andamento atual; se a música mudou, recomeça pela mediana
         let tries = [(self.period > 0.0).then_some(self.period), median_ioi(ks, lo, hi)];
         for p0 in tries.into_iter().flatten() {
@@ -96,6 +109,9 @@ impl Beat {
     /// 30 ms. Se o contratempo tiver consistentemente mais punch que a fase atual, a grade anda
     /// meio beat. Vale também com a grade já travada errada.
     pub fn score(&mut self, t: f64, peak: f32) {
+        if self.external {
+            return;
+        }
         self.scored.push_back((t, peak));
         while self.scored.front().is_some_and(|&(s, _)| s < t - WINDOW) {
             self.scored.pop_front();
@@ -190,7 +206,7 @@ impl Beat {
     /// pulou. A grade passa a ter âncora nele, com o mesmo período e a trava mantida; a janela do
     /// ajuste recomeça (os kicks velhos estão na fase velha).
     pub fn jump(&mut self, t: f64) {
-        if self.fixed || !self.locked || self.period <= 0.0 {
+        if self.fixed || self.external || !self.locked || self.period <= 0.0 {
             return;
         }
         self.rebase(t, self.period);
@@ -198,10 +214,37 @@ impl Beat {
         self.scored.clear();
     }
 
+    /// Relógio externo (MIDI Clock): o andamento é o dele; a fase também, se veio com Start
+    /// (`beat` = instante e índice de um beat); sem Start fica a fase do áudio.
+    pub fn follow(&mut self, t: f64, period: f64, beat: Option<(f64, i64)>) {
+        if self.fixed || period <= 0.0 {
+            return;
+        }
+        match beat {
+            Some((a, k)) => {
+                self.anchor = a;
+                self.count = k;
+            }
+            None if self.period > 0.0 => {
+                let (_, ph, b) = self.at(t);
+                self.anchor = t - ph as f64 * period;
+                self.count = b;
+            }
+            None => {
+                self.anchor = t;
+                self.count = 0;
+            }
+        }
+        self.ext_phase = beat.is_some();
+        self.period = period;
+        self.locked = true;
+        self.last = t;
+    }
+
     /// A grade travada não explica mais os kicks (ex.: pausa e a faixa voltou com outra fase):
     /// solta a trava e recomeça a janela com os kicks que ela recusava. O período fica.
     pub fn restart(&mut self, kicks: &[f64]) {
-        if self.fixed {
+        if self.fixed || self.external {
             return;
         }
         self.locked = false;
