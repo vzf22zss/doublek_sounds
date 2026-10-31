@@ -502,7 +502,19 @@ atual (pergunta antes se ele tem cenas). Duplo clique no nome do banco para reno
 **[** e **]** trocam de banco; com o MIDI learn ligado, clique em ‹ ou › e mexa num botão do
 controlador para trocar de banco pelo MIDI. Os pads 1–8, as teclas 1–8, os botões MIDI já
 aprendidos e os pontos de cena do roteiro agem sempre no **banco que está aberto**. Quem já
-tinha cenas encontra todas no banco 1, "Principal".
+tinha cenas encontra todas no banco 1, "Principal". Ao apagar um banco, os pontos de roteiro e
+o mapa de automação que apontavam para os bancos seguintes são renumerados sozinhos; os que
+apontavam para o banco apagado passam a usar o banco aberto (roteiro) ou "nenhuma" (automação),
+e a confirmação avisa quantos são.
+
+### Catálogo e presets compartilhados
+
+O botão **Catálogo** lista os 23 presets de fábrica por estilo: **Aplicar agora** muda o visual,
+**Gravar no pad** guarda num pad. Para trocar presets com outros DJs, **Exportar preset** salva o
+visual atual num arquivo `.doublekpreset` (pequeno, só os ajustes: sem logo, foto nem vídeo) e
+**Importar preset** traz um arquivo desses para a seção **Importados** do Catálogo (até 100;
+**Apagar** remove um importado). Arquivos que não são preset, ou de uma versão mais nova do app,
+são recusados com o motivo. O formato está em [docs/PRESETS.md](PRESETS.md).
 
 ### Preview e TAKE
 
