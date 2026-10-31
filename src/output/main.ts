@@ -6,7 +6,7 @@ import { Channel, invoke } from '@tauri-apps/api/core';
 import { emitTo, listen } from '@tauri-apps/api/event';
 import { Renderer } from '../render/renderer';
 import { loadVisual, type Visual } from '../lib/settings';
-import { assetSync, getVideo } from '../lib/assets';
+import { assetSync, preloadVideo } from '../lib/assets';
 import { FrameStats, type Telemetry } from '../lib/telemetry';
 import type { Frame, Msg } from '../lib/types';
 
@@ -22,7 +22,8 @@ const report = (level: 'warn' | 'error', msg: string) => emitTo('control', 'outp
 function start() {
   try {
     r = new Renderer(canvas, v);
-    sync = assetSync(r);
+    // vídeo que não abre, dá erro ou trava: o fundo volta para a foto/cor e o controle fica sabendo (DK-062)
+    sync = assetSync(r, { beat: () => lastFrame, onVideoFail: (msg) => report('warn', msg) });
     sync(v, true);
     r.onBudget = (i) => emitTo('control', 'psy-budget', i); // orçamento do Psy Engine só no telão (o preview roda a 30 fps)
     if (lastFrame) r.setFrame(lastFrame);
@@ -50,7 +51,7 @@ const blackout = () => document.body.classList.toggle('black', !!v.blackout);
 blackout();
 listen<Visual>('visual', (e) => { v = e.payload; blackout(); r?.setVisual(v); sync?.(v); });
 listen('assets', () => sync?.(v, true));
-listen<string[]>('preload', (e) => e.payload.forEach(getVideo)); // vídeos do roteiro: troca instantânea
+listen<string[]>('preload', (e) => preloadVideo(e.payload[0] ?? '')); // próximo vídeo do roteiro: troca instantânea
 
 const ch = new Channel<Msg>();
 ch.onmessage = (m) => { if (m.t === 'frame') { lastFrame = m.v; r?.setFrame(m.v); } };

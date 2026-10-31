@@ -1,7 +1,8 @@
 // Logo e foto de fundo ficam no IndexedDB (as duas janelas têm a mesma origem, então compartilham).
 // O processamento pesado (tirar o branco, borrar o glow, borrar o fundo) roda uma vez por troca, não por quadro.
 import type { Visual } from './settings';
-import { isObj, load, save } from './store.ts';
+import { load, save } from './store.ts';
+import { barDelayMs, loopWindow, toRelease, videoInfo, wrapTarget, type VideoInfo } from './videoloop.ts';
 
 const DEFAULT_LOGO =
   'data:image/svg+xml;utf8,' +
@@ -154,12 +155,45 @@ export async function imageColors(kind: 'logo' | 'bg') {
 }
 
 // ---------- vídeos de fundo ----------
-// O arquivo fica no IndexedDB ("video:<id>"); a lista (id + nome) no localStorage, que as duas janelas leem.
-export type VideoInfo = { id: string; name: string };
+// O arquivo fica no IndexedDB ("video:<id>"); a lista (id, nome e, desde DK-062, início/fim do loop e "reiniciar
+// no compasso") no localStorage, que as duas janelas leem. Regras puras em videoloop.ts.
+export type { VideoInfo } from './videoloop.ts';
 
 export function validVideos(raw: unknown): VideoInfo[] {
   if (!Array.isArray(raw)) throw new Error('vídeos: precisa ser lista');
-  return raw.filter((x): x is VideoInfo => isObj(x) && typeof x.id === 'string' && !!x.id && typeof x.name === 'string');
+  return raw.map(videoInfo).filter((x): x is VideoInfo => !!x);
+}
+
+/** Muda início/fim do loop ou "reiniciar no compasso" de um vídeo da biblioteca. */
+export function updateVideo(id: string, patch: Partial<Pick<VideoInfo, 'start' | 'end' | 'barRestart'>>) {
+  save('doublek.videos', listVideos().map((x) => (x.id === id ? videoInfo({ ...x, ...patch }) ?? x : x)));
+}
+
+const PLAY_HINT = 'converta para MP4 H.264 ou WebM VP9';
+const MIME_BY_EXT: Record<string, string> = { mp4: 'video/mp4', m4v: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime' };
+
+/** Na importação: abre o arquivo de verdade e espera o 1º quadro. Devolve a mensagem de recusa, ou null se toca.
+ *  Não basta o `canPlayType`: ele diz "não" para .mov que tem H.264 dentro (e toca) e "talvez" para MP4 com HEVC
+ *  (que não toca neste Windows). Quando recusa, a mensagem diz o que o `canPlayType` achou. */
+export async function probeVideo(f: File, timeoutMs = 8000): Promise<string | null> {
+  const type = f.type || MIME_BY_EXT[f.name.split('.').pop()?.toLowerCase() ?? ''] || '';
+  const el = Object.assign(document.createElement('video'), { muted: true, preload: 'auto' });
+  const url = URL.createObjectURL(f);
+  try {
+    const ok = await new Promise<boolean>((res) => {
+      el.onloadeddata = () => res(el.videoWidth > 0);
+      el.onerror = () => res(false);
+      setTimeout(() => res(false), timeoutMs);
+      el.src = url;
+    });
+    if (ok) return null;
+    const can = type ? el.canPlayType(type) : '';
+    return `"${f.name}" não toca neste Windows${can ? '' : ` (formato ${type || 'desconhecido'} sem suporte)`}: ${PLAY_HINT}.`;
+  } finally {
+    el.removeAttribute('src');
+    el.load();
+    URL.revokeObjectURL(url);
+  }
 }
 
 export function listVideos(): VideoInfo[] {
@@ -178,15 +212,83 @@ export async function removeVideo(id: string) {
   save('doublek.videos', listVideos().filter((x) => x.id !== id));
 }
 
-// um <video> por id, reaproveitado: trocar de vídeo (cena/roteiro) é instantâneo; só o atual fica tocando
-const videos = new Map<string, Promise<HTMLVideoElement | null>>();
-export function getVideo(id: string) {
-  if (!videos.has(id)) videos.set(id, getAsset(`video:${id}`).then((b) => {
-    if (!b) return null;
-    const el = Object.assign(document.createElement('video'), { muted: true, loop: true, playsInline: true, src: URL.createObjectURL(b) });
-    return new Promise<HTMLVideoElement | null>((res) => { el.onloadeddata = () => res(el); el.onerror = () => res(null); });
-  }));
-  return videos.get(id)!;
+// Um <video> por id, mas no máximo 2 vivos por janela (DK-062): o que está na tela (`curId`) e o próximo
+// pré-carregado (`preId`). Os outros são pausados e soltam o arquivo (src + URL), para não decodificar à toa.
+type Entry = { p: Promise<HTMLVideoElement | null>; url: string };
+const pool = new Map<string, Entry>();
+let curId = '', preId = '';
+
+function drop(id: string) {
+  const e = pool.get(id);
+  if (!e) return;
+  pool.delete(id);
+  e.p.then((el) => { if (el) { el.pause(); el.removeAttribute('src'); el.load(); } });
+  if (e.url) URL.revokeObjectURL(e.url);
+}
+const trim = () => toRelease(curId, preId, pool.keys()).forEach(drop);
+
+/** Ids com <video> carregado nesta janela (diagnóstico e testes). */
+export const loadedVideos = () => [...pool.keys()];
+
+export function getVideo(id: string): Promise<HTMLVideoElement | null> {
+  const hit = pool.get(id);
+  if (hit) return hit.p;
+  const entry: Entry = { p: Promise.resolve(null), url: '' };
+  pool.set(id, entry);
+  entry.p = getAsset(`video:${id}`).then((b) => {
+    if (!b || pool.get(id) !== entry) return null;
+    entry.url = URL.createObjectURL(b);
+    const el = Object.assign(document.createElement('video'), { muted: true, loop: true, playsInline: true, preload: 'auto', src: entry.url });
+    return new Promise<HTMLVideoElement | null>((res) => {
+      el.onloadeddata = () => res(el);
+      el.onerror = () => { drop(id); res(null); };
+    });
+  });
+  return entry.p;
+}
+
+/** O próximo vídeo (do roteiro) fica carregado e parado, para a troca ser instantânea. '' = nenhum. */
+export function preloadVideo(id: string) {
+  preId = id === curId ? '' : id;
+  if (preId) getVideo(preId);
+  trim();
+}
+
+type BeatLike = { bpm: number; locked: boolean; holding?: boolean; beat: number; beatPhase: number };
+
+/** Vigia o vídeo na tela: janela de loop, "reiniciar no compasso" e travamento. Devolve a função que para. */
+function watchVideo(el: HTMLVideoElement, info: VideoInfo, o: { restart: boolean; beat?: () => BeatLike | null; fail: (why: string) => void }) {
+  let alive = true, last = Date.now();
+  const win = () => loopWindow(info, el.duration);
+  el.loop = win().native; // arquivo inteiro: o loop do próprio <video>; janela: a gente volta ao início
+  const seek = (t: number) => { el.currentTime = t; };
+  const onTime = () => { last = Date.now(); };
+  const onEnded = () => { seek(win().start); el.play().catch(() => {}); };
+  const onError = () => alive && o.fail('deu erro ao tocar');
+  el.addEventListener('timeupdate', onTime);
+  el.addEventListener('ended', onEnded);
+  el.addEventListener('error', onError);
+  const frame = (_: number, m: VideoFrameCallbackMetadata) => {
+    if (!alive) return;
+    last = Date.now();
+    const to = wrapTarget(m.mediaTime, win());
+    if (to !== null) seek(to);
+    el.requestVideoFrameCallback(frame);
+  };
+  el.requestVideoFrameCallback(frame);
+  const to = wrapTarget(el.currentTime, win()); // entrou na tela parado fora da janela
+  if (to !== null) seek(to);
+  const restart = o.restart && info.barRestart ? setTimeout(() => alive && seek(win().start), barDelayMs(o.beat?.() ?? null)) : 0;
+  // sem quadro nem timeupdate por 2 s com a janela visível = travou
+  const stall = setInterval(() => { if (alive && !document.hidden && Date.now() - last > 2000) o.fail('travou (2 s sem avançar)'); }, 500);
+  return () => {
+    alive = false;
+    clearTimeout(restart);
+    clearInterval(stall);
+    el.removeEventListener('timeupdate', onTime);
+    el.removeEventListener('ended', onEnded);
+    el.removeEventListener('error', onError);
+  };
 }
 
 export async function videoColors(id: string) {
@@ -197,9 +299,29 @@ export async function videoColors(id: string) {
   return pickColors(x.getImageData(0, 0, 48, 48).data);
 }
 
-/** Reprocessa logo/fundo só quando o arquivo ou um ajuste que os afeta mudou; troca o vídeo do fundo. */
-export function assetSync(r: { setLogo(p: Prepared): void; setBg(p: Prepared | null): void; setBgVideo(el: HTMLVideoElement | null): void }) {
-  let logoKey = '', bgKey = '', vid = '', cur: HTMLVideoElement | null = null;
+export type SyncOpts = {
+  /** Último frame do motor (BPM/fase), para "reiniciar no compasso". Sem ele, reinicia na hora. */
+  beat?: () => BeatLike | null;
+  /** Vídeo falhou e o fundo voltou para a foto/cor: mensagem pronta para o diário. */
+  onVideoFail?: (msg: string) => void;
+};
+
+/** Reprocessa logo/fundo só quando o arquivo ou um ajuste que os afeta mudou; troca o vídeo do fundo.
+ *  Se o vídeo não abre, dá erro ou trava, o fundo volta sozinho para a foto/cor (nunca tela preta por vídeo)
+ *  e só tenta de novo quando escolherem outro vídeo. */
+export function assetSync(r: { setLogo(p: Prepared): void; setBg(p: Prepared | null): void; setBgVideo(el: HTMLVideoElement | null): void }, o: SyncOpts = {}) {
+  let logoKey = '', bgKey = '', vid = '', cur: HTMLVideoElement | null = null, failed = '', token = 0;
+  let unwatch = () => {};
+  const fallback = (id: string, why: string) => {
+    if (vid !== id || failed === id) return;
+    failed = id;
+    unwatch(); unwatch = () => {};
+    cur?.pause(); cur = null;
+    curId = ''; trim();
+    r.setBgVideo(null);
+    const name = listVideos().find((x) => x.id === id)?.name ?? id;
+    o.onVideoFail?.(`Vídeo de fundo "${name}" ${why}: o telão voltou para a foto/cor.`);
+  };
   return async (v: Visual, force = false) => {
     const lk = `${v.rmWhite}|${v.white}`, bk = `${v.bgBlur}`;
     const doLogo = force || lk !== logoKey, doBg = force || bk !== bgKey;
@@ -207,12 +329,25 @@ export function assetSync(r: { setLogo(p: Prepared): void; setBg(p: Prepared | n
     if (doLogo) r.setLogo(await prepareLogo(v));
     if (doBg) r.setBg(await prepareBg(v));
     if (force || v.bgVideo !== vid) {
+      const changed = v.bgVideo !== vid, my = ++token;
       vid = v.bgVideo;
-      const el = vid ? await getVideo(vid) : null;
+      if (changed) failed = '';
+      unwatch(); unwatch = () => {};
+      const id = vid && vid !== failed ? vid : '';
+      curId = id;
+      if (preId === id) preId = ''; // o pré-carregado virou o da tela
+      const el = id ? await getVideo(id) : null;
+      if (my !== token) return; // outra troca chegou enquanto este carregava
       if (cur && cur !== el) cur.pause();
       cur = el;
-      el?.play().catch(() => {});
+      trim();
       r.setBgVideo(el);
+      if (id && !el) return fallback(id, 'não abriu');
+      if (el) {
+        const info = listVideos().find((x) => x.id === id) ?? { id, name: id };
+        unwatch = watchVideo(el, info, { restart: changed, beat: o.beat, fail: (why) => fallback(id, why) });
+        el.play().catch(() => {});
+      }
     }
     if (cur) cur.playbackRate = v.videoSpeed;
   };

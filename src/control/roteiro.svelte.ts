@@ -3,7 +3,8 @@
 // beat `goBeat` do roteiro e o cursor anda junto com o relógio do beat ao vivo (segue o pitch).
 import { invoke } from '@tauri-apps/api/core';
 import { emitTo } from '@tauri-apps/api/event';
-import { getVideo } from '../lib/assets';
+import { preloadVideo } from '../lib/assets';
+import { nextVideo } from '../lib/videoloop';
 import { checkFile, ext } from '../lib/limits';
 import { lookOf, type Look, type Visual } from '../lib/settings';
 import type { Frame } from '../lib/types';
@@ -231,18 +232,28 @@ export function tick(f: Frame | null, frameAt: number) {
   }
   last = cur;
   rt.cursor = cur;
+  preloadNext(r, cur);
   const r2 = stepFx(fx, cur);
   fx = r2.run;
   write(r2.set);
 }
 
+// DK-062: só o próximo vídeo do roteiro fica pré-carregado (1 tocando + 1 pronto); avisa o telão só quando muda
+let lastPre: string | null = null;
+function preloadNext(r: Roteiro, beat: number) {
+  const id = nextVideo(r.cues, beat, ctx.vs().bgVideo ?? '');
+  if (id === lastPre) return;
+  lastPre = id;
+  preloadVideo(id);
+  emitTo('output', 'preload', id ? [id] : []);
+}
+
 function begin(r: Roteiro, at: number) {
-  const vids = [...new Set(r.cues.filter((c) => c.kind === 'video' && c.video).map((c) => c.video!))];
-  vids.forEach(getVideo);
-  emitTo('output', 'preload', vids);
   ctx.vs().react = rt.mode !== 'only';
   if (rt.mode !== 'sound') chase(r, at - 0.001);
   last = at - 0.001; // pontos exatamente no começo também disparam
+  lastPre = null;
+  preloadNext(r, last);
   rt.running = true;
 }
 

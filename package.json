@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "tauri": "tauri",
-    "check": "node src/lib/settings.check.ts && node src/lib/store.check.ts && node src/lib/telemetry.check.ts && node src/lib/limits.check.ts && node src/lib/safety.check.ts && node src/lib/banks.check.ts && node src/lib/commands.check.ts && node src/lib/preview.check.ts && node src/lib/showpack/manifest.check.ts && node src/lib/showpack/export.check.ts && node src/lib/showpack/import.check.ts && node src/lib/presets.check.ts && node src/render/music.check.ts && node src/render/budget.check.ts && node src/lib/roteiro-fx.check.ts && node src/render/layers.check.ts && node src/lib/osc.check.ts && node src/lib/show-engine/state.check.ts && node src/lib/show-engine/rules.check.ts",
+    "check": "node src/lib/settings.check.ts && node src/lib/store.check.ts && node src/lib/telemetry.check.ts && node src/lib/limits.check.ts && node src/lib/safety.check.ts && node src/lib/banks.check.ts && node src/lib/commands.check.ts && node src/lib/preview.check.ts && node src/lib/showpack/manifest.check.ts && node src/lib/showpack/export.check.ts && node src/lib/showpack/import.check.ts && node src/lib/presets.check.ts && node src/render/music.check.ts && node src/render/budget.check.ts && node src/lib/roteiro-fx.check.ts && node src/render/layers.check.ts && node src/lib/osc.check.ts && node src/lib/show-engine/state.check.ts && node src/lib/show-engine/rules.check.ts && node src/lib/videoloop.check.ts",
     "typecheck": "svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {
