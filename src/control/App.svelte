@@ -725,7 +725,7 @@
     <div class="tempo">
       <div class="bpm" class:locked={frame?.locked}>{frame?.bpm ? frame.bpm.toFixed(1) : '---.-'}</div>
       <div class="tstate">
-        <span>BPM · {tempoState}</span>
+        <span title={frame?.clock === 'midi' ? 'Andamento do MIDI Clock; volta para o áudio 2 s depois do último pulso' : undefined}>BPM · {frame?.clock === 'midi' ? 'MIDI CLK' : tempoState}</span>
         <div class="dots">
           {#each [0, 1, 2, 3] as i}
             <i class:on={frame?.bpm && beatNow.idx === i} style:opacity={frame?.bpm && beatNow.idx === i ? 1 - beatNow.phase * 0.7 : 1}></i>
