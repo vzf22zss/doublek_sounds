@@ -302,4 +302,43 @@ mod tests {
         srv.stop();
         serve(addr, |_| {}).expect("porta livre depois do stop").stop();
     }
+
+    /// DK-083: 10 mil pacotes — mensagens e bundles válidos mutados e lixo puro. Sem pânico, nenhum acima de 50 ms.
+    #[test]
+    fn fuzz_10_mil() {
+        let models = [
+            msg("/doublek/v1/scene/2", ",f", &4f32.to_be_bytes()),
+            msg("/doublek/v1/blackout", ",T", &[]),
+            msg("/x", ",sbi", &[s("abc"), 3i32.to_be_bytes().to_vec(), vec![1, 2, 3, 0], 7i32.to_be_bytes().to_vec()].concat()),
+            bundle(&[s("/a"), bundle(&[msg("/b", ",i", &1i32.to_be_bytes())])]),
+        ];
+        let mut x = 0x2545_F491u32;
+        let mut r = move || {
+            x ^= x << 13;
+            x ^= x >> 17;
+            x ^= x << 5;
+            x
+        };
+        let (mut worst, mut ok) = (Duration::ZERO, 0);
+        for i in 0..10_000 {
+            let mut b: Vec<u8> = if i % 10 == 9 { (0..r() % 600).map(|_| r() as u8).collect() } else { models[i % models.len()].clone() };
+            for _ in 0..1 + r() % 4 {
+                if b.is_empty() {
+                    break;
+                }
+                let p = r() as usize % b.len();
+                match r() % 4 {
+                    0 => b[p] = r() as u8,
+                    1 => b.insert(p, r() as u8),
+                    2 => drop(b.remove(p)),
+                    _ => b.truncate(p),
+                }
+            }
+            let t = std::time::Instant::now();
+            ok += parse(&b).is_ok() as u32;
+            worst = worst.max(t.elapsed());
+        }
+        assert!(worst < Duration::from_millis(50), "pior caso {worst:?}");
+        assert!(ok > 100, "algumas mutações precisam continuar válidas ({ok})");
+    }
 }

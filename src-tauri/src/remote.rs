@@ -20,6 +20,9 @@ pub const CODE_SECS: u64 = 120;
 const MAX_FAILS: u32 = 5;
 const BLOCK: Duration = Duration::from_secs(60);
 const MAX_CONNS: usize = 32;
+/// Prazo do pedido INTEIRO (cabeçalho + corpo), não de cada leitura: quem manda 1 byte por segundo (slowloris)
+/// não segura uma conexão por mais que isso.
+const REQ_DEADLINE: Duration = Duration::from_secs(2);
 // tela do celular (DK-082): HTML + JS + CSS embutidos no exe, servidos como arquivos separados para a CSP ficar
 // estrita (nada inline); sem framework, funciona offline
 const PAGE: &str = include_str!("remote.html");
@@ -345,11 +348,27 @@ impl Server {
     }
 }
 
+/// Leitor com prazo total: cada `read` espera só o que sobra do prazo.
+struct Deadline<'a> {
+    s: &'a TcpStream,
+    until: Instant,
+}
+
+impl Read for Deadline<'_> {
+    fn read(&mut self, b: &mut [u8]) -> std::io::Result<usize> {
+        let left = self.until.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return Err(std::io::ErrorKind::TimedOut.into());
+        }
+        self.s.set_read_timeout(Some(left))?;
+        (&*self.s).read(b)
+    }
+}
+
 fn serve_conn(mut s: TcpStream, peer: SocketAddr, sh: &Shared) {
     let _ = s.set_nonblocking(false);
-    let _ = s.set_read_timeout(Some(Duration::from_secs(3)));
     let _ = s.set_write_timeout(Some(Duration::from_secs(3)));
-    let resp = match read_request(&mut s) {
+    let resp = match read_request(&mut Deadline { s: &s, until: Instant::now() + REQ_DEADLINE }) {
         Ok(req) => sh.handle(&req, peer.ip()),
         Err((status, msg)) => {
             sh.rejected.fetch_add(1, Relaxed);
@@ -359,12 +378,12 @@ fn serve_conn(mut s: TcpStream, peer: SocketAddr, sh: &Shared) {
     let _ = s.write_all(&resp.bytes());
     // fecha devagar: lê o que sobrou (ex.: corpo de um 413) para o Windows não mandar RST e engolir a resposta
     let _ = s.shutdown(std::net::Shutdown::Write);
-    let _ = s.set_read_timeout(Some(Duration::from_millis(200)));
-    let _ = std::io::copy(&mut (&s).take(64 * 1024), &mut std::io::sink());
+    let drain = Deadline { s: &s, until: Instant::now() + Duration::from_millis(300) }; // com prazo: nada de segurar aqui
+    let _ = std::io::copy(&mut drain.take(64 * 1024), &mut std::io::sink());
 }
 
 /// Abre a porta já (mesmas mensagens do OSC) e atende numa thread própria; cada conexão numa thread curta
-/// (até 32 ao mesmo tempo, 3 s de tempo-limite), uma resposta por conexão.
+/// (até 32 ao mesmo tempo, 2 s para o pedido inteiro), uma resposta por conexão.
 pub fn serve(bind: SocketAddr, on_event: impl Fn(Event) + Send + Sync + 'static) -> Result<Server, String> {
     let l = TcpListener::bind(bind).map_err(|e| crate::osc::bind_error(bind, e))?;
     l.set_nonblocking(true).map_err(|e| e.to_string())?;
@@ -373,11 +392,14 @@ pub fn serve(bind: SocketAddr, on_event: impl Fn(Event) + Send + Sync + 'static)
     let (sh, sp, conns) = (shared.clone(), stop.clone(), Arc::new(AtomicUsize::new(0)));
     let thread = std::thread::spawn(move || {
         while !sp.load(Relaxed) {
+            if conns.load(Relaxed) >= MAX_CONNS {
+                // lotado: não aceita. Quem chega espera na fila do sistema, na ordem, e entra quando uma vaga abre
+                // (no máximo REQ_DEADLINE) — em vez de ser derrubado enquanto conexões lentas ocupam tudo
+                std::thread::sleep(Duration::from_millis(10));
+                continue;
+            }
             match l.accept() {
                 Ok((s, peer)) => {
-                    if conns.load(Relaxed) >= MAX_CONNS {
-                        continue; // derruba a conexão: alguém abrindo conexões demais
-                    }
                     conns.fetch_add(1, Relaxed);
                     let (sh, conns) = (sh.clone(), conns.clone());
                     std::thread::spawn(move || {
@@ -602,5 +624,129 @@ mod tests {
         assert!(serve(addr, |_| {}).err().expect("porta ocupada").contains("em uso"));
         srv.stop();
         serve(addr, |_| {}).expect("porta livre depois do stop").stop();
+    }
+
+    /// xorshift determinístico para o fuzz (sem dependência).
+    fn rng(seed: u32) -> impl FnMut() -> u32 {
+        let mut x = seed;
+        move || {
+            x ^= x << 13;
+            x ^= x >> 17;
+            x ^= x << 5;
+            x
+        }
+    }
+
+    /// DK-083: 10 mil pedidos — modelos válidos mutados (troca, insere, apaga, corta) e lixo puro — passam por
+    /// `read_request` e, quando lidos, pelas rotas. Sem pânico e nenhum acima de 50 ms.
+    #[test]
+    fn fuzz_http_10_mil() {
+        let sh = Shared::new(|_| {});
+        let token = pair(&sh);
+        let post = |path: &str, extra: &str, body: &str| format!("POST {path} HTTP/1.1\r\nHost: 127.0.0.1:8008\r\n{extra}Content-Length: {}\r\n\r\n{body}", body.len());
+        let models = [
+            "GET / HTTP/1.1\r\nHost: 127.0.0.1:8008\r\n\r\n".to_string(),
+            "GET /app.js HTTP/1.1\r\nHost: 127.0.0.1:8008\r\n\r\n".to_string(),
+            post("/pair", "", r#"{"code":"123456"}"#),
+            post("/cmd", &format!("Authorization: Bearer {token}\r\n"), r#"{"addr":"/doublek/v1/blackout","args":[{"t":"T","v":true}]}"#),
+            format!("GET /state HTTP/1.1\r\nHost: 127.0.0.1:8008\r\nAuthorization: Bearer {token}\r\nOrigin: http://127.0.0.1:8008\r\n\r\n"),
+        ];
+        let mut r = rng(0x9E37_79B9);
+        let (mut worst, mut read_ok) = (Duration::ZERO, 0);
+        for i in 0..10_000 {
+            let mut b: Vec<u8> = if i % 10 == 9 { (0..r() % 600).map(|_| r() as u8).collect() } else { models[i % models.len()].as_bytes().to_vec() };
+            for _ in 0..1 + r() % 6 {
+                if b.is_empty() {
+                    break;
+                }
+                let p = r() as usize % b.len();
+                match r() % 4 {
+                    0 => b[p] = r() as u8,
+                    1 => b.insert(p, r() as u8),
+                    2 => drop(b.remove(p)),
+                    _ => b.truncate(p),
+                }
+            }
+            let t = Instant::now();
+            if let Ok(req) = read_request(&mut b.as_slice()) {
+                read_ok += 1;
+                let _ = sh.handle(&req, IP);
+            }
+            worst = worst.max(t.elapsed());
+        }
+        assert!(worst < Duration::from_millis(50), "pior caso {worst:?}");
+        assert!(read_ok > 1000, "o fuzz precisa chegar nas rotas também ({read_ok} pedidos lidos)");
+    }
+
+    /// DK-083: 32 conexões mandando 1 byte por segundo não impedem uma 33ª legítima de parear em < 3 s; o stop
+    /// continua rápido com elas abertas.
+    #[test]
+    fn slowloris_nao_trava_o_pareamento() {
+        let srv = serve("127.0.0.1:0".parse().unwrap(), |_| {}).unwrap();
+        let addr = srv.addr;
+        for _ in 0..MAX_CONNS {
+            std::thread::spawn(move || {
+                let Ok(mut s) = TcpStream::connect(addr) else { return };
+                for c in b"GET / HTTP/1.1\r\nHost: x\r\nX: " {
+                    if s.write_all(&[*c]).is_err() {
+                        return; // o servidor cortou: era o que devia acontecer
+                    }
+                    std::thread::sleep(Duration::from_secs(1));
+                }
+            });
+        }
+        std::thread::sleep(Duration::from_millis(300)); // as 32 lentas já ocupam todas as vagas
+        let code = srv.shared.pair_code();
+        let body = format!(r#"{{"code":"{code}"}}"#);
+        let t = Instant::now();
+        let mut s = TcpStream::connect(addr).unwrap();
+        s.set_read_timeout(Some(Duration::from_secs(6))).unwrap();
+        s.write_all(format!("POST /pair HTTP/1.1\r\nHost: {addr}\r\nContent-Length: {}\r\n\r\n{body}", body.len()).as_bytes()).unwrap();
+        let mut out = vec![];
+        let _ = s.read_to_end(&mut out);
+        let dt = t.elapsed();
+        assert!(out.starts_with(b"HTTP/1.1 200 OK"), "{}", String::from_utf8_lossy(&out));
+        assert!(dt < Duration::from_secs(3), "pareou em {dt:?}");
+        let t = Instant::now();
+        srv.stop();
+        assert!(t.elapsed() < Duration::from_millis(500), "stop demorou {:?} com conexões lentas abertas", t.elapsed());
+    }
+
+    /// DK-083: clientes que somem no meio do pedido (rede caiu) não deixam o servidor preso.
+    #[test]
+    fn cliente_some_no_meio_do_pedido() {
+        let srv = serve("127.0.0.1:0".parse().unwrap(), |_| {}).unwrap();
+        let addr = srv.addr;
+        for _ in 0..100 {
+            let mut s = TcpStream::connect(addr).unwrap();
+            let _ = s.write_all(b"POST /cmd HTTP/1.1\r\nHost: x\r\nContent-Length: 100\r\n\r\n{\"ad");
+        } // cada `s` cai aqui: conexão fechada no meio do corpo
+        let t = Instant::now();
+        let mut s = TcpStream::connect(addr).unwrap();
+        s.write_all(format!("GET / HTTP/1.1\r\nHost: {addr}\r\n\r\n").as_bytes()).unwrap();
+        let mut out = vec![];
+        let _ = s.read_to_end(&mut out);
+        assert!(out.starts_with(b"HTTP/1.1 200 OK") && t.elapsed() < Duration::from_secs(1), "{:?}", t.elapsed());
+        srv.stop();
+    }
+
+    /// DK-083: o token não sobrevive a desligar e religar o serviço.
+    #[test]
+    fn token_morre_no_stop_start() {
+        let srv = serve("127.0.0.1:0".parse().unwrap(), |_| {}).unwrap();
+        let addr = srv.addr;
+        let token = pair(&srv.shared);
+        let get = |t: &str| {
+            let mut s = TcpStream::connect(addr).unwrap();
+            s.write_all(format!("GET /state HTTP/1.1\r\nHost: {addr}\r\nAuthorization: Bearer {t}\r\n\r\n").as_bytes()).unwrap();
+            let mut o = vec![];
+            let _ = s.read_to_end(&mut o);
+            String::from_utf8_lossy(&o).into_owned()
+        };
+        assert!(get(&token).starts_with("HTTP/1.1 200"));
+        srv.stop();
+        let srv = serve(addr, |_| {}).unwrap();
+        assert!(get(&token).starts_with("HTTP/1.1 401"), "token velho depois de religar");
+        srv.stop();
     }
 }
