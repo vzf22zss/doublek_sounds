@@ -2,7 +2,7 @@
 // O processamento pesado (tirar o branco, borrar o glow, borrar o fundo) roda uma vez por troca, não por quadro.
 import type { Visual } from './settings';
 import { load, save } from './store.ts';
-import { barDelayMs, loopWindow, toRelease, videoInfo, wrapTarget, type VideoInfo } from './videoloop.ts';
+import { barDelayMs, entryTarget, loopWindow, toRelease, videoInfo, wrapTarget, type VideoInfo } from './videoloop.ts';
 
 const DEFAULT_LOGO =
   'data:image/svg+xml;utf8,' +
@@ -265,30 +265,42 @@ function watchVideo(el: HTMLVideoElement, info: VideoInfo, o: { restart: boolean
   const win = () => loopWindow(info, el.duration);
   el.loop = win().native; // arquivo inteiro: o loop do próprio <video>; janela: a gente volta ao início
   const seek = (t: number) => { el.currentTime = t; };
-  const onTime = () => { last = Date.now(); };
+  const onTime = () => { last = Date.now(); }; // timeupdate e seeked: andou (o fim de um seek também conta)
   const onEnded = () => { seek(win().start); el.play().catch(() => {}); };
   const onError = () => alive && o.fail('deu erro ao tocar');
   el.addEventListener('timeupdate', onTime);
+  el.addEventListener('seeked', onTime);
   el.addEventListener('ended', onEnded);
   el.addEventListener('error', onError);
   const frame = (_: number, m: VideoFrameCallbackMetadata) => {
     if (!alive) return;
     last = Date.now();
-    const to = wrapTarget(m.mediaTime, win());
+    const to = wrapTarget(m.mediaTime, win(), el.seeking); // durante o seek o quadro pode ser o quadro-chave anterior
     if (to !== null) seek(to);
     el.requestVideoFrameCallback(frame);
   };
   el.requestVideoFrameCallback(frame);
-  const to = wrapTarget(el.currentTime, win()); // entrou na tela parado fora da janela
+  const to = entryTarget(el.currentTime, win()); // entrou na tela parado fora da janela
   if (to !== null) seek(to);
   const restart = o.restart && info.barRestart ? setTimeout(() => alive && seek(win().start), barDelayMs(o.beat?.() ?? null)) : 0;
-  // sem quadro nem timeupdate por 2 s com a janela visível = travou
-  const stall = setInterval(() => { if (alive && !document.hidden && Date.now() - last > 2000) o.fail('travou (2 s sem avançar)'); }, 500);
+  // sem quadro nem timeupdate por 2 s com a janela visível = travou; buscar não conta, mas buscar por 5 s, sim
+  let seekSince = 0;
+  const stall = setInterval(() => {
+    if (!alive || document.hidden) return;
+    if (el.seeking) {
+      seekSince ||= Date.now();
+      if (Date.now() - seekSince > 5000) o.fail('travou buscando o início do loop (5 s)');
+      return;
+    }
+    seekSince = 0;
+    if (Date.now() - last > 2000) o.fail('travou (2 s sem avançar)');
+  }, 500);
   return () => {
     alive = false;
     clearTimeout(restart);
     clearInterval(stall);
     el.removeEventListener('timeupdate', onTime);
+    el.removeEventListener('seeked', onTime);
     el.removeEventListener('ended', onEnded);
     el.removeEventListener('error', onError);
   };
