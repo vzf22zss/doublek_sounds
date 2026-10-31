@@ -49,9 +49,10 @@ Feito para psytrance, dark/forest e hi-tech (135–220 BPM).
 - **Gravar o telão:** grava em MP4 (sem som) o que está sendo projetado, em 16:9 ou vertical
   9:16 para Reels/TikTok.
 - **Presets compartilháveis:** exporte e importe `.doublekpreset` no Catálogo (`docs/PRESETS.md`).
-- **Efeitos da comunidade:** editor de shaders com pré-visualização e pacotes `.doublekfx`
-  (`docs/SHADERS.md`).
+- **Efeitos da comunidade:** editor de shaders com pré-visualização e pacotes `.doublekfx`,
+  que entram no telão como camadas, com modo seguro (`docs/SHADERS.md`).
 - **MIDI Clock:** segue o andamento do mixer/CDJ/software do DJ (`docs/MIDI-CLOCK.md`).
+- **Spout:** manda o telão direto para o Resolume, TouchDesigner ou OBS, sem placa de captura.
 - **Teclado e MIDI completos:** todo comando de show tem atalho e id de MIDI learn.
 - **Show Pack (`.doublekshow`):** salva e abre o show inteiro (cenas, bancos, roteiros, logo,
   foto, vídeos, MIDI) com backup automático antes de substituir.
