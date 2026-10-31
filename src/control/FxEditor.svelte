@@ -14,9 +14,8 @@
 
   let { getFrame, onstatus }: { getFrame: () => Frame | null; onstatus: (m: string) => void } = $props();
 
-  // o código fica no IndexedDB ao lado da mídia; a API pública de assets.ts só tipa logo/bg/vídeo, daí o cast
-  type AssetKey = Parameters<typeof setAsset>[0];
-  const codeKey = (id: string) => `fx:${id}` as unknown as AssetKey;
+  // o código fica no IndexedDB ao lado da mídia (chave fx:<id>)
+  const codeKey = (id: string) => `fx:${id}` as const;
 
   const saved = load('doublek.fx', validFxList, () => [] as FxEntry[]);
   let list = $state<FxEntry[]>(saved);

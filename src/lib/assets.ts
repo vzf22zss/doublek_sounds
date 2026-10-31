@@ -21,7 +21,7 @@ function db(): Promise<IDBDatabase> {
   });
 }
 
-type Key = 'logo' | 'bg' | `video:${string}`;
+type Key = 'logo' | 'bg' | `video:${string}` | `fx:${string}`; // fx: código dos efeitos da comunidade (DK-122)
 
 export async function getAsset(k: Key): Promise<Blob | undefined> {
   const d = await db();
