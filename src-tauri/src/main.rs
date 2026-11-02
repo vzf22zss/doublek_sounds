@@ -107,6 +107,14 @@ fn rec_abort(rec: State<'_, Rec>, id: String) -> Result<(), String> {
     rec.lock().map_err(|e| e.to_string())?.abort(&id)
 }
 
+/// Bytes livres no disco do app_data ("Testar tudo", DK-145). None fora do Windows ou se falhar.
+#[tauri::command]
+fn disk_free(app: AppHandle) -> Result<Option<u64>, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(rec::free_bytes(&dir))
+}
+
 /// Abre o Explorer na pasta das gravações (só ela).
 #[tauri::command]
 fn rec_open_dir(app: AppHandle) -> Result<(), String> {
@@ -534,6 +542,7 @@ fn main() {
             rec_stop,
             rec_abort,
             rec_open_dir,
+            disk_free,
             list_inputs,
             subscribe,
             start_input,
