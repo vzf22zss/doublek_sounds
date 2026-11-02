@@ -21,6 +21,11 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 - Janela de controle: o PREVIEW não fica mais atrás do analisador em telas baixas (1366×768); títulos de seção iguais em todas as abas; o seletor do editor de efeitos mostra o nome.
 
+### Corrigido
+
+- Desligar o OSC ou o celular podia levar alguns segundos com o notebook carregado; agora a porta é liberada na hora.
+- Testes do servidor de rede deixaram de falhar de vez em quando em máquina carregada (prazos medidos pela causa, não pelo agendamento da CPU).
+
 ## [0.3.8] - 2026-10-31
 
 ### Adicionado
