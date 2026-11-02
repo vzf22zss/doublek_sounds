@@ -21,6 +21,7 @@
   import FxEditor from './FxEditor.svelte';
   import { watchFxHealth } from './fxHealth';
   import RecordPanel from './RecordPanel.svelte';
+  import PreShow, { preshowLast } from './PreShow.svelte';
   import { initRec, rec, recTelemetry } from './rec.svelte';
   import { cropRect } from '../lib/recorder';
   import { busy as fxBusy, clear as clearFx, EMPTY as NO_FX, startBurst, startRamp, step as stepFx, type Running } from '../lib/roteiro-fx';
@@ -590,6 +591,7 @@
       commands: commands.history(),
       recording: { phase: rec.s.phase, id: rec.s.id, mime: rec.s.mime, ms: Math.round(rec.s.ms), bytes: rec.s.bytes, last: rec.s.path },
       show: { ...$state.snapshot(show), mode: automationMode, automation: $state.snapshot(rulesCfg), manualLeftMs: commands.manualLeft() },
+      preshow: preshowLast(),
       log: logEntries(),
     };
     const a = document.createElement('a');
@@ -980,6 +982,7 @@
       {:else if tab === 'Roteiro'}
         <RoteiroPanel sceneNames={(bank?: number) => perf?.sceneNames(bank) ?? []} bankNames={() => perf?.bankNames() ?? []} />
       {:else}
+        <PreShow {frame} gate={s.gate} {tel} monitor={+s.monitor} safeFlash={vs.safeFlash} fxSafe={vs.fxSafe} update={upd?.version ?? null} net={{ osc: osc.running, oscLan: s.oscLan, remote: remote.running, remoteLan: s.remoteLan, spout: !!spout?.running }} />
         <h2>Telão</h2>
         <select class="wide" bind:value={s.monitor}>
           {#each monitors as m, i}<option value={i}>{i + 1}. {m.name || 'Monitor'} — {m.width}×{m.height}</option>{/each}
