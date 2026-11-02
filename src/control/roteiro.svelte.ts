@@ -2,8 +2,6 @@
 // App toca: cursor = posição do arquivo na grade analisada. DJ toca: no GO, o beat ao vivo vira o
 // beat `goBeat` do roteiro e o cursor anda junto com o relógio do beat ao vivo (segue o pitch).
 import { invoke } from '@tauri-apps/api/core';
-import { emitTo } from '@tauri-apps/api/event';
-import { preloadVideo } from '../lib/assets';
 import { nextVideo } from '../lib/videoloop';
 import { checkFile, ext } from '../lib/limits';
 import { lookOf, type Look, type Visual } from '../lib/settings';
@@ -25,6 +23,7 @@ export const rt = $state({
   back: 'live' as 'live' | 'only',            // modo do roteiro para onde o A/B volta
   output: '',
   running: false,
+  preVideo: '',                   // próximo vídeo dos pontos (o App decide a vaga de pré-carga: D-19a)
   cursor: 0,
   selected: '',
   kind: 'scene' as CueKind,       // tipo do próximo ponto criado
@@ -238,21 +237,15 @@ export function tick(f: Frame | null, frameAt: number) {
   write(r2.set);
 }
 
-// DK-062: só o próximo vídeo do roteiro fica pré-carregado (1 tocando + 1 pronto); avisa o telão só quando muda
-let lastPre: string | null = null;
+// DK-062: o próximo vídeo dos pontos; quem avisa o telão é o App, que divide a vaga com o PREVIEW (D-19a)
 function preloadNext(r: Roteiro, beat: number) {
-  const id = nextVideo(r.cues, beat, ctx.vs().bgVideo ?? '');
-  if (id === lastPre) return;
-  lastPre = id;
-  preloadVideo(id);
-  emitTo('output', 'preload', id ? [id] : []);
+  rt.preVideo = nextVideo(r.cues, beat, ctx.vs().bgVideo ?? '');
 }
 
 function begin(r: Roteiro, at: number) {
   ctx.vs().react = rt.mode !== 'only';
   if (rt.mode !== 'sound') chase(r, at - 0.001);
   last = at - 0.001; // pontos exatamente no começo também disparam
-  lastPre = null;
   preloadNext(r, last);
   rt.running = true;
 }

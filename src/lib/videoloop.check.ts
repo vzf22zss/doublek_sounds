@@ -1,6 +1,6 @@
 // npm run check — vídeo de fundo (DK-062): janela de loop, volta no compasso, 1 tocando + 1 pré-carregado.
 import assert from 'node:assert/strict';
-import { barDelayMs, entryTarget, loopWindow, nextVideo, toRelease, videoInfo, wrapTarget } from './videoloop.ts';
+import { barDelayMs, entryTarget, loopWindow, nextVideo, preloadChoice, toRelease, videoInfo, wrapTarget } from './videoloop.ts';
 
 // metadados: campos novos opcionais; inválidos somem; nada de padrão acrescentado
 assert.deepEqual(videoInfo({ id: 'a', name: 'x' }), { id: 'a', name: 'x' });
@@ -84,6 +84,17 @@ assert.deepEqual(toRelease('a', 'a', ['a']), []);
   assert.equal(nextVideo(cues, 32, 'v1'), 'v3');
   assert.equal(nextVideo(cues, 48, 'v3'), '');
   assert.equal(nextVideo([{ kind: 'video', beat: 4 }], 0, ''), '', 'ponto de vídeo sem vídeo (tirar o vídeo)');
+}
+
+// --- D-19a: vaga de pré-carga — roteiro com próximo vídeo > vídeo da cena no PREVIEW > nada ---
+{
+  assert.equal(preloadChoice(null, 'B', 'A'), 'B', 'roteiro parado: o vídeo da cena preparada');
+  assert.equal(preloadChoice(null, 'A', 'A'), '', 'a cena preparada usa o vídeo que já está na tela');
+  assert.equal(preloadChoice(null, '', 'A'), '', 'cena preparada sem vídeo (ou preview vazio)');
+  assert.equal(preloadChoice('C', 'B', 'A'), 'C', 'roteiro tocando com próximo vídeo: o roteiro ganha');
+  assert.equal(preloadChoice('C', '', 'A'), 'C');
+  assert.equal(preloadChoice('', 'B', 'A'), 'B', 'roteiro tocando sem vídeo pela frente: a vaga fica com o preview');
+  assert.equal(preloadChoice('', '', ''), '');
 }
 
 console.log('videoloop: ok');
