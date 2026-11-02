@@ -1143,7 +1143,6 @@
   .tabs button { flex: 1; padding: 6px 0; font-size: 11.5px; background: transparent; border-color: transparent; color: var(--muted); }
   .tabs button.on { background: rgba(255,255,255,.08); color: var(--text); border-color: var(--line); }
   .tabBody { padding: 4px 16px 16px; overflow: auto; }
-  h2 { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 18px 0 2px; font-weight: 600; }
   .wide { width: 100%; margin-top: 6px; }
   .wide:disabled { opacity: .6; cursor: default; }
   .check { display: flex; gap: 10px; align-items: flex-start; margin: 12px 0 4px; cursor: pointer; }

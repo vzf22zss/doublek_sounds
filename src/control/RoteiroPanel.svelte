@@ -152,7 +152,7 @@
   .row select { flex: 1; min-width: 0; }
   .name { background: rgba(255,255,255,.05); border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; color: var(--text); font-weight: 600; }
   .track { font-size: 11px; color: var(--muted); }
-  h2 { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 12px 0 0; font-weight: 600; }
+  h2 { margin: 12px 0 0; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 12px; color: var(--muted); }
   .grid2 input { width: 70px; margin-left: 4px; }
   .pair { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }

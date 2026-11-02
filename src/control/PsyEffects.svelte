@@ -189,7 +189,6 @@
 <p class="keys">De cima para baixo = ordem em que desenham; arraste pelo nome ou use ▲▼. O fundo e a logo vêm sempre antes; vinheta, strobe e blackout sempre por último. Normal a 100% não custa nada a mais; os outros modos gastam 1 passe. Com o MIDI ligado, clique no liga/desliga ou na opacidade para mapear.</p>
 
 <style>
-  h2 { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 18px 0 2px; font-weight: 600; }
   .power { width: 100%; margin-top: 6px; }
   .check { display: flex; gap: 10px; align-items: flex-start; margin: 12px 0 4px; cursor: pointer; }
   .check input { accent-color: var(--accent); margin-top: 3px; }

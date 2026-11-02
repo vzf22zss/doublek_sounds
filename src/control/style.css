@@ -93,3 +93,6 @@ input[type=range]:hover::-webkit-slider-thumb { box-shadow: 0 0 0 6px rgba(124, 
 }
 /* pads cortam o que sai da borda (overflow: hidden): o selo fica por dentro */
 .pad.learn[data-midi]::after { top: 4px; right: 4px; }
+
+/* título de seção da barra lateral (App, Psy Engine, Gravação, Roteiro) */
+h2 { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 18px 0 2px; font-weight: 600; }
