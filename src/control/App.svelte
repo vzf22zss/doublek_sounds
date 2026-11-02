@@ -1132,8 +1132,9 @@
   .dots i.on { background: var(--kick); box-shadow: 0 0 10px var(--kick); }
   .dots i:first-child { border: 1px solid rgba(255,255,255,.3); }
 
-  .left { display: grid; grid-template-rows: auto 1fr; gap: 12px; min-height: 0; }
-  .previewBox { position: relative; aspect-ratio: 16 / 9; max-height: 42vh; overflow: hidden; justify-self: center; width: 100%; max-width: calc(42vh * 16 / 9); }
+  .left { display: grid; grid-template-rows: auto 1fr; gap: 12px; min-height: 0; container-type: size; }
+  /* altura: 42vh, mas nunca mais do que sobra na coluna acima do analisador (gap 12 + mínimo 160); senão ele cobre o preview em telas baixas */
+  .previewBox { --h: min(42vh, 100cqh - 172px); position: relative; aspect-ratio: 16 / 9; max-height: var(--h); overflow: hidden; justify-self: center; width: 100%; max-width: calc(var(--h) * 16 / 9); }
   .previewBox canvas { width: 100%; height: 100%; display: block; border-radius: var(--radius); }
   .tag { position: absolute; top: 10px; left: 12px; font-size: 10px; letter-spacing: .14em; color: rgba(255,255,255,.55); }
   .analyzer { padding: 12px; min-height: 160px; }
