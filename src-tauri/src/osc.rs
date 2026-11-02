@@ -6,8 +6,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use std::net::{SocketAddr, UdpSocket};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering::Relaxed};
-use std::sync::Arc;
-use std::thread::JoinHandle;
+use std::sync::{mpsc, Arc};
 use std::time::{Duration, Instant};
 
 pub const DEFAULT_PORT: u16 = 9000;
@@ -121,14 +120,16 @@ pub struct Server {
     pub addr: SocketAddr,
     pub stats: Arc<Stats>,
     stop: Arc<AtomicBool>,
-    thread: JoinHandle<()>,
+    closed: mpsc::Receiver<()>, // a thread avisa depois de soltar a porta
 }
 
 impl Server {
-    /// Para e espera a thread soltar a porta (até ~200 ms), para dar para religar na mesma porta em seguida.
+    /// Para e espera a porta ser solta (até ~200 ms), para dar para religar na mesma porta em seguida.
+    /// No Windows a saída de uma thread disputa uma trava do sistema com as threads que nascem e morrem ao lado; com a
+    /// CPU cheia, esperar o `join` chegou a levar segundos. Por isso o `stop` espera só o aviso de "porta fechada".
     pub fn stop(self) {
         self.stop.store(true, Relaxed);
-        let _ = self.thread.join();
+        let _ = self.closed.recv(); // Err = a thread caiu antes de avisar: a porta também já foi solta
     }
 }
 
@@ -153,7 +154,8 @@ where
     let addr = sock.local_addr().map_err(|e| e.to_string())?;
     let (stats, stop) = (Arc::new(Stats::default()), Arc::new(AtomicBool::new(false)));
     let (st, sp) = (stats.clone(), stop.clone());
-    let thread = std::thread::spawn(move || {
+    let (done, closed) = mpsc::channel();
+    std::thread::spawn(move || {
         let mut buf = vec![0u8; 65536];
         // ponytail: janela fixa de 1 s (rajada de até 2× no limite da janela); balde de fichas se precisar suavizar
         let (mut window, mut count) = (Instant::now(), 0u32);
@@ -177,8 +179,10 @@ where
                 on_msg(m);
             }
         }
+        drop(sock);
+        let _ = done.send(());
     });
-    Ok(Server { addr, stats, stop, thread })
+    Ok(Server { addr, stats, stop, closed })
 }
 
 #[cfg(test)]
@@ -283,14 +287,14 @@ mod tests {
         let addr = srv.addr;
         let c = UdpSocket::bind("127.0.0.1:0").unwrap();
         c.send_to(&msg("/doublek/v1/scene/2", ",f", &4f32.to_be_bytes()), addr).unwrap();
-        let m = rx.recv_timeout(Duration::from_secs(2)).expect("callback não chegou");
+        let m = rx.recv_timeout(Duration::from_secs(10)).expect("callback não chegou"); // folga para CPU cheia; chega em ms
         assert_eq!(m, OscMsg { addr: "/doublek/v1/scene/2".into(), args: vec![Arg { t: "f", v: json!(4.0) }] });
 
         c.send_to(b"lixo", addr).unwrap();
         let many: Vec<_> = (0..MAX_PER_SEC + 50).map(|_| s("/doublek/v1/tap")).collect();
         c.send_to(&bundle(&many), addr).unwrap();
         let mut got = 0;
-        while rx.recv_timeout(Duration::from_millis(500)).is_ok() {
+        while rx.recv_timeout(Duration::from_secs(2)).is_ok() { // 500 ms já cortou a contagem com a CPU cheia
             got += 1;
         }
         assert_eq!(got, MAX_PER_SEC - 1); // a 1ª mensagem já gastou uma vaga da janela
@@ -334,9 +338,21 @@ mod tests {
                     _ => b.truncate(p),
                 }
             }
-            let t = std::time::Instant::now();
-            ok += parse(&b).is_ok() as u32;
-            worst = worst.max(t.elapsed());
+            let run = || {
+                let t = std::time::Instant::now();
+                (parse(&b).is_ok(), t.elapsed())
+            };
+            let (good, mut dt) = run();
+            ok += good as u32;
+            // com a CPU disputada, uma preempção pega qualquer pacote: o que passou de 50 ms roda de novo e vale o
+            // menor tempo (um pacote lento de verdade continua lento nas 3 vezes)
+            for _ in 0..3 {
+                if dt < Duration::from_millis(50) {
+                    break;
+                }
+                dt = dt.min(run().1);
+            }
+            worst = worst.max(dt);
         }
         assert!(worst < Duration::from_millis(50), "pior caso {worst:?}");
         assert!(ok > 100, "algumas mutações precisam continuar válidas ({ok})");
