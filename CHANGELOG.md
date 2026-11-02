@@ -14,7 +14,12 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 - DK-123: efeitos da comunidade no telão como camadas (até 2), com desligamento automático do efeito que falha, pesa demais ou derruba a placa, e **modo seguro** (botão no editor, Shift + Projetar, ou automático depois de uma queda). Parâmetros com fonte de modulação passam a reagir ao som; opacidade e liga/desliga das camadas de efeito e de vídeo aprendem no MIDI.
 - DK-063: vídeo do fundo como camada opcional (na frente de efeitos, com mistura e opacidade); o padrão continua igual.
 - DK-144: gravar a análise de um set (só números, sem áudio) com a tecla **M** marcando os drops, para ajustar a detecção com a música do DJ (`docs/quality/CALIBRACAO.md`).
+- DK-145: botão **Testar tudo** (aba Saída) que confere em 10 s áudio, BPM, telão, MIDI, disco, limite de flashes, efeitos, versão e rede, com a correção de cada item.
 - Tutorial com capturas novas: mapa de automação, editor de efeitos, gravação vertical, vídeo em loop, aba Saída inteira.
+
+### Alterado
+
+- Janela de controle: o PREVIEW não fica mais atrás do analisador em telas baixas (1366×768); títulos de seção iguais em todas as abas; o seletor do editor de efeitos mostra o nome.
 
 ## [0.3.8] - 2026-10-31
 
