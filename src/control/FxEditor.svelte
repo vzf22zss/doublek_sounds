@@ -272,7 +272,7 @@
   .fx summary { cursor: pointer; font-weight: 700; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
   .warn { font-size: 11px; color: #ffb020; margin: 6px 0; }
   .bar { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
-  .bar select { flex: 1; min-width: 0; font-size: 12px; }
+  .bar select { flex: 1 1 100%; min-width: 0; font-size: 12px; } /* linha própria: na barra de 320 px os botões espremiam o nome */
   .bar button, .btn { padding: 3px 8px; font-size: 12px; }
   .btn { background: rgba(255,255,255,.06); border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
   .btn input { display: none; }
