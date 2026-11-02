@@ -937,7 +937,8 @@ modo de automação, clique no chip de estado).
 - [ ] 3 ou 4 cenas montadas (ex.: calma, pesada, túnel, strobe) e nomeadas.
 - [ ] Controlador MIDI mapeado.
 - [ ] Roteiros conferidos (tocar pelo app e ver os pontos caírem no tempo).
-- [ ] **Exportar** um backup do preset para um pendrive ou para a nuvem.
+- [ ] **Salvar show** (`.doublekshow`) num pendrive ou na nuvem: leva cenas, bancos, roteiros,
+      logo, foto, vídeos e MIDI.
 
 **Na festa (antes de abrir a pista):**
 
@@ -949,7 +950,11 @@ modo de automação, clique no chip de estado).
 - [ ] Faixa de BPM certa (Psy / Dark / Hi-tech).
 - [ ] **Projetar** → conferir **60 fps**.
 - [ ] Acertar o **Offset visual** olhando para o telão.
-- [ ] Ter na cabeça: **B** = blackout, **L** = só logo, **Espaço** = tap.
+- [ ] Com a música tocando e o telão projetado: aba **Saída** → **Testar tudo**. Em 10 s o app
+      confere áudio entrando, BPM travado, telão no monitor certo e fluido, MIDI, espaço em disco,
+      limite de flashes, efeitos da comunidade, versão e rede, e mostra cada item em verde,
+      amarelo ou vermelho com o que fazer. Resolva os vermelhos antes de abrir a pista.
+- [ ] Ter na cabeça: **B** = blackout, **L** = só logo, **Espaço** = tap, **P** = pânico.
 
 ---
 
