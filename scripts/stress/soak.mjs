@@ -20,6 +20,8 @@ const puppeteer = createRequire(path.join(CAP, 'package.json'))('puppeteer-core'
 const URL0 = `http://localhost:${process.env.PORT ?? 4183}/`;
 const SECS = +(process.argv[2] ?? 7200);
 const NO_FX = process.env.SOAK_NO_FX === '1'; // D-22: rodada de controle sem o editor de FX
+// SOAK_REGUA=1: na aba Efeitos, a 1ª régua da aba (Caleidoscópio) fica aberta (nível ao vivo a 30 fps) com mín/máx ajustados (Onda 10)
+const REGUA = process.env.SOAK_REGUA === '1';
 const OUT = process.cwd();
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
@@ -45,7 +47,7 @@ const STUBS = `(() => {
       f.stability = p === 'defasada' ? 0.3 : 0.9;
       f.contrast = p === 'virada' ? 1.4 : 1.0;
       f.kickRate = p === 'groove' || p === 'drop' ? 4 : 0;
-      if (p === 'pausa') { f.rms = 0.001; f.peak = 0.002; f.bands = [0, 0, 0, 0, 0]; f.kick = 0; f.low = 0; }
+      if (p === 'pausa') { f.rms = 0.001; f.peak = 0.002; f.bands = [0, 0, 0, 0, 0]; f.levels = [0, 0, 0, 0, 0]; f.kick = 0; f.low = 0; }
       if (p === 'defasada') { f.kick = 0; f.low = 1; f.locked = true; }
     }
     cb(m);
@@ -102,6 +104,7 @@ await o.goto(URL0 + 'output.html');
 await wait(2000);
 await c.bringToFront();
 
+const regua = async () => { if (!REGUA) return; await wait(200); await ui(() => { const b = document.querySelector('button.rg'); if (b && !b.classList.contains('open')) b.click(); }); await wait(200); await ui(() => { const [lo, hi] = document.querySelectorAll('.regua input'); for (const [i, x] of [[lo, '0.2'], [hi, '0.8']]) if (i && i.value !== x) { i.value = x; i.dispatchEvent(new Event('input', { bubbles: true })); } }); };
 const tab = (n) => c.evaluate((n) => [...document.querySelectorAll('.tabs button')].find((x) => x.textContent === n)?.click(), n);
 const ui = (fn, ...a) => c.evaluate(fn, ...a).catch((e) => errors.push({ t: Date.now(), where: 'script', msg: 'ação do teste falhou: ' + e.message }));
 // roteiro escolhido; modo Automático; um efeito de FX criado
@@ -160,7 +163,7 @@ const setRec = async (on) => {
     await ui(() => [...document.querySelectorAll('aside button')].find((x) => x.textContent.trim() === 'Gravar')?.click());
   } else await ui(() => [...document.querySelectorAll('aside button')].find((x) => x.textContent.trim() === 'Parar')?.click());
   await wait(500);
-  if (fxOn) { await tab('Efeitos'); await wait(300); await ui(() => { const d = document.querySelector('details.fx'); if (d && !d.open) d.querySelector('summary').click(); }); }
+  if (fxOn) { await tab('Efeitos'); await wait(300); await ui(() => { const d = document.querySelector('details.fx'); if (d && !d.open) d.querySelector('summary').click(); }); await regua(); }
 };
 for (let m = 1; Date.now() - t0 < SECS * 1000; m++) {
   const mEnd = Math.min(m * 60000, SECS * 1000);
@@ -169,7 +172,7 @@ for (let m = 1; Date.now() - t0 < SECS * 1000; m++) {
     const ph = phaseAt(s);
     if (ph !== lastPhase) { lastPhase = ph; for (const p of [c, o]) await p.evaluate((ph) => { window.__phase = ph; window.__breakdown = ph === 'breakdown' || ph === 'virada' || ph === 'pausa'; }, ph).catch(() => {}); }
     const wantFx = !NO_FX && min % 30 < 10, wantRot = min % 30 >= 10 && min % 30 < 20, wantRec = min % 10 < 5;
-    if (wantFx !== fxOn) { fxOn = wantFx; if (fxOn) { await tab('Efeitos'); await wait(300); await ui(() => { const d = document.querySelector('details.fx'); if (d && !d.open) d.querySelector('summary').click(); }); } else await tab('Saída'); }
+    if (wantFx !== fxOn) { fxOn = wantFx; if (fxOn) { await tab('Efeitos'); await wait(300); await ui(() => { const d = document.querySelector('details.fx'); if (d && !d.open) d.querySelector('summary').click(); }); await regua(); } else await tab('Saída'); }
     if (wantRot !== rotOn) { rotOn = wantRot; await ui((on) => window.__dispatch({ type: on ? 'ROTEIRO_GO' : 'ROTEIRO_STOP' }, 'ui'), rotOn); }
     if (wantRec !== recOn) { recOn = wantRec; if (recOn) recFmt = recFmt === 'TELAO' ? 'VERTICAL' : 'TELAO'; await setRec(recOn); }
     await wait(1000);
@@ -183,12 +186,12 @@ for (let m = 1; Date.now() - t0 < SECS * 1000; m++) {
     ...(await c.evaluate(() => window.__stats()).catch(() => ({}))),
     rec: recOn ? recFmt : '-', fx: fxOn, roteiro: rotOn,
     hist: await c.evaluate(() => window.__commands.history().length).catch(() => null),
-    errors: errors.length,
+    errors: errors.length, ...(REGUA ? { reguas: await c.evaluate(() => document.querySelectorAll('.regua').length).catch(() => null) } : {}),
     mockC: await c.evaluate(() => window.__mockStats?.()).catch(() => null), mockO: await o.evaluate(() => window.__mockStats?.()).catch(() => null), // listen/unlisten do mock, se ele contar
   };
   minutes.push(row);
   log('min', JSON.stringify(row));
-  fs.writeFileSync(path.join(OUT, 'soak-result.json'), JSON.stringify({ secs: SECS, noFx: NO_FX, minutes, errors, states: await c.evaluate(() => window.__states).catch(() => null) }, null, 1));
+  fs.writeFileSync(path.join(OUT, 'soak-result.json'), JSON.stringify({ secs: SECS, noFx: NO_FX, regua: REGUA, minutes, errors, states: await c.evaluate(() => window.__states).catch(() => null) }, null, 1));
 }
 
 // ---- critérios ----
@@ -225,7 +228,7 @@ const criteria = {
 const info = {
   aquecimentoCiclo1: pisos.length >= 2 ? { pisoKB: pisos[0], deltaAteCiclo2KB: pisos[1] - pisos[0] } : null,
   heapLinearPctPorHoraDesdeMin2: +((hc.slopePerMin * 60) / hc.mean * 100).toFixed(2) }; // antigo, sensível a aquecimento e degraus
-fs.writeFileSync(path.join(OUT, 'soak-result.json'), JSON.stringify({ secs: SECS, noFx: NO_FX, minutes, errors, criteria, info, states: await c.evaluate(() => window.__states).catch(() => null) }, null, 1));
+fs.writeFileSync(path.join(OUT, 'soak-result.json'), JSON.stringify({ secs: SECS, noFx: NO_FX, regua: REGUA, minutes, errors, criteria, info, states: await c.evaluate(() => window.__states).catch(() => null) }, null, 1));
 log('critérios', JSON.stringify(criteria), JSON.stringify(info));
 await b.close();
 process.exit(Object.values(criteria).every((x) => x.ok) ? 0 : 1);
