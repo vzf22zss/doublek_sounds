@@ -55,6 +55,25 @@ export function cropRect(srcW: number, srcH: number, outW: number, outH: number,
   return { sx, sy, sw, sh };
 }
 
+/**
+ * Caminho do vertical (D-18). `webcodecs`: o quadro do telão vai recortado (VideoFrame com `visibleRect`, sem cópia)
+ * para um VideoEncoder H.264 que já escala para o tamanho de saída, e o app monta o MP4 fragmentado (`fmp4.ts`).
+ * Medido no mock com GPU: custa o mesmo que gravar o 16:9; a cópia 2D por quadro custava +24–56% de p95.
+ * `2d`: a cópia para um canvas 2D (DK-073) — WebView sem WebCodecs, WebM, ou depois de uma falha nesta sessão.
+ */
+export type VerticalPath = 'webcodecs' | '2d';
+export type WebCodecsSupport = { processor: boolean; encoder: boolean; frame: boolean };
+export function verticalPath(has: WebCodecsSupport, mime: string, failedBefore: boolean): VerticalPath {
+  return !failedBefore && has.processor && has.encoder && has.frame && /^video\/mp4;codecs=avc1\./.test(mime) ? 'webcodecs' : '2d';
+}
+
+/** Recorte do `cropRect` em pixels inteiros e pares (NV12 exige), sempre dentro do quadro srcW×srcH. */
+export function evenRect(c: { sx: number; sy: number; sw: number; sh: number }, srcW: number, srcH: number) {
+  const ev = (v: number) => Math.max(0, Math.floor(v / 2) * 2);
+  const x = Math.min(ev(c.sx), Math.max(0, ev(srcW) - 2)), y = Math.min(ev(c.sy), Math.max(0, ev(srcH) - 2));
+  return { x, y, width: Math.max(2, Math.min(ev(c.sw), ev(srcW - x))), height: Math.max(2, Math.min(ev(c.sh), ev(srcH - y))) };
+}
+
 export type Phase = 'idle' | 'starting' | 'recording' | 'stopping';
 export type RecState = {
   phase: Phase;
