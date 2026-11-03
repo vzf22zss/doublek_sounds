@@ -8,8 +8,7 @@ use std::path::Path;
 
 fn main() {
     let path = std::env::args().nth(1).expect("uso: replay <diario.jsonl>");
-    let lines = read(Path::new(&path)).unwrap_or_else(|e| panic!("não consegui ler {path}: {e}"));
-    let s = summarize(&lines);
+    let s = read(Path::new(&path)).map(|l| summarize(&l)).unwrap_or_else(|e| panic!("não consegui ler {path}: {e}"));
     println!("# Diário {path}\n");
     println!("| Medida | Valor |\n|---|---:|");
     let secs = s.secs.round() as u64; // arredonda antes: 119,95 s não vira "1 min 60 s"

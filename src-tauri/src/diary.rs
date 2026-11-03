@@ -245,7 +245,7 @@ fn stamp(now: SystemTime) -> String {
 }
 
 
-// ---------------- leitura e resumo (examples/replay.rs) ----------------
+// ---------------- leitura e resumo (examples/replay.rs e o cartão da aba Áudio) ----------------
 
 pub fn read(path: &Path) -> Result<Vec<Line>, String> {
     let text = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
@@ -259,7 +259,9 @@ pub fn read(path: &Path) -> Result<Vec<Line>, String> {
 /// Resumo para a calibração. O estado que o show-engine teria escolhido NÃO é refeito aqui: as
 /// regras moram em TS (`src/lib/show-engine`) e mudam lá; duplicar os limiares em Rust divergiria.
 /// O replay de estados lê este mesmo JSONL do lado TS. Aqui ficam só os números brutos.
-#[derive(Debug, Default, PartialEq)]
+/// Vai para a UI em JSON (camelCase); `drop_delay_mean` sem acertos (NaN) sai como `null`.
+#[derive(Debug, Default, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Summary {
     pub secs: f64,
     pub samples: usize,
@@ -272,6 +274,7 @@ pub struct Summary {
     pub marks: usize,
     pub drop_hits: usize,
     pub drop_missed: usize,      // marca "drop" sem drop_on detectado a ±4 s
+    pub missed_no_breakdown: usize, // perdidos em que o grave nunca saiu nos 8 s antes da marca: o app não viu o breakdown
     pub drop_false: usize,       // drop_on sem marca a ±4 s
     pub drop_delay_mean: f64,    // drop_on − marca (s), média dos acertos
 }
@@ -297,11 +300,16 @@ pub fn summarize(lines: &[Line]) -> Summary {
     }
     let mut delays = vec![];
     let mut used = vec![false; drops.len()];
+    let mut no_breakdown = 0;
     for &m in &marks {
         let best = drops.iter().enumerate().filter(|(i, &d)| !used[*i] && (d - m).abs() <= MATCH).min_by(|a, b| (a.1 - m).abs().total_cmp(&(b.1 - m).abs()));
         if let Some((i, &d)) = best {
             used[i] = true;
             delays.push(d - m);
+        } else {
+            // perdido: o grave ficou ligado o breakdown inteiro (limiar baixo demais) ou não voltou (alto demais)?
+            let before: Vec<_> = samples.iter().filter(|s| s.t >= m - 2.0 * MATCH && s.t < m - MATCH).collect();
+            no_breakdown += (!before.is_empty() && before.iter().all(|s| s.low)) as usize;
         }
     }
     Summary {
@@ -316,9 +324,22 @@ pub fn summarize(lines: &[Line]) -> Summary {
         marks: marks.len(),
         drop_hits: delays.len(),
         drop_missed: marks.len() - delays.len(),
+        missed_no_breakdown: no_breakdown,
         drop_false: used.iter().filter(|u| !**u).count(),
         drop_delay_mean: if delays.is_empty() { f64::NAN } else { delays.iter().sum::<f64>() / delays.len() as f64 },
     }
+}
+
+/// Resumo de um diário que está direto em `dir` (a pasta das análises), para o cartão da aba Áudio.
+/// Recusa qualquer outro caminho: fora da pasta (inclusive por `..` ou atalho), subpasta ou não-`.jsonl`.
+// ponytail: lê o arquivo inteiro (até 200 MB, ~12 h); se sets longos pesarem, resumir lendo linha a linha
+pub fn summary_in(dir: &Path, path: &Path) -> Result<Summary, String> {
+    let refuse = || "Só resumo diários da pasta das análises".to_string();
+    let (dir, file) = (dir.canonicalize().map_err(|_| refuse())?, path.canonicalize().map_err(|_| refuse())?);
+    if file.parent() != Some(dir.as_path()) || file.extension().is_none_or(|e| e != "jsonl") || !file.is_file() {
+        return Err(refuse());
+    }
+    read(&file).map(|l| summarize(&l))
 }
 
 #[cfg(test)]
@@ -421,6 +442,42 @@ mod tests {
         assert!((s.locked_pct - 100.0 * 1700.0 / 1801.0).abs() < 0.2, "{}", s.locked_pct);
         assert!((s.build_pct - 100.0 * 60.0 / 1801.0).abs() < 0.2, "{}", s.build_pct);
         assert_eq!(s.kick_rate_by_min.len(), 2);
+        assert_eq!(s.missed_no_breakdown, 0);
+    }
+
+    /// Perdidos: o da marca em 20 s tinha o grave ligado nos 8 s antes (breakdown não visto); o de 60 s, não.
+    #[test]
+    fn perdido_sem_breakdown_e_json() {
+        let mut lines: Vec<Line> = (0..=1600).map(|i| {
+            let t = i as f64 * 0.05;
+            Line::Sample(Sample::new(t, 148.0, true, false, 0.0, 0, 0.0, !(50.0..58.0).contains(&t), 0.1, 1.0, 1.0, 4.0, "audio", [0.0; 5]))
+        }).collect();
+        lines.push(Line::Mark { t: 20.0, mark: "drop".into() });
+        lines.push(Line::Mark { t: 60.0, mark: "drop".into() });
+        let s = summarize(&lines);
+        assert_eq!((s.marks, s.drop_hits, s.drop_missed, s.missed_no_breakdown), (2, 0, 2, 1));
+        let j = serde_json::to_value(&s).unwrap();
+        assert_eq!((j["dropMissed"].as_u64(), j["missedNoBreakdown"].as_u64()), (Some(2), Some(1)));
+        assert!(j["dropDelayMean"].is_null(), "sem acertos: null, não NaN");
+    }
+
+    #[test]
+    fn resumo_so_dentro_da_pasta_das_analises() {
+        let root = tmp("resumo-pasta");
+        let dir = root.join("analysis");
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        let ok = dir.join("2026-11-02T10-00-00Z.jsonl");
+        std::fs::write(&ok, "{\"t\":1.0,\"mark\":\"drop\"}\n{\"t\":1.2,\"event\":\"drop_on\"}\n").unwrap();
+        let s = summary_in(&dir, &ok).unwrap();
+        assert_eq!((s.marks, s.drop_hits), (1, 1));
+        let fora = root.join("fora.jsonl");
+        std::fs::write(&fora, "").unwrap();
+        std::fs::write(dir.join("sub").join("x.jsonl"), "").unwrap();
+        std::fs::write(dir.join("notas.txt"), "").unwrap();
+        for bad in [fora.clone(), dir.join("..").join("fora.jsonl"), dir.join("sub").join("x.jsonl"), dir.join("notas.txt"), dir.join("nao-existe.jsonl"), dir.clone(), PathBuf::from("C:\\Windows\\win.ini")] {
+            assert_eq!(summary_in(&dir, &bad), Err("Só resumo diários da pasta das análises".into()), "{bad:?}");
+        }
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

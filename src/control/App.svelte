@@ -21,6 +21,7 @@
   import FxEditor from './FxEditor.svelte';
   import { watchFxHealth } from './fxHealth';
   import RecordPanel from './RecordPanel.svelte';
+  import DiarioResumo from './DiarioResumo.svelte';
   import PreShow, { preshowLast } from './PreShow.svelte';
   import { initRec, rec, recTelemetry } from './rec.svelte';
   import { cropRect, type Size } from '../lib/recorder';
@@ -881,6 +882,7 @@
         <h2>Gravar análise (calibração)</h2>
         <button class="wide" onclick={diarioToggle}>{diario?.running ? 'Parar gravação da análise' : 'Gravar análise (sem áudio)'}</button>
         <p class="keys">Grava só números (BPM, grave, kicks), nunca o som, para ajustar a detecção com a sua música. Com a gravação ligada, aperte <b>M</b> no instante de cada drop.{diario?.lastError ? ' ⚠ ' + diario.lastError : ''}</p>
+        {#if diario && !diario.running && diario.path}<DiarioResumo path={diario.path} />{/if}
         <p class="keys">Espaço = tap · ← → = fase · 1–8 = cenas · B = blackout · L = só logo · F = telão</p>
 
       {:else if tab === 'Logo'}
