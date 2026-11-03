@@ -1,6 +1,6 @@
 // npm run check — lógica musical do renderer (DK-021): envelopes, fase, fontes, drop, strobe e blackout.
 import assert from 'node:assert/strict';
-import { BURST_HZ, BURST_MS, burst, burstState, music, musicFrame, musicState } from './music.ts';
+import { BURST_HZ, BURST_MS, burst, burstState, mod, music, musicFrame, musicState, type MusicUniforms } from './music.ts';
 import { VISUAL, type Visual } from '../lib/settings.ts';
 import { SAFE_STROBE_MAX, MAX_FLASH_HZ } from '../lib/safety.ts';
 import type { Frame } from '../lib/types.ts';
@@ -152,6 +152,21 @@ for (const safe of [true, false]) {
   assert.equal(b.n, 0);
   for (let t = 2000; t < 4000; t++) burst(b, t, 0.9, true); // fonte parada no alto: uma rajada só
   assert.equal(b.n, 1);
+}
+
+// régua (onda 10): 0 abaixo do mínimo, proporcional até 1 no máximo, 1 acima; sem régua a fonte passa direto
+{
+  const u = (bass: number, o: Partial<MusicUniforms> = {}) =>
+    ({ stale: false, p: 0.3, S: { auto: 1.3, bass }, ...o }) as unknown as MusicUniforms;
+  const v = V({ mod: { ...VISUAL.mod, glow: 'bass' }, range: { glow: [0.2, 0.6] } });
+  close(mod(u(0.1), v, 'glow'), 0, 'abaixo do mínimo');
+  close(mod(u(0.2), v, 'glow'), 0, 'no mínimo');
+  close(mod(u(0.4), v, 'glow'), 0.5, 'no meio da faixa');
+  close(mod(u(0.6), v, 'glow'), 1, 'no máximo');
+  close(mod(u(0.9), v, 'glow'), 1, 'acima do máximo');
+  close(mod(u(0.4), V({ mod: { ...VISUAL.mod, glow: 'bass' } }), 'glow'), 0.4, 'sem régua');
+  close(mod(u(0.4), v, 'amount'), 1.3, 'régua de outro alvo não interfere');
+  close(mod(u(0.4, { stale: true }), v, 'glow'), 0.3, 'sem sinal: respira, sem régua');
 }
 
 console.log('music: ok');

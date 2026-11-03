@@ -22,6 +22,9 @@ export const VISUAL = {
     bgFlash: 'auto', fxFlash: 'auto', fxShake: 'kick', trailZoom: 'auto',
     kaleido: 'lfo', tunnel: 'bass', mandala: 'kick', particles: 'kick', organic: 'sub', glitch: 'kick',
   } as Record<ModTarget, Source>,
+  // régua: [mín, máx] do nível da fonte; abaixo do mínimo o efeito fica parado, no máximo chega a 100%.
+  // Sem entrada = [0, 1] (a fonte passa direto, como antes).
+  range: {} as Partial<Record<ModTarget, [number, number]>>,
   drop: {
     fxFlash: false, fxRings: false, fxBars: false, fxRadial: false, trail: false, strobe: false,
     chroma: false, fxShake: false, bgPulse: false, bgFlash: false, bgMedia: false,
@@ -59,10 +62,23 @@ export const VISUAL = {
 };
 export type Visual = typeof VISUAL;
 
+/** Régua salva → só alvos conhecidos com 0 ≤ mín < máx ≤ 1; o resto é descartado (volta a [0, 1]). */
+export function validRange(x: unknown): Visual['range'] {
+  const o: Visual['range'] = {};
+  if (!isObj(x)) return o;
+  for (const [k, r] of Object.entries(x)) {
+    if (!(k in VISUAL.mod) || !Array.isArray(r) || r.length !== 2) continue;
+    const [lo, hi] = r;
+    if (typeof lo === 'number' && typeof hi === 'number' && 0 <= lo && lo < hi && hi <= 1) o[k as ModTarget] = [lo, hi];
+  }
+  return o;
+}
+
 /** Visual salvo → completo, com os tipos certos e só valores conhecidos; estados de operação voltam ao neutro. */
 export function validVisual(raw: unknown): Visual {
   const v = shaped(raw, VISUAL);
   for (const k of Object.keys(v.mod) as ModTarget[]) if (!(v.mod[k] in SOURCES)) v.mod[k] = VISUAL.mod[k];
+  v.range = validRange(isObj(raw) ? raw.range : null); // `shaped` com o padrão {} jogaria tudo fora
   if (v.bgFit !== 'cover' && v.bgFit !== 'contain') v.bgFit = VISUAL.bgFit;
   if (![1, 2, 4].includes(v.strobeDiv)) v.strobeDiv = VISUAL.strobeDiv;
   v.layers = sanitizeLayers(v.layers); // dado salvo passa pelo mesmo crivo que o renderer e a UI
@@ -149,6 +165,8 @@ export function sanitizeLook(x: unknown): Partial<Look> {
     } else if (k === 'drop' && v && typeof v === 'object') {
       o.drop = { ...VISUAL.drop };
       for (const [t, on] of Object.entries(v)) if (t in VISUAL.drop && typeof on === 'boolean') o.drop[t] = on;
+    } else if (k === 'range') {
+      o.range = validRange(v);
     } else if (k === 'layers') {
       o.layers = sanitizeLayers(v); // DK-053: camadas entram nas cenas, presets e Show Pack
     } else if (k in base && typeof base[k] !== 'object' && typeof v === typeof base[k] && (typeof v !== 'number' || Number.isFinite(v))) o[k] = v;

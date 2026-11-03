@@ -67,8 +67,13 @@ export function musicFrame(st: MusicState, f: Frame, v: Visual, now: number) {
   }
 }
 
-/** Fonte de modulação do alvo `k` (sem sinal: o pulso que respira). */
-export const mod = (u: MusicUniforms, v: Visual, k: ModTarget) => (u.stale ? u.p : u.S[v.mod[k]] ?? u.p);
+/** Fonte de modulação do alvo `k` (sem sinal: o pulso que respira). Com régua [mín, máx]: 0 abaixo do mínimo,
+ *  sobe proporcional e chega a 1 no máximo (acima, fica em 1). */
+export function mod(u: MusicUniforms, v: Visual, k: ModTarget) {
+  if (u.stale) return u.p;
+  const x = u.S[v.mod[k]] ?? u.p, r = v.range?.[k];
+  return r ? Math.min(1, Math.max(0, (x - r[0]) / (r[1] - r[0]))) : x;
+}
 
 /** "Só no drop": multiplica pelo envelope do grave se o efeito estiver marcado. */
 export const gate = (u: MusicUniforms, v: Visual, k: DropTarget) => (v.drop?.[k] ? u.drop : 1);
