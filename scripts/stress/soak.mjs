@@ -202,10 +202,13 @@ const after = minutes.slice(2); // dois minutos de aquecimento
 const hc = fit(after.map((r) => r.heapC)); // heapO é o mesmo isolate (ver cabeçalho): só informativo
 // D-22: piso (mínimo) de cada ciclo de 30 min, só nos min 10–30 do ciclo: fora o aquecimento (min 0–10 do 1º ciclo)
 // e os blocos com o editor de FX aberto, que sobem o heap enquanto ele está aberto. Critério: os pisos crescem < 1 %/h.
+// Regra mudada em 2026-11-03, depois do soak de 2 h da D-22: pisos 9801/10021/10024/10051 KB = degrau único no ciclo
+// 1→2 (+220 KB, buffers com teto enchendo: histórico 50, diário 200) e plano depois (0,30 %/h). Daí o ciclo 1 é aquecimento
+// declarado (só em info) e o critério vai do piso do ciclo 2 ao último, exigindo ≥ 3 ciclos (≥ 90 min).
 const floors = [];
 for (const r of minutes) { const k = Math.floor((r.min - 1) / 30); if ((r.min - 1) % 30 >= 10 && Number.isFinite(r.heapC)) floors[k] = Math.min(floors[k] ?? Infinity, r.heapC); }
 const pisos = floors.filter(Number.isFinite);
-const pisoPct = pisos.length >= 2 ? ((pisos.at(-1) - pisos[0]) / pisos[0] / ((pisos.length - 1) / 2)) * 100 : null; // ciclos de 0,5 h
+const pisoPct = pisos.length >= 3 ? ((pisos.at(-1) - pisos[1]) / pisos[1] / ((pisos.length - 2) / 2)) * 100 : null; // ciclos de 0,5 h
 const q = Math.max(1, Math.floor(minutes.length / 4));
 const medOf = (rows) => { const s = rows.map((r) => r.p95).filter(Number.isFinite).sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
 const p95First = medOf(minutes.slice(0, q)), p95Last = medOf(minutes.slice(-q));
@@ -213,13 +216,15 @@ const tg = after.map((r) => r.targets);
 const criteria = {
   erros: { valor: errors.length, ok: errors.length === 0 },
   heapPisosPctPorHora: { valor: pisoPct === null ? null : +pisoPct.toFixed(2), pisosKB: pisos, ok: pisoPct !== null && pisoPct < 1,
-    ...(pisoPct === null ? { nota: 'precisa de ≥ 2 ciclos (≥ 41 min)' } : {}) },
+    ...(pisoPct === null ? { nota: 'precisa de ≥ 3 ciclos (≥ 90 min)' } : {}) },
   p95UltimoQuartoSobrePrimeiro: { valor: +(p95Last / p95First).toFixed(3), primeiro: p95First, ultimo: p95Last, ok: p95Last <= 1.2 * p95First },
   alvosGL: { valor: [...new Set(tg)].join(','), ok: new Set(tg).size === 1 },
   filaPresa: { valor: minutes.at(-1)?.notIdle ?? null, ok: (minutes.at(-1)?.notIdle ?? 1) === 0 },
   historicoNoTeto: { valor: Math.max(...minutes.map((r) => r.histMax ?? 0)), ok: Math.max(...minutes.map((r) => r.histMax ?? 0)) <= 50 },
 };
-const info = { heapLinearPctPorHoraDesdeMin2: +((hc.slopePerMin * 60) / hc.mean * 100).toFixed(2) }; // antigo, sensível a aquecimento e degraus
+const info = {
+  aquecimentoCiclo1: pisos.length >= 2 ? { pisoKB: pisos[0], deltaAteCiclo2KB: pisos[1] - pisos[0] } : null,
+  heapLinearPctPorHoraDesdeMin2: +((hc.slopePerMin * 60) / hc.mean * 100).toFixed(2) }; // antigo, sensível a aquecimento e degraus
 fs.writeFileSync(path.join(OUT, 'soak-result.json'), JSON.stringify({ secs: SECS, noFx: NO_FX, minutes, errors, criteria, info, states: await c.evaluate(() => window.__states).catch(() => null) }, null, 1));
 log('critérios', JSON.stringify(criteria), JSON.stringify(info));
 await b.close();
