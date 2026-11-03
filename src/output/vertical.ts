@@ -36,20 +36,10 @@ export async function webCodecsRecorder(canvas: HTMLCanvasElement, o: { mime: st
   const cfg: VideoEncoderConfig = { codec, width: o.w, height: o.h, bitrate: o.bitrate, framerate: o.fps, avc: { format: 'avc' } };
   if (!(await VideoEncoder.isConfigSupported(cfg)).supported) throw new Error(`o WebView não codifica ${codec} em ${o.w}×${o.h}`);
   const stream = canvas.captureStream(o.fps), track = stream.getVideoTracks()[0];
-  const reader = new MediaStreamTrackProcessor!({ track }).readable.getReader();
   const crop = (f: VideoFrame) => {
     const W = f.displayWidth, H = f.displayHeight;
     return new VideoFrame(f, { visibleRect: evenRect(cropRect(W, H, o.w, o.h, framing()), W, H), displayWidth: o.w, displayHeight: o.h });
   };
-  // ensaio no 1º quadro: recorte aceito? (WebView antigo / formato sem recorte → cópia 2D)
-  try {
-    const first = await Promise.race([reader.read(), new Promise<never>((_, no) => setTimeout(() => no(new Error('o telão não entregou quadro')), 2000))]);
-    if (first.done) throw new Error('o telão não entregou quadro');
-    try { crop(first.value).close(); } finally { first.value.close(); }
-  } catch (err) {
-    reader.cancel().catch(() => {}); track.stop();
-    throw err;
-  }
 
   const frag = fragmenter(o.fps);
   let init: Uint8Array | null = null, sentInit = false, lastKey = -Infinity;
@@ -65,23 +55,42 @@ export async function webCodecsRecorder(canvas: HTMLCanvasElement, o: { mime: st
     r.ondataavailable?.({ data: new Blob([b as Uint8Array<ArrayBuffer>]) });
   };
   const error = (e: unknown) => r.onerror?.({ error: e instanceof Error ? e : new Error(String(e)) });
-  const enc: VideoEncoder = new VideoEncoder({
-    output: (chunk, md) => {
-      const d = md?.decoderConfig?.description;
-      if (d && !init) init = initSegment(o.w, o.h, bytes(d));
-      const data = new Uint8Array(chunk.byteLength);
-      chunk.copyTo(data);
-      send(frag.push(data, chunk.timestamp, chunk.type === 'key'));
-    },
-    error,
-  });
-  enc.configure(cfg);
+
+  // processador, ensaio e codificador: qualquer falha aqui solta a captura do canvas (e o que já existir) antes de o
+  // chamador cair na cópia 2D — senão o telão seguia capturado pelo resto da sessão (revisão 0.3.10)
+  let reader: ReadableStreamDefaultReader<VideoFrame> | null = null, encoder: VideoEncoder | null = null, ready = false;
+  try {
+    reader = new MediaStreamTrackProcessor!({ track }).readable.getReader();
+    // ensaio no 1º quadro: recorte aceito? (WebView antigo / formato sem recorte → cópia 2D)
+    const first = await Promise.race([reader.read(), new Promise<never>((_, no) => setTimeout(() => no(new Error('o telão não entregou quadro')), 2000))]);
+    if (first.done) throw new Error('o telão não entregou quadro');
+    try { crop(first.value).close(); } finally { first.value.close(); }
+    encoder = new VideoEncoder({
+      output: (chunk, md) => {
+        const d = md?.decoderConfig?.description;
+        if (d && !init) init = initSegment(o.w, o.h, bytes(d));
+        const data = new Uint8Array(chunk.byteLength);
+        chunk.copyTo(data);
+        send(frag.push(data, chunk.timestamp, chunk.type === 'key'));
+      },
+      error,
+    });
+    encoder.configure(cfg);
+    ready = true;
+  } finally {
+    if (!ready) {
+      reader?.cancel().catch(() => {});
+      track.stop();
+      try { if (encoder && encoder.state !== 'closed') encoder.close(); } catch {}
+    }
+  }
+  const rd = reader!, enc = encoder!;
 
   function start() {
     r.state = 'recording';
     (async () => {
       while (r.state === 'recording') {
-        const { value: f, done } = await reader.read();
+        const { value: f, done } = await rd.read();
         if (done) break;
         try {
           // codificador atrasado: pula o quadro (o MP4 guarda a duração real pelo timestamp)
@@ -98,7 +107,7 @@ export async function webCodecsRecorder(canvas: HTMLCanvasElement, o: { mime: st
   function stop() {
     if (r.state === 'inactive') return;
     r.state = 'inactive';
-    reader.cancel().catch(() => {});
+    rd.cancel().catch(() => {});
     track.stop();
     enc.flush().then(() => { send(frag.end()); enc.close(); r.onstop?.(); }, error);
   }
