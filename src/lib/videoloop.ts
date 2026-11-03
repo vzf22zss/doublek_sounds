@@ -63,7 +63,6 @@ export function toRelease(current: string, pre: string, loaded: Iterable<string>
   return [...loaded].filter((id) => id !== current && id !== pre);
 }
 
-/** Próximo vídeo do roteiro depois de `beat` que seja diferente do atual ('' = nenhum). */
 /** D-19a: quem fica com a vaga de pré-carga do telão (o pool tem 1). O roteiro tocando, se tem um próximo vídeo, ganha;
  *  senão, o vídeo da cena preparada no PREVIEW, se for outro que o da tela. `roteiro` null = roteiro parado. '' = nenhum. */
 export function preloadChoice(roteiro: string | null, preview: string, current: string): string {
@@ -71,6 +70,7 @@ export function preloadChoice(roteiro: string | null, preview: string, current: 
   return preview && preview !== current ? preview : '';
 }
 
+/** Próximo vídeo do roteiro depois de `beat` que seja diferente do atual ('' = nenhum). */
 export function nextVideo(cues: readonly { kind: string; beat: number; video?: string }[], beat: number, current: string) {
   let best: { beat: number; video: string } | null = null;
   for (const c of cues) {

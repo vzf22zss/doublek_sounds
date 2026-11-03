@@ -8,7 +8,8 @@ use std::path::Path;
 
 fn main() {
     let path = std::env::args().nth(1).expect("uso: replay <diario.jsonl>");
-    let s = read(Path::new(&path)).map(|l| summarize(&l)).unwrap_or_else(|e| panic!("não consegui ler {path}: {e}"));
+    let (lines, cut) = read(Path::new(&path)).unwrap_or_else(|e| panic!("não consegui ler {path}: {e}"));
+    let s = summarize(&lines);
     println!("# Diário {path}\n");
     println!("| Medida | Valor |\n|---|---:|");
     let secs = s.secs.round() as u64; // arredonda antes: 119,95 s não vira "1 min 60 s"
@@ -21,6 +22,9 @@ fn main() {
     println!("| … com drop detectado a ±{MATCH:.0} s | {} (atraso médio {:+.2} s) |", s.drop_hits, s.drop_delay_mean);
     println!("| … sem drop detectado (perdidos) | {} |", s.drop_missed);
     println!("| Drops detectados sem marca (falsos ou não marcados) | {} |", s.drop_false);
+    if cut {
+        println!("| Última linha cortada (ignorada) | sim |");
+    }
     println!("\n## Kicks por compasso, por minuto\n\n| Minuto | Kicks/compasso |\n|---:|---:|");
     for (m, k) in &s.kick_rate_by_min {
         println!("| {m:.0} | {k:.2} |");

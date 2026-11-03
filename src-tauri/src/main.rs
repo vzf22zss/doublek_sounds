@@ -262,7 +262,9 @@ fn analysis_dir(app: &AppHandle) -> Result<PathBuf, String> {
 /// Resumo de um diário (o cartão da aba Áudio). Só arquivos direto em `<app_data>/analysis`.
 #[tauri::command]
 async fn analysis_summary(app: AppHandle, path: String) -> Result<diary::Summary, String> {
-    diary::summary_in(&analysis_dir(&app)?, std::path::Path::new(&path))
+    let dir = analysis_dir(&app)?;
+    // ler e resumir até 200 MB é trabalho bloqueante: fora dos workers do runtime async (revisão 0.3.10)
+    tauri::async_runtime::spawn_blocking(move || diary::summary_in(&dir, std::path::Path::new(&path))).await.map_err(|e| e.to_string())?
 }
 
 /// Abre no navegador do sistema uma página do repositório ("Relatar problema"). Qualquer outra URL é recusada.

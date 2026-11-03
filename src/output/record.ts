@@ -26,7 +26,9 @@ export function initRecording(canvas: HTMLCanvasElement, log: (level: 'warn' | '
     mr?.stream.getTracks().forEach((t) => t.stop());
     mr = null; id = ''; reason = '';
   };
-  const fail = (err: unknown) => {
+  /** `codec`: a falha veio do codificador/VideoFrame (onerror do gravador). Só ela desliga o WebCodecs da sessão; disco,
+   *  rec_chunk e afins não dizem nada sobre o codificador (revisão 0.3.10). */
+  const fail = (err: unknown, codec = false) => {
     if (failed) return;
     failed = true;
     const msg = err instanceof Error ? err.message : String(err);
@@ -34,7 +36,7 @@ export function initRecording(canvas: HTMLCanvasElement, log: (level: 'warn' | '
     try { if (mr?.state === 'recording') mr.stop(); } catch {}
     cleanup();
     if (rid) invoke('rec_abort', { id: rid }).catch(() => {}); // apaga o parcial: arquivo com erro no meio não serve
-    if (viaWebCodecs) noWebCodecs = true; // a próxima gravação vertical usa a cópia 2D
+    if (codec && viaWebCodecs) noWebCodecs = true; // o codificador falhou: a próxima gravação vertical usa a cópia 2D
     log('warn', 'Gravação: ' + msg);
     emitTo('control', 'rec-error', msg).catch(() => {});
   };
@@ -84,7 +86,7 @@ export function initRecording(canvas: HTMLCanvasElement, log: (level: 'warn' | '
           emitTo('control', 'rec-done', { ...d, reason: why || undefined }).catch(() => {});
         }).catch(fail);
       };
-      rec.onerror = (ev) => fail((ev as unknown as { error?: Error }).error ?? new Error('erro do codificador'));
+      rec.onerror = (ev) => fail((ev as unknown as { error?: Error }).error ?? new Error('erro do codificador'), true);
       rec.start(1000);
       t0 = performance.now();
       if (cancelled) { rec.stop(); return; } // o controle já está em "Finalizando…": o onstop apaga e avisa

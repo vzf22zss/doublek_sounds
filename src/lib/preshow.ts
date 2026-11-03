@@ -1,5 +1,6 @@
 // Verificação pré-show (DK-145): o checklist do dia do show (TUTORIAL §19) vira "Testar tudo" na aba Saída.
 // Aqui só a regra: entradas já coletadas → verde/amarelo/vermelho com a correção em 1 frase. Quem coleta é PreShow.svelte.
+import { normDevice } from './midimap.ts';
 
 export type Color = 'verde' | 'amarelo' | 'vermelho';
 export type Item = { id: string; label: string; color: Color; msg: string };
@@ -64,17 +65,23 @@ export function evaluate(i: PreshowInput): Item[] {
   // D-23: o mapa sabe de qual controlador veio cada controle → diz exatamente qual está ocupado/sumiu e quantos controles
   // perde. Controles aprendidos antes da D-23 (sem origem) caem na regra aproximada. Todas as frases no mesmo molde:
   // "O controlador X está ocupado…" / "N controladores, M controles mapeados."
-  const plain = (d: string) => d.replace(/ \(ocupado\)$/, '');
-  const busy = i.midi.devices.filter((d) => d.endsWith('(ocupado)')).map(plain), free = i.midi.devices.length - busy.length;
-  const by = i.midi.mappedBy ?? {}, mapped = i.midi.mapped;
+  // nomes normalizados dos dois lados ("2- nanoKONTROL2" = "nanoKONTROL2"), inclusive mapas antigos com o nome cru
+  const busy = i.midi.devices.filter((d) => d.endsWith('(ocupado)')).map(normDevice), free = i.midi.devices.length - busy.length;
+  const here = i.midi.devices.filter((d) => !d.endsWith('(ocupado)')).map(normDevice);
+  const by: Record<string, number> = {}, mapped = i.midi.mapped;
+  for (const [d, n] of Object.entries(i.midi.mappedBy ?? {})) by[normDevice(d)] = (by[normDevice(d)] ?? 0) + n;
   const known = Object.values(by).reduce((s, n) => s + n, 0);
   const ctl = (k: number) => `${k} controle${k === 1 ? '' : 's'} mapeado${k === 1 ? '' : 's'}`;
   const ctrls = (k: number) => `${k} controlador${k === 1 ? '' : 'es'}`;
   const isBusy = (ds: string[]) => ds.map((d) => `O controlador ${d} está ocupado`).join('; ');
   const close = 'feche o outro programa que usa o controlador.';
   const busyMapped = busy.filter((d) => by[d]);
-  const missing = Object.keys(by).filter((d) => by[d] && !i.midi.devices.map(plain).includes(d));
+  const missing = Object.keys(by).filter((d) => by[d] && !here.includes(d) && !busy.includes(d));
+  // controlador mapeado que não está aqui (Show Pack de outra máquina, outro nome de porta): só é vermelho se nenhum
+  // controlador conectado tiver controles mapeados; senão o show anda com o que está aqui → amarelo
+  const hereMapped = here.some((d) => by[d]) || (mapped > known && here.length > 0);
   if (busyMapped.length) out.push(it('midi', 'MIDI', 'vermelho', `${busyMapped.map((d) => `O controlador ${d} está ocupado e tem ${ctl(by[d])}`).join('; ')}: ${close}`));
+  else if (missing.length && hereMapped) out.push(it('midi', 'MIDI', 'amarelo', `Mapeado num controlador que não está aqui: ${missing.map((d) => `${d} (${ctl(by[d])})`).join(', ')}. Os outros controles estão em controladores conectados.`));
   else if (missing.length) out.push(it('midi', 'MIDI', 'vermelho', `${missing.map((d) => `O controlador ${d} não está conectado e tem ${ctl(by[d])}`).join('; ')}: conecte o cabo USB.`));
   else if (mapped && known === mapped) out.push(it('midi', 'MIDI', busy.length ? 'amarelo' : 'verde', busy.length
     ? `${isBusy(busy)}, mas sem controles mapeados nele; ${known === 1 ? 'o controle mapeado está' : `os ${ctl(known)} estão`} em controladores livres.`

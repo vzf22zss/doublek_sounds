@@ -19,9 +19,19 @@ export function validMidiMap(raw: unknown): Record<string, MidiTarget> {
   return out;
 }
 
-/** Controles mapeados por controlador (D-23). Os aprendidos antes da D-23 (sem `device`) ficam de fora. */
+/**
+ * Nome do controlador para guardar e comparar (revisão 0.3.10): o WinMM numera portas repetidas ("2- nanoKONTROL2")
+ * e a numeração muda com a ordem em que os cabos entram; a lista do Rust marca "(ocupado)". Tira os dois e os
+ * espaços sobrando, dos dois lados (MIDI learn e pré-show).
+ */
+export const normDevice = (name: string) => name.replace(/ \(ocupado\)$/, '').replace(/^\s*\d+-\s*/, '').replace(/\s+/g, ' ').trim();
+
+/** Controles mapeados por controlador (D-23), pelo nome normalizado. Os aprendidos antes da D-23 (sem `device`) ficam de fora. */
 export function mappedByDevice(map: Record<string, MidiTarget>): Record<string, number> {
   const by: Record<string, number> = {};
-  for (const t of Object.values(map)) if (t.device) by[t.device] = (by[t.device] ?? 0) + 1;
+  for (const t of Object.values(map)) {
+    const d = t.device && normDevice(t.device);
+    if (d) by[d] = (by[d] ?? 0) + 1;
+  }
   return by;
 }

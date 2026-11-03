@@ -17,6 +17,7 @@ export type AnalysisSummary = {
   missedNoBreakdown: number; // perdidos em que o grave nunca saiu antes da marca
   dropFalse: number;
   dropDelayMean: number | null; // null = nenhum acerto
+  cutLast?: boolean;            // a última linha estava cortada (app fechado ou disco cheio no meio) e foi ignorada
 };
 
 export function advice(s: AnalysisSummary): string[] {
