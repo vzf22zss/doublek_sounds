@@ -194,7 +194,8 @@ o **brilho** pelo **Bass** (a aura vibra com o baixo rolante), a **aberração**
 **3. A régua.** Ao lado da fonte, o botão **faixa** abre uma régua com **mínimo** e **máximo**
 e uma marca que mostra, ao vivo, onde a música está. O efeito fica parado abaixo do mínimo,
 cresce entre os dois e chega a 100% no máximo. Exemplo: **Pulso** com **Bass** em 30–80 faz a
-logo só respirar com o grave fraco e bater cheia quando o grave passa de 80%.
+logo só respirar com o grave fraco e bater cheia quando o grave passa de 80%. Com **Kick**, a
+régua é o volume do kick: em 50–100 os kicks fracos não mexem a logo e os fortes batem cheio.
 
 ![A régua aberta num efeito](img/regua-efeito.png)
 

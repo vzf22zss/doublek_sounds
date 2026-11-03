@@ -163,7 +163,8 @@ pub fn analyze(stereo: &[f32], sr: u32, lo: f32, hi: f32) -> Info {
         }
     }
     let (mut bpm, mut anchor) = grid(&kicks, an.beat.period).map_or((0.0, 0.0), |(p, a)| (60.0 / p, a.rem_euclid(p)));
-    let tempo = if bpm > 0.0 { tempo_map(&kicks, lo as f64, hi as f64).unwrap_or(vec![Seg { t: 0.0, bpm, anchor }]) } else { vec![] };
+    let mut tempo = if bpm > 0.0 { tempo_map(&kicks, lo as f64, hi as f64).unwrap_or(vec![Seg { t: 0.0, bpm, anchor }]) } else { vec![] };
+    rephase(&mut tempo, &mono, sr);
     (bpm, anchor) = (tempo.first().map_or(bpm, |s| s.bpm), tempo.first().map_or(anchor, |s| s.anchor));
 
     // forma de onda: pico e fração de grave (passa-baixas de 1 polo em ~150 Hz) por bloco
@@ -208,6 +209,7 @@ fn grid(kicks: &[f64], p0: f64) -> Option<(f64, f64)> {
 const MIN_KICKS: usize = 16; // trecho com menos kicks na grade (~7 s) é ruído (virada, breakdown), não andamento
 const MISS: usize = 4; // kicks seguidos fora da grade: a música mudou de andamento
 const SAME: f64 = 0.003; // trechos vizinhos com períodos a menos de 0,3 % são um só
+const RELATED: f64 = 0.01; // razão 3/2, 2… a menos de 1 %: mesmo andamento com outro padrão de kick
 
 /// Mapa de andamento. Corta onde a grade do trecho atual (regressão que cresce kick a kick) para de
 /// explicar `MISS` kicks seguidos, descarta trechos curtos e junta vizinhos de mesmo andamento.
@@ -240,6 +242,13 @@ fn tempo_map(kicks: &[f64], lo: f64, hi: f64) -> Option<Vec<Seg>> {
     }
     // 3) descarta os curtos, junta os de mesmo andamento e refaz a grade de cada um com todos os kicks
     parts.retain(|p| p.1 - p.0 >= MIN_KICKS);
+    // trecho a 3/2, 2/3, 2× ou ½ do andamento principal (o mais longo) é outro padrão de kick (tercina, meio tempo)
+    // na mesma música, não outro andamento: a música não salta nessas razões. Sai do mapa como um trecho curto, e a
+    // grade do vizinho cobre o lugar dele (refazer a grade com os kicks dele punha o drop fora de fase)
+    let span = |p: &(usize, usize, (f64, f64))| kicks[p.1 - 1] - kicks[p.0];
+    if let Some(pd) = parts.iter().max_by(|a, b| span(a).total_cmp(&span(b))).map(|p| p.2 .0) {
+        parts.retain(|p| ![2.0 / 3.0, 1.5, 0.5, 2.0].iter().any(|r| (p.2 .0 / pd / r - 1.0).abs() < RELATED));
+    }
     let mut merged: Vec<(usize, usize, (f64, f64))> = vec![];
     for p in parts {
         match merged.last_mut() {
@@ -266,6 +275,51 @@ fn tempo_map(kicks: &[f64], lo: f64, hi: f64) -> Option<Vec<Seg>> {
         out.push(seg);
     }
     Some(out)
+}
+
+const PH_BINS: usize = 40;
+
+/// Fase (em beats, −½..½) em que o grave (< 250 Hz) mais sobe, dobrada sobre a grade do mapa: onde o kick cai de fato.
+fn kick_phase(mono: &[f32], sr: u32, tempo: &[Seg]) -> f64 {
+    let blk = (0.002 * sr as f64) as usize;
+    let k = 1.0 - (-2.0 * std::f32::consts::PI * 250.0 / sr as f32).exp();
+    let a = 1.0 - (-2.0f32 / 15.0).exp(); // envelope de ~15 ms sobre blocos de 2 ms
+    let (mut lp, mut env, mut prev, mut acc) = (0f32, 0f32, 0f32, [0f64; PH_BINS]);
+    for (i, c) in mono.chunks(blk).enumerate() {
+        let mut e = 0f32;
+        for &s in c {
+            lp += k * (s - lp);
+            e += lp * lp;
+        }
+        env += (e / c.len() as f32 - env) * a;
+        let r = env.sqrt();
+        let t = (i * blk) as f64 / sr as f64;
+        if let Some(s) = tempo.iter().rev().find(|s| s.t <= t).or(tempo.first()) {
+            let x = ((t - s.anchor) * s.bpm / 60.0).rem_euclid(1.0);
+            acc[(x * PH_BINS as f64) as usize % PH_BINS] += (r - prev).max(0.0) as f64;
+        }
+        prev = r;
+    }
+    let sm = |b: usize| acc[(b + PH_BINS - 1) % PH_BINS] + 2.0 * acc[b] + acc[(b + 1) % PH_BINS];
+    let x = ((0..PH_BINS).max_by(|&a, &b| sm(a).total_cmp(&sm(b))).unwrap_or(0) as f64 + 0.5) / PH_BINS as f64;
+    if x > 0.5 { x - 1.0 } else { x }
+}
+
+/// No psy o detector às vezes trava na última nota do baixo rolante antes do kick, e o kick de verdade cai no
+/// refratário dela: a grade inteira fica ~¼ de beat adiantada e a logo pulsa antes do kick. Com a faixa inteira à
+/// mão, a fase do kick sai da subida do grave dobrada sobre a grade. Mais de ⅛ de beat fora: desloca o mapa todo
+/// (o mesmo Δ em cada trecho: os índices dos beats não mudam).
+fn rephase(tempo: &mut [Seg], mono: &[f32], sr: u32) {
+    let Some(p) = tempo.first().map(|s| 60.0 / s.bpm) else { return };
+    let d = kick_phase(mono, sr, tempo);
+    if d.abs() > 0.125 {
+        for (i, s) in tempo.iter_mut().enumerate() {
+            s.anchor += d * p;
+            if i > 0 {
+                s.t += d * p;
+            }
+        }
+    }
 }
 
 /// Um trecho a partir de `ks[0]`: grade inicial dos primeiros kicks e regressão que cresce enquanto os
@@ -370,6 +424,62 @@ mod tests {
         let no_break = crate::synth::Synth { change: Some((75.0, 146.0)), breakdown: Some((60.0, 90.0)), seed: 3, ..seca };
         for s in [seca, no_break] {
             mapa_caso(&s);
+        }
+    }
+
+    /// Kicks detectados nos primeiros 150 s de uma faixa real de psy a 145 BPM (chapati.mp3), cuja intro tem kick
+    /// em tercina (a cada ⅔ de beat = "217 BPM") e depois a cada 2 beats: o mapa dava 217 até os 55 s e a logo
+    /// pulsava 3× por kick. Agora é a música toda a 145.
+    #[test]
+    fn mapa_nao_troca_para_tercina_nem_meio_tempo() {
+        const KS: &str = concat!(
+        "0.213 0.629 1.045 1.323 1.600 1.867 2.144 2.421 2.699 2.976 3.253 3.531 4.085 4.352 4.629 6.837 7.392 7.659 ",
+        "7.936 8.491 8.768 9.045 9.323 9.600 9.867 10.144 10.699 11.819 13.461 15.680 15.947 17.323 18.453 18.955 ",
+        "19.275 19.776 19.968 20.213 20.629 20.907 21.184 21.461 21.728 22.005 22.283 22.560 22.848 23.115 23.392 ",
+        "26.699 27.797 28.363 28.661 29.184 29.739 31.104 31.957 32.768 33.600 34.443 35.285 35.531 36.085 37.749 ",
+        "39.403 40.213 41.035 41.643 41.888 42.709 43.520 44.352 45.184 46.005 46.315 47.381 48.011 49.045 49.867 ",
+        "52.352 54.016 54.283 54.560 54.837 55.392 55.797 56.213 56.629 57.888 59.243 60.352 60.789 61.173 61.589 ",
+        "62.016 62.421 62.848 63.264 63.680 64.075 64.491 64.896 65.312 65.749 67.819 68.224 68.651 69.045 69.461 ",
+        "69.888 70.293 71.115 71.541 72.363 73.195 73.611 74.016 74.443 74.837 75.253 75.680 76.085 76.491 76.917 ",
+        "77.312 77.749 78.144 78.581 78.976 79.403 79.797 80.224 80.651 81.451 81.888 82.283 82.720 83.125 83.947 ",
+        "86.421 86.848 87.243 87.680 88.075 88.491 88.907 89.312 89.728 90.144 90.560 90.976 91.381 91.819 92.224 ",
+        "92.651 93.035 93.451 93.888 94.283 94.699 95.115 96.352 96.789 97.173 97.611 98.421 98.837 99.243 100.491 ",
+        "101.312 102.144 102.976 103.381 103.808 104.629 105.045 105.845 110.816 111.584 113.323 113.749 114.144 ",
+        "114.571 114.965 115.392 115.808 116.213 116.629 117.035 117.451 117.888 118.304 118.709 119.125 119.531 ",
+        "119.936 120.352 120.768 121.195 121.611 122.027 122.432 122.848 123.243 123.680 124.075 124.512 124.917 ",
+        "125.333 125.728 126.155 126.560 126.976 127.381 127.819 128.213 128.629 129.045 129.451 129.888 130.283 ",
+        "130.720 131.125 131.541 131.947 132.352 132.779 133.173 133.611 134.005 134.432 134.859 135.253 135.659 ",
+        "136.491 137.323 137.728 138.560 139.392 139.808 140.213 140.629 141.045 141.461 141.877 142.283 142.699 ",
+        "143.115 143.531 143.936 146.005 146.443 146.837 147.243 147.659 148.053 148.491 148.907 149.312 149.707"
+        );
+        let ks: Vec<f64> = KS.split(' ').map(|s| s.parse().unwrap()).collect();
+        let segs = tempo_map(&ks, 80.0, 220.0).unwrap_or_else(|| vec![Seg { t: 0.0, bpm: 60.0 / grid(&ks, 60.0 / 145.0).unwrap().0, anchor: 0.0 }]);
+        assert!(segs.iter().all(|s| (s.bpm - 145.0).abs() < 0.3), "{segs:?}");
+        // andamento de verdade diferente (140 → 146) continua virando dois trechos
+        let mut ks: Vec<f64> = (0..200).map(|i| i as f64 * 60.0 / 140.0).collect();
+        let t = ks.last().unwrap() + 60.0 / 146.0;
+        ks.extend((0..200).map(|i| t + i as f64 * 60.0 / 146.0));
+        assert_eq!(tempo_map(&ks, 80.0, 220.0).map(|s| s.len()), Some(2));
+    }
+
+    /// Grade ~0,3 beat antes do kick (o que o detector fez com chapati.mp3, travado no baixo rolante): `rephase` põe o
+    /// mapa de volta no kick. Grade já certa não mexe.
+    #[test]
+    fn mapa_volta_para_o_kick() {
+        let s = crate::synth::Synth { bpm: 145.0, secs: 60.0, start: 0.4, ..Default::default() };
+        let (x, truth) = s.stereo();
+        let mono: Vec<f32> = x.chunks_exact(2).map(|f| 0.5 * (f[0] + f[1])).collect();
+        let p = 60.0 / 145.0;
+        let certa = vec![Seg { t: 0.0, bpm: 145.0, anchor: truth[0] }];
+        let mut t = certa.clone();
+        rephase(&mut t, &mono, 48000);
+        assert_eq!(t, certa, "grade certa mudou");
+        for off in [-0.3, 0.3, 0.45] {
+            let mut t = vec![Seg { t: 0.0, bpm: 145.0, anchor: truth[0] + off * p }, Seg { t: 30.0, bpm: 145.0, anchor: truth[0] + off * p }];
+            rephase(&mut t, &mono, 48000);
+            let err = |a: f64| ((a - truth[0]) / p + 0.5).rem_euclid(1.0) - 0.5;
+            assert!(err(t[0].anchor).abs() < 0.06 && err(t[1].anchor).abs() < 0.06, "{off}: {t:?}");
+            assert!((t[1].t - (30.0 - off * p)).abs() < 0.06 * p, "{off}: trecho 2 não andou junto: {t:?}");
         }
     }
 

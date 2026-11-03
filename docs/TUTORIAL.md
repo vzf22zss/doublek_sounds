@@ -290,7 +290,7 @@ Pulso, Brilho e Aberração têm o seletor da fonte e a régua **faixa** (seçã
 |---|---|
 | **Duração do pulso** | Quanto tempo o pulso leva para voltar. Curto = seco; longo = macio. |
 | **Seguir a música sem kick** | Nos trechos sem kick, a logo continua respirando com a música. |
-| **Na pausa** | Quando a música silencia (sem kick e com o som baixo): **respirar** (padrão: sem pulso nem anéis, a logo respira devagar), **parar** (fica parada) ou **seguir o beat** (continua pulsando no beat previsto, como nas versões antigas). Um breakdown sem kick mas com música não é silêncio: a logo segue a onda. Quando o kick volta, o pulso volta na hora. |
+| **Na pausa** | Quando a música silencia (sem kick e com o som baixo): **respirar** (padrão: sem pulso nem anéis, a logo respira devagar), **parar** (fica parada) ou **seguir o beat** (continua pulsando em todo beat previsto, como nas versões antigas). Fora do *seguir o beat*, a logo pulsa nos tempos em que a música tem kick (kick a cada 2 tempos = pulso a cada 2 tempos), e o kick fora do tempo (contratempo) também pulsa. Enquanto o grave toca não é pausa: um kick que o app deixou de ouvir não apaga o pulso. Um breakdown sem kick mas com música não é silêncio: a logo segue a onda. Quando o kick volta, o pulso volta na hora. |
 | **Sensibilidade do silêncio** | Só aparece com **Na pausa** em *respirar* ou *parar*. Abaixo deste nível (em % do mais alto que tocou no último minuto; de 0% a 30%, padrão 8%), sem kick, é silêncio. Se um trecho baixo da música vira silêncio, diminua; se o chiado de uma pausa ainda mexe a logo, aumente. Aceita MIDI learn. Se você usa **TAP** ou **MIDI Clock** numa música em que o kick não é detectado, escolha **seguir o beat**. |
 
 ![O seletor Na pausa e a Sensibilidade do silêncio, na seção Reação da aba Logo](img/na-pausa.png)
@@ -479,7 +479,7 @@ Logo); **Zoom do fundo** e **Brilho do fundo** (aba Fundo); **Flash**, **Zoom do
 | Fonte | Reage a |
 |---|---|
 | **Auto** | Ao kick. Quando não tem kick, à onda da música. (Padrão.) |
-| **Kick** | Só ao kick. |
+| **Kick** | Só ao kick. Cada pulso tem o tamanho do **volume** daquele kick (o grave dele): kick fraco, pulso pequeno. |
 | **Sub** | Ao grave profundo (35–100 Hz). |
 | **Bass** | Ao baixo (100–250 Hz), ou seja, ao baixo rolante do psy. |
 | **Mid** | Aos médios: synths e leads. |
@@ -491,14 +491,15 @@ Logo); **Zoom do fundo** e **Brilho do fundo** (aba Fundo); **Flash**, **Zoom do
 Ideias: **Glow → Bass** (a aura vibra com o baixo rolante), **Aberração → Hats**
 (o glitch acompanha o chimbal), **Zoom do fundo → Compasso** (o fundo respira devagar).
 
-Sub, Bass, Mid e Hats são medidos em relação ao **mais alto que tocou no último minuto**: um
+Kick, Sub, Bass, Mid e Hats são medidos em relação ao **mais alto que tocou no último minuto**: um
 trecho mais baixo aparece mais baixo, e o chiado de uma pausa fica perto de zero.
 
 **Régua (faixa):** ao lado da fonte há o botão **faixa**. Ele abre uma régua com **mínimo** e
 **máximo** e uma marca que mostra, ao vivo, o nível da fonte escolhida (fica rosa quando passa do
 mínimo). Abaixo do mínimo o efeito fica parado; entre o mínimo e o máximo ele cresce; no máximo
 chega a 100%. Exemplo: **Pulso** com **Bass** em 30–80 faz a logo só começar a mexer quando o
-grave passa de 30% e bater cheia a partir de 80%. Vale para todos os ajustes que têm o seletor da
+grave passa de 30% e bater cheia a partir de 80%. Com **Kick**, a régua fala do volume do kick:
+**Pulso** com **Kick** em 50–100 ignora os kicks fracos do breakdown e bate cheio no drop. Vale para todos os ajustes que têm o seletor da
 fonte (a lista acima). **Duplo clique** na régua volta à faixa inteira. Fechado, o botão mostra a
 faixa escolhida (ex.: 30–80); com a faixa inteira, mostra só "faixa". A régua entra nas cenas e
 presets (presets antigos abrem sem régua).
@@ -1099,7 +1100,7 @@ modo de automação, clique no chip de estado).
 | BPM não firma | Veja se o topo sugere outra faixa (aviso *fora da faixa*) ou use **Auto**. |
 | O pulso sai atrasado em relação ao som | **Offset visual** mais negativo (seção 14). |
 | A logo pulsa com o baixo, não com o kick | Ligue **Exigir o "click" do kick** e baixe um pouco a **Sensibilidade**. |
-| Logo quase parada num breakdown longo | Sem kick, a logo segue a onda da música (no modo **Na pausa: respirar** ou **parar**, já a partir de 2 a 3 beats sem kick). Suba **Seguir a música sem kick** para ela mexer mais, ou escolha **Na pausa: seguir o beat** para manter o pulso no beat. |
+| Logo quase parada num breakdown longo | Sem kick, a logo segue a onda da música (no modo **Na pausa: respirar** ou **parar**, já a partir de 2 a 3 beats sem kick e sem grave). Suba **Seguir a música sem kick** para ela mexer mais, ou escolha **Na pausa: seguir o beat** para manter o pulso no beat. |
 | Logo pulsando ou anéis no silêncio | Escolha **Na pausa: respirar** ou **parar** e suba a **Sensibilidade do silêncio** (aba Logo). |
 | Não acho a **Sensibilidade do silêncio** | Ela só aparece com **Na pausa** em *respirar* ou *parar* (aba Logo › Reação). |
 | O selo **BPM FIXO** está aceso e o BPM não muda | **Travar BPM** está ligado (aba Áudio). Clique no selo para soltar. |

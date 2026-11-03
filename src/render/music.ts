@@ -14,6 +14,9 @@ export type MusicState = {
   prevPh: number; lastTrig: number; absBeat: number;
   paused: boolean; // sem kick há PAUSE_BEATS (fora do modo 'beat'): nada de disparo previsto
   sil: number;     // 0–1: silêncio (pausa + nível abaixo de pauseThr), já suavizado
+  kickLvl: number; // volume do último kick: pico do sub (`levels`) logo depois do disparo
+  kickPk: number;  // pico do sub desde o último disparo
+  hits: number[];  // índices dos beats em que veio kick (os últimos 32)
   rings: Ring[];
   spec: Float32Array;
 };
@@ -43,7 +46,7 @@ export type MusicUniforms = {
 export const musicState = (): MusicState => ({
   frame: null, rxAt: 0, lastT: 0, lastKickRx: -1e9, strength: 0.8,
   kickEnv: 0, waveEnv: 0, presence: 0, black: 0, dropEnv: 1,
-  prevPh: 0, lastTrig: -1e9, absBeat: 0, paused: false, sil: 0, rings: [], spec: new Float32Array(64),
+  prevPh: 0, lastTrig: -1e9, absBeat: 0, paused: false, sil: 0, kickLvl: 0.8, kickPk: 0, hits: [], rings: [], spec: new Float32Array(64),
 });
 
 /** Pausa (Onda 10): nenhum kick há este tanto de beats. 2,5 e não 1,6 para um kick que faltou (2 beats) não cortar o pulso. */
@@ -56,7 +59,11 @@ export function predicting(st: MusicState, v: Visual) {
   return !!f && v.predict && f.locked && !f.holding && f.bpm > 0 && !st.paused;
 }
 
+/** Janela depois do disparo em que o pulso sobe até o volume do kick que chegou (o previsto sai antes do kick). */
+export const KICK_MS = 120;
+
 function trigger(st: MusicState, now: number, s: number) {
+  st.kickPk = 0;
   st.kickEnv = Math.max(st.kickEnv, s);
   st.lastTrig = now;
   st.rings.push({ t: now, s });
@@ -71,10 +78,25 @@ export function musicFrame(st: MusicState, f: Frame, v: Visual, now: number) {
     const back = st.paused; // o kick voltou: dispara na hora, sem esperar o próximo beat previsto
     st.paused = false;
     st.lastKickRx = now;
-    st.strength = f.kick;
-    if ((back || !predicting(st, v)) && v.react !== false) trigger(st, now, f.kick);
+    st.strength = f.levels ? st.kickLvl : f.kick; // frame sem `levels`: a força da detecção, como antes
+    if (f.bpm > 0) {
+      const i = f.beat + Math.round(f.beatPhase);
+      if (st.hits.at(-1) !== i) st.hits.push(i);
+      if (st.hits.length > 32) st.hits.shift();
+    }
+    // previsto: só dispara aqui o kick que não ganhou pulso no beat (contratempo, tercina, tempo fora do padrão)
+    const alone = now - st.lastTrig > (f.bpm ? 60000 / f.bpm : 420) * GAP;
+    if ((back || !predicting(st, v) || alone) && v.react !== false) trigger(st, now, st.strength);
   }
 }
+
+/** Fração do beat sem pulso a partir da qual um kick detectado dispara mesmo com o andamento previsto. */
+const GAP = 0.35;
+
+/** O beat previsto `n` pulsa se veio kick nesse tempo em algum dos 4 compassos anteriores: kick a cada 2 tempos não
+ *  vira pulso em todo tempo, e o detector (que pega ~60–75 % dos kicks numa faixa de psy) não abre buracos.
+ *  'seguir o beat' pulsa sempre (o comportamento de antes). */
+export const expected = (st: MusicState, v: Visual, n: number) => v.pause === 'beat' || [4, 8, 12, 16].some((k) => st.hits.includes(n - k));
 
 /** Fonte de modulação do alvo `k` (sem sinal: o pulso que respira). Com régua [mín, máx]: 0 abaixo do mínimo,
  *  sobe proporcional e chega a 1 no máximo (acima, fica em 1). */
@@ -111,7 +133,9 @@ export function music(st: MusicState, v: Visual, now: number): MusicUniforms {
   const f = st.frame;
   const stale = !f || now - st.rxAt > 3000;
   const period = f?.bpm ? 60000 / f.bpm : 420;
-  st.paused = v.pause !== 'beat' && now - st.lastKickRx > period * PAUSE_BEATS;
+  // com o grave tocando (`low`) não é pausa: é o detector que perdeu kicks (~1 em 4 numa faixa de psy). A memória do
+  // padrão (`expected`) para o pulso sozinha se o kick sumir mesmo
+  st.paused = v.pause !== 'beat' && now - st.lastKickRx > period * PAUSE_BEATS && !(f && !stale && (f.low ?? 0) > 0.5);
 
   const live = v.react !== false; // "só roteiro": ignora o som (o relógio do beat continua)
   // fase do beat extrapolada, já com o offset visual (negativo = adiantado)
@@ -121,7 +145,7 @@ export function music(st: MusicState, v: Visual, now: number): MusicUniforms {
     ph = x - Math.floor(x);
     st.absBeat = f.beat + Math.floor(x);
     bar = ((((st.absBeat % 4) + 4) % 4) + ph) / 4;
-    if (live && predicting(st, v) && ph < st.prevPh - 0.5 && now - st.lastTrig > period * 0.5) trigger(st, now, st.strength);
+    if (live && predicting(st, v) && ph < st.prevPh - 0.5 && now - st.lastTrig > period * GAP && expected(st, v, st.absBeat)) trigger(st, now, st.strength);
   }
   st.prevPh = ph;
 
@@ -130,6 +154,13 @@ export function music(st: MusicState, v: Visual, now: number): MusicUniforms {
   const b = !stale && f && live ? f.bands : [0, 0, 0, 0, 0];
   // fontes e onda na régua de ~1 min (`levels`): na de 4 s (`bands`) o chiado de uma pausa vira ~100 %. Frame antigo: bands
   const lv = !stale && f && live ? f.levels ?? b : b;
+  // o pulso do kick tem a altura do volume dele (sub ÷ pico do último minuto): kick fraco, pulso pequeno. A régua
+  // do Kick passa a falar de volume, não da certeza da detecção
+  if (f?.levels && live && !stale && now - st.lastTrig < KICK_MS) {
+    st.kickPk = Math.max(st.kickPk, lv[0]);
+    st.kickEnv = Math.max(st.kickEnv, lv[0]);
+    st.kickLvl = st.strength = Math.max(0.3, st.kickPk);
+  }
   const w = Math.max(lv[0], lv[1]) * 0.6 + lv[2] * 0.4;
   st.waveEnv += (w - st.waveEnv) * (1 - Math.exp(-dt / (w > st.waveEnv ? 0.012 : Math.max(0.02, v.rel * 0.8))));
   const target = predicting(st, v) || now - st.lastKickRx < period * 1.6 ? 1 : 0;
