@@ -20,6 +20,7 @@ export type Frame = {
   stability?: number; // 0..1: confiança no relógio do beat (jitter × tempo desde a trava)
   kickRate?: number; // kicks por compasso nos últimos 8 beats (0 no breakdown, ~4 no groove)
   clock?: 'audio' | 'midi'; // quem manda no relógio do beat (DK-112); opcional até todo consumidor atualizar
+  offRange?: number; // kicks regulares fora da faixa de BPM escolhida: o BPM deles (0 = não)
 };
 
 // Saída Spout (DK-102): resposta de spout_start / spout_status

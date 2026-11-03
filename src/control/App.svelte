@@ -791,7 +791,10 @@
 
   const db = $derived(frame ? 20 * Math.log10(Math.max(frame.peak, 1e-5)) : -90);
   const clip = $derived(!!frame && frame.peak > 0.97);
-  const tempoState = $derived(!frame?.bpm ? 'procurando' : frame.holding ? 'segurando (sem kick)' : frame.locked ? 'travado' : 'ajustando');
+  // "firme" = a grade explica os kicks (antes "travado", que parecia o BPM preso; preso é o selo BPM FIXO)
+  const tempoState = $derived(!frame?.bpm ? 'procurando' : frame.holding ? 'segurando (sem kick)' : frame.locked ? 'firme' : 'ajustando');
+  // kicks regulares fora da faixa escolhida: sugere Auto
+  const offRange = $derived(frame && !frame.locked && frame.offRange && s.range !== 'Auto' ? Math.round(frame.offRange) : 0);
   const f2 = (v: number) => v.toFixed(2);
   const pct = (v: number) => Math.round(v * 100) + '%';
 </script>
@@ -832,9 +835,13 @@
             <i class:on={frame?.bpm && beatNow.idx === i} style:opacity={frame?.bpm && beatNow.idx === i ? 1 - beatNow.phase * 0.7 : 1}></i>
           {/each}
           <span class="dropPill" class:on={!!frame?.low} title="Acende quando há grave (drop). Efeitos com o chip drop só aparecem com ela acesa.">DROP</span>
+          {#if s.lock}<button class="dropPill fixPill" onclick={() => (s.lock = false)} title="Travar BPM está ligado (aba Áudio): o número não muda, só a fase acompanha os kicks. Clique para soltar.">BPM FIXO</button>{/if}
         </div>
       </div>
     </div>
+    {#if offRange}
+      <button class="rangeHint" onclick={() => (s.range = 'Auto')} title="Os kicks estão regulares num andamento fora da faixa escolhida na aba Áudio, então o BPM não firma. Clique para usar a faixa Auto ({RANGES.Auto.join('–')}).">A música parece estar a {offRange} BPM, fora da faixa {s.range}; usar Auto?</button>
+    {/if}
 
     <div class="group">
       <button onclick={() => dispatch({ type: 'TAP' }, 'ui')} title="Espaço" use:learnable={{ id: 'a:tap', label: 'TAP' }}>TAP</button>
@@ -1195,6 +1202,8 @@
 
   .dropPill { font-size: 9px; font-weight: 800; letter-spacing: .1em; padding: 0 5px; line-height: 12px; margin-left: 4px; border-radius: 6px; color: var(--muted); border: 1px solid var(--line); transition: all .15s; }
   .dropPill.on { color: #111; background: var(--kick); border-color: var(--kick); box-shadow: 0 0 12px var(--kick); }
+  .fixPill { cursor: pointer; color: #111; background: #ffb84d; border-color: #ffb84d; }
+  .rangeHint { font-size: 11px; max-width: 220px; padding: 3px 8px; line-height: 1.25; text-align: left; color: #111; background: #ffb84d; border-color: #ffb84d; }
   .tempo { display: flex; align-items: center; gap: 10px; margin-left: auto; }
   .bpm { font-size: 30px; font-weight: 700; line-height: 1; color: var(--muted); transition: color .2s; min-width: 84px; text-align: right; }
   .bpm.locked { color: var(--text); text-shadow: 0 0 18px rgba(124,92,255,.6); }

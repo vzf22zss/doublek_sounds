@@ -269,6 +269,18 @@ impl Beat {
         self.scored.clear();
     }
 
+    /// Kicks regulares num andamento fora da faixa escolhida (ex.: faixa Psy e a música a 175): o BPM
+    /// que eles mostram, para a UI sugerir outra faixa. 0 = travou, cabe na faixa ou não dá para dizer.
+    pub fn outside(&self, lo: f64, hi: f64) -> f64 {
+        if self.locked || self.fixed || self.external || self.kicks.len() < 8 {
+            return 0.0;
+        }
+        let ks: Vec<f64> = self.kicks.iter().copied().collect();
+        let Some((p, _, n, sd)) = median_ioi(&ks, 80.0, 220.0).and_then(|p0| fit(&ks, p0, None, false)) else { return 0.0 };
+        let bpm = 60.0 / p;
+        if n * 10 >= ks.len() * 7 && sd < 0.035 * p && (bpm < lo * 0.97 || bpm > hi * 1.03) { bpm } else { 0.0 }
+    }
+
     pub fn scale_tempo(&mut self, factor: f64) {
         if self.period > 0.0 {
             self.period /= factor;
