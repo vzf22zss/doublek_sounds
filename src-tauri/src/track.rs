@@ -400,6 +400,40 @@ mod tests {
         assert!((b.period - 60.0 / 146.0).abs() < 1e-3, "tick não passou ao trecho novo");
     }
 
+    /// TAP, ½×, 2× e ±fase durante a reprodução pelo app: `play_track` manda sempre um mapa (1 trecho se o BPM é
+    /// constante) e os comandos têm de valer como valiam com a grade fixa de antes.
+    #[test]
+    fn comandos_do_operador_valem_com_o_mapa() {
+        type Cmd = fn(&mut beat::Beat);
+        let cmds: [(&str, Cmd); 4] = [
+            ("nudge", |b| b.nudge(0.05)),
+            ("2×", |b| b.scale_tempo(2.0)),
+            ("½×", |b| b.scale_tempo(0.5)),
+            ("tap", |b| [10.0, 10.4, 10.8, 11.2].into_iter().for_each(|t| b.tap(t))),
+        ];
+        for (nome, cmd) in cmds {
+            let (mut antes, mut mapa) = (beat::Beat::default(), beat::Beat::default());
+            antes.set_grid(0.1, 0.42);
+            mapa.set_map(vec![(0.0, 0.1, 0.42)]);
+            for b in [&mut antes, &mut mapa] {
+                b.tick(5.0);
+                cmd(b);
+            }
+            for t in [12.0, 30.0, 61.3] {
+                antes.tick(t);
+                mapa.tick(t);
+                assert_eq!(mapa.at(t), antes.at(t), "{nome} em {t} s");
+            }
+        }
+        // com 2 trechos, ±fase arrasta o mapa inteiro
+        let mut b = beat::Beat::default();
+        b.set_map(vec![(0.0, 0.1, 0.42), (20.0, 20.0 - 47.0 * 0.4, 0.4)]);
+        b.nudge(0.05);
+        b.tick(30.0);
+        let x: f64 = (30.0 - (20.05 - 47.0 * 0.4)) / 0.4;
+        assert!((b.at(30.0).1 as f64 - (x - x.floor())).abs() < 1e-4, "nudge não arrastou o 2º trecho: {:?}", b.at(30.0));
+    }
+
     #[test]
     fn wav_ida_e_volta_com_reamostragem() {
         let path = std::env::temp_dir().join("doublek_teste.wav");
