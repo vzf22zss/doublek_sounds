@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use doublek_lib::analysis::{BeatCmd, Params};
-use doublek_lib::{audio, diary, midi, rec, spout, track};
+use doublek_lib::{audio, diary, links, midi, rec, spout, track};
 use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
@@ -263,6 +263,14 @@ fn analysis_dir(app: &AppHandle) -> Result<PathBuf, String> {
 #[tauri::command]
 async fn analysis_summary(app: AppHandle, path: String) -> Result<diary::Summary, String> {
     diary::summary_in(&analysis_dir(&app)?, std::path::Path::new(&path))
+}
+
+/// Abre no navegador do sistema uma página do repositório ("Relatar problema"). Qualquer outra URL é recusada.
+#[tauri::command]
+fn open_url(url: String) -> Result<(), String> {
+    links::check_repo_url(&url)?;
+    // url.dll abre no navegador padrão sem passar por um shell (nada de `cmd /c start` interpretando & e ^)
+    std::process::Command::new("rundll32").args(["url.dll,FileProtocolHandler", &url]).spawn().map(|_| ()).map_err(|e| e.to_string())
 }
 
 /// Abre o Explorer na pasta das análises (só ela).
@@ -594,6 +602,7 @@ fn main() {
             analysis_log_status,
             analysis_summary,
             analysis_open_dir,
+            open_url,
             analysis_mark
         ])
         .run(tauri::generate_context!())

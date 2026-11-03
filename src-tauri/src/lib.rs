@@ -2,6 +2,7 @@ pub mod analysis;
 pub mod audio;
 pub mod beat;
 pub mod diary;
+pub mod links;
 pub mod midi;
 pub mod osc;
 pub mod rec;

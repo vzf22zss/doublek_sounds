@@ -33,6 +33,7 @@
   import { load as storeLoad, save as storeSave, shaped } from '../lib/store';
   import { getVersion } from '@tauri-apps/api/app';
   import { captureErrors, log, logEntries, NO_TELEMETRY, type Telemetry } from '../lib/telemetry';
+  import { bugReport, issueUrl } from '../lib/bugreport';
   import { checkFile, EXT, ext } from '../lib/limits';
   import { OSC_PARAMS, oscToCommand, type OscArg } from '../lib/osc';
   import type { AnalysisLogStatus, Frame, Msg, SpoutStatus } from '../lib/types';
@@ -590,11 +591,56 @@
   let lastPerfWarn = -1e9;
   onEvent<{ level: 'warn' | 'error'; msg: string }>('output-log', (e) => { log(e.payload.level, e.payload.msg); if (e.payload.level === 'error') status = e.payload.msg; });
 
+  let healthBtn: HTMLButtonElement, healthMenu: HTMLDivElement; // pílula de saúde → menu Diagnóstico / Relatar problema
+
+  /** Windows 10/11 (o userAgent diz "NT 10.0" nos dois; o platformVersion ≥ 13 é o 11) e a placa pelo WebGL. */
+  async function platform() {
+    let windows = 'Windows ?', gpu = '?';
+    try {
+      const v = (await (navigator as any).userAgentData?.getHighEntropyValues(['platformVersion']))?.platformVersion as string | undefined;
+      if (v) windows = `Windows ${+v.split('.')[0] >= 13 ? 11 : 10} (${v})`;
+    } catch {}
+    try {
+      const g = document.createElement('canvas').getContext('webgl2'), d = g?.getExtension('WEBGL_debug_renderer_info');
+      gpu = g ? String(g.getParameter(d ? d.UNMASKED_RENDERER_WEBGL : g.RENDERER)) : 'sem WebGL2';
+      g?.getExtension('WEBGL_lose_context')?.loseContext(); // não segura um contexto a mais
+    } catch {}
+    return { windows, gpu };
+  }
+
   /** JSON com versões, ajustes, estatísticas e os últimos eventos. Sem áudio, sem arquivos. */
   async function diagnostics() {
+    const data = await collectDiag();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+    a.download = `doublek-diagnostico-${data.when.slice(0, 19).replace(/[:T]/g, '-')}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    status = 'Diagnóstico salvo (sem áudio).';
+    return data;
+  }
+
+  /** "Relatar problema" (DK-007): salva o Diagnóstico, copia um resumo anônimo e abre a issue no navegador. Nada vai pela rede daqui. */
+  async function reportProblem() {
+    const data = await diagnostics();
+    const text = bugReport(data);
+    let copied = false;
+    try { await navigator.clipboard.writeText(text); copied = true; } catch {
+      const t = Object.assign(document.createElement('textarea'), { value: text });
+      document.body.append(t); t.select();
+      try { copied = document.execCommand('copy'); } catch {}
+      t.remove();
+    }
+    try {
+      await invoke('open_url', { url: issueUrl(data.app) });
+      status = copied ? 'Resumo copiado e Diagnóstico salvo: cole (Ctrl+V) na issue que abriu e arraste o arquivo .json.' : 'Não consegui copiar o resumo: arraste o arquivo do Diagnóstico para a issue que abriu.';
+    } catch (e) { status = 'Não consegui abrir o navegador: ' + e; }
+  }
+
+  async function collectDiag() {
     const mem = (performance as any).memory;
-    const data = {
-      app: await getVersion().catch(() => '?'), when: new Date().toISOString(), userAgent: navigator.userAgent,
+    return {
+      app: await getVersion().catch(() => '?'), when: new Date().toISOString(), userAgent: navigator.userAgent, ...(await platform()),
       screen: { w: screen.width, h: screen.height, dpr: devicePixelRatio }, monitors,
       audio: { ...$state.snapshot(s), lost: audioLost, lastFrameAgeMs: frame ? Math.round(performance.now() - frameAt) : null, bpm: frame?.bpm, locked: frame?.locked },
       midi: { devices: $state.snapshot(midi.devices), mapped: Object.keys(midi.map).length },
@@ -609,12 +655,6 @@
       preshow: preshowLast(),
       log: logEntries(),
     };
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
-    a.download = `doublek-diagnostico-${data.when.slice(0, 19).replace(/[:T]/g, '-')}.json`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-    status = 'Diagnóstico salvo (sem áudio).';
   }
 
   async function project() {
@@ -801,14 +841,20 @@
     </div>
 
     <div class="group">
-      <div class="health" title="Saúde do show: áudio · BPM · MIDI · telão. Clique para salvar um diagnóstico (JSON, sem áudio).">
-        <button onclick={diagnostics} aria-label="Saúde do show e diagnóstico">
+      <div class="health" title="Saúde do show: áudio · BPM · MIDI · telão. Clique para salvar um diagnóstico ou relatar um problema.">
+        <button bind:this={healthBtn} popovertarget="healthMenu" aria-label="Saúde do show: diagnóstico e relatar problema">
           <i title="Áudio" class:ok={audioOk} class:bad={audioLost}></i>
           <i title="BPM" class:ok={frame?.locked} class:warn={!!frame?.bpm && !frame.locked}></i>
           <i title="MIDI" class:ok={midi.devices.length > 0}></i>
           <i title="Telão" class:ok={fps > 0 && tel.p95 < 25 && !tel.lost} class:warn={fps > 0 && tel.p95 >= 25} class:bad={tel.lost}></i>
           <b>{fps || '—'}</b>
         </button>
+        <!-- menu nativo (popover): fecha com Esc ou clique fora; não ocupa largura no cabeçalho de 1280 px -->
+        <div id="healthMenu" popover class="healthMenu" bind:this={healthMenu}
+          ontoggle={(e) => { if ((e as ToggleEvent).newState === 'open') { const r = healthBtn.getBoundingClientRect(); healthMenu.style.top = r.bottom + 4 + 'px'; healthMenu.style.left = r.left + 'px'; } }}>
+          <button onclick={() => { healthMenu.hidePopover(); diagnostics(); }} title="JSON com versões, ajustes e os últimos eventos; sem áudio">Salvar diagnóstico</button>
+          <button onclick={() => { healthMenu.hidePopover(); reportProblem(); }} title="Salva o Diagnóstico, copia um resumo sem nomes de arquivo nem do usuário e abre a página de bug no GitHub (nada é enviado sozinho)">Relatar problema</button>
+        </div>
       </div>
       <button class="midiBtn" class:on={midi.learning} onclick={toggleLearn} title="MIDI learn: mapear controles do controlador">
         <i class:lit={midiLit}></i>MIDI
@@ -1124,6 +1170,9 @@
   .health i.warn { background: #ffb84d; box-shadow: 0 0 5px #ffb84d; }
   .health i.bad { background: var(--clip); box-shadow: 0 0 6px var(--clip); animation: armed .7s ease-in-out infinite alternate; }
   .health b { font-weight: 600; letter-spacing: .04em; }
+  .healthMenu { position: fixed; inset: auto; margin: 0; padding: 4px; display: none; flex-direction: column; gap: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; color: var(--text); }
+  .healthMenu:popover-open { display: flex; }
+  .healthMenu button { font-size: 12px; text-align: left; white-space: nowrap; }
   .midiBtn { display: flex; align-items: center; gap: 6px; font-weight: 600; }
   .midiBtn i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.15); transition: background 60ms; }
   .midiBtn i.lit { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
