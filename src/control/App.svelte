@@ -27,7 +27,8 @@
   import { busy as fxBusy, clear as clearFx, EMPTY as NO_FX, startBurst, startRamp, step as stepFx, type Running } from '../lib/roteiro-fx';
   import { createDispatcher, fromTarget, keyCommand, routePad, startMacro, type AutomationMode, type Handlers, type MacroId, type MacroRun, type ShowCommand, type Source } from '../lib/commands';
   import { applyLayerParam } from '../render/layers';
-  import { addVideo, assetSync, imageColors, listVideos, probeVideo, removeVideo, setAsset, updateVideo, videoColors, type VideoInfo } from '../lib/assets';
+  import { addVideo, assetSync, imageColors, listVideos, preloadVideo, probeVideo, removeVideo, setAsset, updateVideo, videoColors, type VideoInfo } from '../lib/assets';
+  import { preloadChoice } from '../lib/videoloop';
   import { load as storeLoad, save as storeSave, shaped } from '../lib/store';
   import { getVersion } from '@tauri-apps/api/app';
   import { captureErrors, log, logEntries, NO_TELEMETRY, type Telemetry } from '../lib/telemetry';
@@ -133,6 +134,18 @@
   // PREVIEW (DK-043): com cena preparada, o canvas mostra o look dela sobre os ajustes de operação do `vs`
   // (blackout, recorte da logo, desempenho…); sem preparo, mostra o Program. O telão só recebe o `vs` acima.
   const staged = $derived(perf?.getStaged() ?? null);
+
+  // D-19a: a vaga de pré-carga do telão (1 tocando + 1 pronto): o próximo vídeo do roteiro tocando; senão o da cena
+  // preparada no PREVIEW, para o TAKE trocar sem engasgar. Só troca a vaga por outro vídeo, nunca a esvazia: o TAKE
+  // limpa o preview antes de a cena entrar (ela espera o beat) e esvaziar ali soltava o vídeo que ia entrar.
+  let lastPre = '';
+  $effect(() => {
+    const id = preloadChoice(rt.running ? rt.preVideo : null, staged?.look.bgVideo ?? '', vs.bgVideo);
+    if (!id || id === lastPre) return;
+    lastPre = id;
+    preloadVideo(id);
+    emitTo('output', 'preload', [id]);
+  });
   $effect(() => {
     const v = $state.snapshot(vs), st = staged;
     const pv = st ? { ...v, ...($state.snapshot(st.look) as object) } as typeof v : v;
