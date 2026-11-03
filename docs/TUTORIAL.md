@@ -199,7 +199,10 @@ Para deixar a detecção afinada com a **sua** música, grave a análise de um s
 clique em **Gravar análise (sem áudio)**, toque normalmente e aperte **M** no instante de cada
 drop. **Parar** salva um arquivo `.jsonl` com só números (BPM, grave, kicks por compasso, a cada
 50 ms) — **nenhum som é gravado**. Com esse arquivo dá para medir onde o app errou e ajustar os
-limites. Como gravar e mandar o arquivo: [docs/quality/CALIBRACAO.md](quality/CALIBRACAO.md).
+limites. Ao parar, a aba Áudio mostra um **resumo**: quanto tempo o BPM ficou travado, quantos
+drops você marcou, quantos o app pegou (e com que atraso) e quantos perdeu, com uma orientação
+pronta (por exemplo, "o app perdeu 2 de 5 drops: baixe o Limiar do grave"). **Abrir pasta das
+análises** mostra os arquivos. Como gravar e mandar o arquivo: [docs/quality/CALIBRACAO.md](quality/CALIBRACAO.md).
 
 ## 7. BPM e andamento
 
