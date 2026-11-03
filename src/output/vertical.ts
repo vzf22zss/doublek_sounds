@@ -97,8 +97,7 @@ export async function webCodecsRecorder(canvas: HTMLCanvasElement, o: { mime: st
           if (r.state === 'recording' && enc.state === 'configured' && enc.encodeQueueSize < 4) {
             const v = crop(f), key = f.timestamp - lastKey >= 1_000_000; // quadro-chave a cada 1 s = um fragmento por segundo
             if (key) lastKey = f.timestamp;
-            enc.encode(v, { keyFrame: key });
-            v.close();
+            try { enc.encode(v, { keyFrame: key }); } finally { v.close(); } // encode que lança não deixa o recorte aberto
           }
         } finally { f.close(); }
       }
