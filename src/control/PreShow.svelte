@@ -9,7 +9,7 @@
   // "Testar tudo" (DK-145): coleta por 10 s e mostra o checklist do dia do show; a regra fica em lib/preshow.ts.
   import { invoke } from '@tauri-apps/api/core';
   import { availableMonitors, Window } from '@tauri-apps/api/window';
-  import { evaluate, worst } from '../lib/preshow';
+  import { evaluate, onChosenMonitor, worst } from '../lib/preshow';
   import { load } from '../lib/store';
   import { validFxList, type FxEntry } from '../lib/shaders/manifest';
   import type { Frame } from '../lib/types';
@@ -32,10 +32,10 @@
     try {
       const w = await Window.getByLabel('output');
       if (!w) return { open: false, fullscreen: null, monitorOk: null };
-      // mesma ordem do list_monitors (os dois vêm de available_monitors); em tela cheia a janela começa no canto do monitor
-      const [fullscreen, pos, mons] = await Promise.all([w.isFullscreen(), w.outerPosition(), availableMonitors()]);
-      const m = mons[monitor];
-      return { open: true, fullscreen, monitorOk: m ? pos.x === m.position.x && pos.y === m.position.y : null };
+      // mesma ordem do list_monitors (os dois vêm de available_monitors); vale o monitor que contém o centro da janela
+      const [fullscreen, pos, size, mons] = await Promise.all([w.isFullscreen(), w.outerPosition(), w.outerSize(), availableMonitors()]);
+      const ms = mons.map((m) => ({ name: m.name, x: m.position.x, y: m.position.y, w: m.size.width, h: m.size.height }));
+      return { open: true, fullscreen, monitorOk: onChosenMonitor({ x: pos.x, y: pos.y, w: size.width, h: size.height }, ms, monitor) };
     } catch { return { open: tel.fps > 0, fullscreen: null, monitorOk: null }; }
   }
 
@@ -62,7 +62,8 @@
       output: { ...w, p95, lost },
       midi: { devices: [...midi.devices], mapped: Object.keys(midi.map).length, mappedBy: mappedByDevice(midi.map) },
       diskFree: await diskP, recording: rec.s.phase !== 'idle',
-      safeFlash, fx: { safe: fxSafe, suspect: fx.filter((x) => x.health.status === 'suspeito').map((x) => x.manifest.name) },
+      safeFlash, fx: { safe: fxSafe, suspect: fx.filter((x) => x.health.status === 'suspeito').map((x) => x.manifest.name),
+        disabled: fx.filter((x) => x.health.status === 'desabilitado').map((x) => ({ name: x.manifest.name, fails: x.health.fails })) },
       update, net,
     });
     last = { when: new Date().toISOString(), items: $state.snapshot(items) };

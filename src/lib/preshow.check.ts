@@ -1,6 +1,6 @@
 // npm run check — "Testar tudo" (DK-145): entradas simuladas → cores e mensagens.
 import assert from 'node:assert/strict';
-import { evaluate, worst, type PreshowInput } from './preshow.ts';
+import { evaluate, onChosenMonitor, worst, type Mon, type PreshowInput } from './preshow.ts';
 
 const OK: PreshowInput = {
   rms: Array(100).fill(0.2), gate: 0.003, lockedAtS: 3.2,
@@ -46,14 +46,40 @@ assert.equal(color(out({ p95: [40] }), 'output'), 'vermelho');
 assert.equal(color(out({ p95: [] }), 'output'), 'vermelho');
 assert.equal(color(out({ fullscreen: null }), 'output'), 'amarelo'); // não deu para conferir
 
+// 3b. monitor do telão com DPI misto: notebook 1920×1080 a 100% + projetor 4K a 150% à direita (coordenadas físicas)
+{
+  const mons: Mon[] = [{ name: 'Notebook', x: 0, y: 0, w: 1920, h: 1080 }, { name: 'EPSON 4K', x: 1920, y: 0, w: 3840, h: 2160 }];
+  // tela cheia no 4K a 150%: o Windows devolve o canto 7 px fora e o tamanho com as bordas invisíveis
+  const fs150 = { x: 1913, y: -7, w: 3854, h: 2174 };
+  assert.equal(onChosenMonitor(fs150, mons, 1), true, 'canto fora por bordas não é monitor errado');
+  assert.equal(fs150.x === mons[1].x, false, 'a regra antiga (canto = canto) dava falso "monitor errado" aqui');
+  assert.equal(onChosenMonitor(fs150, mons, 0), false, 'escolheu o notebook, telão está no 4K');
+  assert.equal(onChosenMonitor({ x: 0, y: 0, w: 1920, h: 1080 }, mons, 0), true);
+  assert.equal(onChosenMonitor({ x: 0, y: 0, w: 1920, h: 1080 }, mons, 1), false);
+  // monitor à esquerda do principal (x negativo) a 150%
+  const left: Mon[] = [{ name: 'Notebook', x: 0, y: 0, w: 1920, h: 1080 }, { name: 'Projetor', x: -2880, y: -200, w: 2880, h: 1620 }];
+  assert.equal(onChosenMonitor({ x: -2887, y: -207, w: 2894, h: 1634 }, left, 1), true);
+  // mesmo nome em dois monitores iguais: a posição desempata (± 2 px)
+  const twins: Mon[] = [{ name: 'Generic PnP', x: 0, y: 0, w: 1920, h: 1080 }, { name: 'Generic PnP', x: 1920, y: 0, w: 1920, h: 1080 }];
+  assert.equal(onChosenMonitor({ x: 1920, y: 0, w: 1920, h: 1080 }, twins, 0), false);
+  assert.equal(onChosenMonitor({ x: 1920, y: 0, w: 1920, h: 1080 }, twins, 1), true);
+  // janela fora de qualquer monitor ou monitor escolhido sumiu
+  assert.equal(onChosenMonitor({ x: 9000, y: 9000, w: 100, h: 100 }, mons, 1), false);
+  assert.equal(onChosenMonitor(fs150, mons, 5), null);
+}
+
 // 4. MIDI
 const md = (devices: string[], mapped = 5) => ({ midi: { devices, mapped } });
 assert.equal(color(md([], 0), 'midi'), 'verde');
 assert.equal(color(md([]), 'midi'), 'vermelho');
 assert.equal(color(md(['nanoKONTROL2 (ocupado)']), 'midi'), 'vermelho');
-assert.match(run(md(['nanoKONTROL2 (ocupado)'])).midi.msg, /nanoKONTROL2 \(ocupado\): feche/);
+assert.equal(run(md(['nanoKONTROL2 (ocupado)'])).midi.msg, 'O controlador nanoKONTROL2 está ocupado e há 5 controles mapeados: feche o outro programa que usa o controlador.');
+assert.equal(run(md([])).midi.msg, '5 controles mapeados e nenhum controlador conectado: conecte o cabo USB.');
 assert.equal(color(md(['nanoKONTROL2 (ocupado)', 'APC40']), 'midi'), 'amarelo');
 assert.equal(color(md(['nanoKONTROL2 (ocupado)'], 0), 'midi'), 'amarelo');
+assert.equal(run(md(['nanoKONTROL2 (ocupado)'], 0)).midi.msg, 'O controlador nanoKONTROL2 está ocupado, sem controles mapeados: se for usá-lo, feche o outro programa que usa o controlador.');
+assert.equal(run(md(['nanoKONTROL2', 'APC40'], 0)).midi.msg, '2 controladores, nada mapeado.');
+assert.equal(run(md(['nanoKONTROL2'], 1)).midi.msg, '1 controlador, 1 controle mapeado.');
 // D-23: com a origem de cada controle, diz exatamente qual controlador e quantos controles
 const mb = (devices: string[], mappedBy: Record<string, number>, extra = 0) =>
   ({ midi: { devices, mappedBy, mapped: Object.values(mappedBy).reduce((s, x) => s + x, 0) + extra } });
@@ -61,14 +87,18 @@ assert.equal(color(mb(['nanoKONTROL2 (ocupado)', 'APC40'], { nanoKONTROL2: 3 }),
 assert.match(run(mb(['nanoKONTROL2 (ocupado)', 'APC40'], { nanoKONTROL2: 3 })).midi.msg, /^O controlador nanoKONTROL2 está ocupado e tem 3 controles mapeados: feche/);
 assert.match(run(mb(['nanoKONTROL2 (ocupado)', 'APC40 (ocupado)'], { nanoKONTROL2: 1, APC40: 2 })).midi.msg, /nanoKONTROL2 está ocupado e tem 1 controle mapeado; O controlador APC40 está ocupado e tem 2 controles mapeados/);
 assert.equal(color(mb(['nanoKONTROL2 (ocupado)', 'APC40'], { APC40: 4 }), 'midi'), 'amarelo', 'ocupado, mas nada mapeado nele');
-assert.match(run(mb(['nanoKONTROL2 (ocupado)', 'APC40'], { APC40: 4 })).midi.msg, /nanoKONTROL2 ocupado, mas sem controles mapeados nele; os 4 controles mapeados estão em controladores livres/);
+assert.match(run(mb(['nanoKONTROL2 (ocupado)', 'APC40'], { APC40: 4 })).midi.msg, /^O controlador nanoKONTROL2 está ocupado, mas sem controles mapeados nele; os 4 controles mapeados estão em controladores livres\.$/);
 assert.equal(color(mb(['APC40'], { nanoKONTROL2: 1 }), 'midi'), 'vermelho');
 assert.match(run(mb(['APC40'], { nanoKONTROL2: 1 })).midi.msg, /O controlador nanoKONTROL2 não está conectado e tem 1 controle mapeado: conecte o cabo USB/);
 assert.equal(color(mb(['APC40'], { APC40: 2 }), 'midi'), 'verde');
-assert.equal(run(mb(['APC40'], { APC40: 2 })).midi.msg, '1 controlador(es), 2 controles mapeados.');
+assert.equal(run(mb(['APC40'], { APC40: 2 })).midi.msg, '1 controlador, 2 controles mapeados.');
+assert.match(run(mb(['nanoKONTROL2 (ocupado)', 'APC40'], { APC40: 1 })).midi.msg, /; o controle mapeado está em controladores livres\.$/, 'singular');
 // mapa misto (3 controles aprendidos antes da D-23, sem origem): volta para a regra aproximada
 assert.equal(color(mb(['nanoKONTROL2 (ocupado)', 'APC40'], { APC40: 2 }, 3), 'midi'), 'amarelo');
-assert.match(run(mb(['nanoKONTROL2 (ocupado)', 'APC40'], { APC40: 2 }, 3)).midi.msg, /se for o mapeado/);
+assert.match(run(mb(['nanoKONTROL2 (ocupado)', 'APC40'], { APC40: 2 }, 3)).midi.msg, /^O controlador nanoKONTROL2 está ocupado: se for o dos controles mapeados, feche o outro programa que usa o controlador\.$/);
+// todas as frases do item no mesmo molde: nada de "(ocupado)" cru nem "controlador(es)"
+for (const m of [md(['nanoKONTROL2 (ocupado)']), md(['a (ocupado)', 'b']), md(['a (ocupado)'], 0), md(['a', 'b']), mb(['a (ocupado)', 'b'], { b: 2 }), mb(['a (ocupado)', 'b'], { a: 2 })])
+  assert.ok(!/\(ocupado\)|\(es\)/.test(run(m).midi.msg), run(m).midi.msg);
 
 // 5. disco
 assert.equal(color({ diskFree: 1.9e9 }, 'disk'), 'vermelho');
@@ -81,6 +111,12 @@ assert.equal(color({ diskFree: null }, 'disk'), 'amarelo');
 assert.equal(color({ safeFlash: false }, 'flash'), 'amarelo');
 assert.equal(color({ fx: { safe: true, suspect: [] } }, 'fx'), 'amarelo');
 assert.match(run({ fx: { safe: false, suspect: ['Túnel'] } }).fx.msg, /Túnel/);
+// desligado depois de falhas também pinta amarelo (D-23)
+assert.equal(color({ fx: { safe: false, suspect: [], disabled: [{ name: 'Vórtex', fails: 3 }] } }, 'fx'), 'amarelo');
+assert.equal(run({ fx: { safe: false, suspect: [], disabled: [{ name: 'Vórtex', fails: 3 }] } }).fx.msg, 'Efeito Vórtex desligado depois de 3 falhas: reative no editor ou remova.');
+assert.equal(run({ fx: { safe: false, suspect: ['Túnel'], disabled: [{ name: 'Vórtex', fails: 1 }] } }).fx.msg, 'Suspeito: Túnel. Teste no editor ou remova. Efeito Vórtex desligado depois de 1 falha: reative no editor ou remova.');
+assert.equal(run({}).fx.msg, 'Nenhum efeito suspeito ou desligado.');
+assert.equal(color({ fx: { safe: true, suspect: [], disabled: [{ name: 'Vórtex', fails: 3 }] } }, 'fx'), 'amarelo', 'modo seguro manda na frase');
 assert.equal(color({ update: '0.4.0' }, 'version'), 'amarelo');
 assert.match(run({ update: '0.4.0' }).version.msg, /0\.4\.0.*antes do show/);
 

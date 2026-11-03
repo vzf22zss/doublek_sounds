@@ -13,10 +13,27 @@ export type PreshowInput = {
   diskFree: number | null;     // bytes livres no disco do app; null = não deu para ler
   recording: boolean;
   safeFlash: boolean;
-  fx: { safe: boolean; suspect: string[] };
+  fx: { safe: boolean; suspect: string[]; disabled?: { name: string; fails: number }[] }; // disabled: desligado depois de falhas
   update: string | null;       // versão nova que o atualizador já conhece
   net: { osc: boolean; oscLan: boolean; remote: boolean; remoteLan: boolean; spout: boolean };
 };
+
+/** Monitor em coordenadas físicas (availableMonitors). */
+export type Mon = { name: string | null; x: number; y: number; w: number; h: number };
+
+/**
+ * A janela do telão (posição e tamanho físicos) está no monitor escolhido? Vale o monitor que contém o CENTRO da
+ * janela, comparado com o escolhido por nome + posição física (± tol px). Comparar o canto da janela com o canto do
+ * monitor dava falso "monitor errado" com DPI misto: em tela cheia num monitor a 150% o Windows devolve o canto
+ * alguns pixels fora (bordas invisíveis). null = sem o monitor escolhido na lista.
+ */
+export function onChosenMonitor(win: { x: number; y: number; w: number; h: number }, mons: Mon[], chosen: number, tol = 2): boolean | null {
+  const want = mons[chosen];
+  if (!want) return null;
+  const cx = win.x + win.w / 2, cy = win.y + win.h / 2;
+  const has = mons.find((m) => cx >= m.x && cx < m.x + m.w && cy >= m.y && cy < m.y + m.h);
+  return !!has && has.name === want.name && Math.abs(has.x - want.x) <= tol && Math.abs(has.y - want.y) <= tol;
+}
 
 const GB = 1e9;
 const median = (a: number[]) => { const s = a.slice().sort((x, y) => x - y); return s.length ? s[Math.floor((s.length - 1) / 2)] : 0; };
@@ -44,24 +61,29 @@ export function evaluate(i: PreshowInput): Item[] {
   else out.push(it('output', 'Telão', o.fullscreen === null || o.monitorOk === null ? 'amarelo' : 'verde',
     o.fullscreen === null || o.monitorOk === null ? `p95 ${p95} ms, mas não consegui conferir monitor e tela cheia: olhe o telão.` : `Tela cheia no monitor escolhido, p95 ${p95} ms.`));
 
-  const busy = i.midi.devices.filter((d) => d.endsWith('(ocupado)')), free = i.midi.devices.length - busy.length;
   // D-23: o mapa sabe de qual controlador veio cada controle → diz exatamente qual está ocupado/sumiu e quantos controles
-  // perde. Controles aprendidos antes da D-23 (sem origem) caem na regra aproximada de antes.
-  const by = i.midi.mappedBy ?? {}, plain = (d: string) => d.replace(/ \(ocupado\)$/, '');
+  // perde. Controles aprendidos antes da D-23 (sem origem) caem na regra aproximada. Todas as frases no mesmo molde:
+  // "O controlador X está ocupado…" / "N controladores, M controles mapeados."
+  const plain = (d: string) => d.replace(/ \(ocupado\)$/, '');
+  const busy = i.midi.devices.filter((d) => d.endsWith('(ocupado)')).map(plain), free = i.midi.devices.length - busy.length;
+  const by = i.midi.mappedBy ?? {}, mapped = i.midi.mapped;
   const known = Object.values(by).reduce((s, n) => s + n, 0);
   const ctl = (k: number) => `${k} controle${k === 1 ? '' : 's'} mapeado${k === 1 ? '' : 's'}`;
-  const busyMapped = busy.map(plain).filter((d) => by[d]);
+  const ctrls = (k: number) => `${k} controlador${k === 1 ? '' : 'es'}`;
+  const isBusy = (ds: string[]) => ds.map((d) => `O controlador ${d} está ocupado`).join('; ');
+  const close = 'feche o outro programa que usa o controlador.';
+  const busyMapped = busy.filter((d) => by[d]);
   const missing = Object.keys(by).filter((d) => by[d] && !i.midi.devices.map(plain).includes(d));
-  if (busyMapped.length) out.push(it('midi', 'MIDI', 'vermelho', `${busyMapped.map((d) => `O controlador ${d} está ocupado e tem ${ctl(by[d])}`).join('; ')}: feche o outro programa que usa o controlador.`));
+  if (busyMapped.length) out.push(it('midi', 'MIDI', 'vermelho', `${busyMapped.map((d) => `O controlador ${d} está ocupado e tem ${ctl(by[d])}`).join('; ')}: ${close}`));
   else if (missing.length) out.push(it('midi', 'MIDI', 'vermelho', `${missing.map((d) => `O controlador ${d} não está conectado e tem ${ctl(by[d])}`).join('; ')}: conecte o cabo USB.`));
-  else if (i.midi.mapped && known === i.midi.mapped) out.push(it('midi', 'MIDI', busy.length ? 'amarelo' : 'verde', busy.length
-    ? `${busy.map(plain).join(', ')} ocupado, mas sem controles mapeados nele; os ${ctl(known)} estão em controladores livres.`
-    : `${free} controlador(es), ${ctl(known)}.`));
+  else if (mapped && known === mapped) out.push(it('midi', 'MIDI', busy.length ? 'amarelo' : 'verde', busy.length
+    ? `${isBusy(busy)}, mas sem controles mapeados nele; ${known === 1 ? 'o controle mapeado está' : `os ${ctl(known)} estão`} em controladores livres.`
+    : `${ctrls(free)}, ${ctl(known)}.`));
   // ponytail: controles sem origem (aprendidos antes da D-23): "(ocupado)" sem outro livre = vermelho; reaprender resolve
-  else if (!i.midi.mapped) out.push(it('midi', 'MIDI', busy.length ? 'amarelo' : 'verde', busy.length ? `${busy.join(', ')}: feche o outro programa que usa o controlador.` : free ? `${free} controlador(es), nada mapeado.` : 'Sem controlador e nada mapeado.'));
-  else if (!free) out.push(it('midi', 'MIDI', 'vermelho', busy.length ? `${busy.join(', ')}: feche o outro programa que usa o controlador.` : `${i.midi.mapped} controles mapeados e nenhum controlador: conecte o cabo USB.`));
-  else if (busy.length) out.push(it('midi', 'MIDI', 'amarelo', `${busy.join(', ')}: se for o mapeado, feche o outro programa que usa.`));
-  else out.push(it('midi', 'MIDI', 'verde', `${free} controlador(es), ${i.midi.mapped} controles mapeados.`));
+  else if (!mapped) out.push(it('midi', 'MIDI', busy.length ? 'amarelo' : 'verde', busy.length ? `${isBusy(busy)}, sem controles mapeados: se for usá-lo, ${close}` : free ? `${ctrls(free)}, nada mapeado.` : 'Sem controlador e nada mapeado.'));
+  else if (!free) out.push(it('midi', 'MIDI', 'vermelho', busy.length ? `${isBusy(busy)} e há ${ctl(mapped)}: ${close}` : `${ctl(mapped)} e nenhum controlador conectado: conecte o cabo USB.`));
+  else if (busy.length) out.push(it('midi', 'MIDI', 'amarelo', `${isBusy(busy)}: se for o dos controles mapeados, ${close}`));
+  else out.push(it('midi', 'MIDI', 'verde', `${ctrls(free)}, ${ctl(mapped)}.`));
 
   const d = i.diskFree, gb = d === null ? '' : (d / GB).toFixed(1) + ' GB livres';
   out.push(d === null ? it('disk', 'Disco', 'amarelo', 'Não consegui ler o espaço livre: confira no Explorer (≥ 2 GB).')
@@ -72,9 +94,14 @@ export function evaluate(i: PreshowInput): Item[] {
   out.push(i.safeFlash ? it('flash', 'Flashes', 'verde', 'Limite de 3 flashes/s ligado.')
     : it('flash', 'Flashes', 'amarelo', 'Limite de flashes desligado: ligue em Segurança visual (aba Saída).'));
 
+  const off = i.fx.disabled ?? [];
+  const fxBad = [
+    ...(i.fx.suspect.length ? [`Suspeito: ${i.fx.suspect.join(', ')}. Teste no editor ou remova.`] : []),
+    ...off.map((x) => `Efeito ${x.name} desligado depois de ${x.fails} falha${x.fails === 1 ? '' : 's'}: reative no editor ou remova.`),
+  ];
   out.push(i.fx.safe ? it('fx', 'Efeitos da comunidade', 'amarelo', 'Modo seguro ligado: desligue no editor de efeitos se for usá-los.')
-    : i.fx.suspect.length ? it('fx', 'Efeitos da comunidade', 'amarelo', `Suspeito: ${i.fx.suspect.join(', ')}. Teste no editor ou remova.`)
-    : it('fx', 'Efeitos da comunidade', 'verde', 'Nenhum efeito suspeito.'));
+    : fxBad.length ? it('fx', 'Efeitos da comunidade', 'amarelo', fxBad.join(' '))
+    : it('fx', 'Efeitos da comunidade', 'verde', 'Nenhum efeito suspeito ou desligado.'));
 
   out.push(i.update ? it('version', 'Versão', 'amarelo', `Versão ${i.update} disponível: atualize antes do show (com o telão fechado).`)
     : it('version', 'Versão', 'verde', 'Nenhuma versão nova conhecida.'));
