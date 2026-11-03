@@ -9,7 +9,7 @@ import dgram from 'node:dgram';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { appDataFiles, freeTcpPort, freeUdpPort, launchApp, launchEdge, REPO, results, until, wait, within } from './lib.mjs';
+import { APP_DATA, appDataFiles, freeTcpPort, freeUdpPort, launchApp, launchEdge, REPO, results, until, wait, within } from './lib.mjs';
 import { media } from './media.mjs';
 
 const BLOCKS = ['resposta', 'spout', 'diario', 'fx', 'video', 'gravacao', 'osc', 'celular'];
@@ -265,6 +265,20 @@ async function session(current, M) {
     const f = last ? files.add(last) : null;
     const ok = f && fs.existsSync(f), size = ok ? fs.statSync(f).size : 0, head = ok ? fs.readFileSync(f).subarray(4, 8).toString() : '';
     R.ok('gravacao', 'Gravar 10 s → arquivo com ftyp', ok && size > 0 && (head === 'ftyp' || f.endsWith('.webm')), `${f ? path.basename(f) : 'sem arquivo'} · ${(size / 1048576).toFixed(1)} MB · ${head}`);
+    // Gravar → Parar em 100 ms (vertical): não pode ficar preso em "Finalizando…" nem deixar arquivo (fix `stopAsked`)
+    await c.evaluate(() => { const s = [...document.querySelectorAll('.tabBody select')].find((x) => [...x.options].some((o) => o.value === 'VERTICAL')); if (s) { s.value = 'VERTICAL'; s.dispatchEvent(new Event('change', { bubbles: true })); } });
+    await wait(500);
+    const recDir = path.join(APP_DATA, 'recordings');
+    const names = () => (fs.existsSync(recDir) ? fs.readdirSync(recDir) : []);
+    const before = new Set(names()), tq = Date.now();
+    await click('Gravar', true); await wait(100); await click('Parar', true);
+    const back = await until(() => c.evaluate(() => [...document.querySelectorAll('.tabBody button')].some((x) => x.textContent.trim() === 'Gravar')), 10000, 250);
+    await wait(1500);
+    const extra = names().filter((n) => !before.has(n));
+    // um arquivo que sobrou é do teste se o nome é do instante desta gravação (o app nomeia AAAAMMDDTHHMMSS)
+    const stamp = (n) => { const m = n.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/); return m ? new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime() : NaN; };
+    for (const n of extra) if (Math.abs(stamp(n) - tq) < 15000) files.add(path.join(recDir, n));
+    R.ok('gravacao', 'Gravar → Parar em 100 ms (vertical): volta a "Gravar" e não sobra arquivo', !!back && extra.length === 0, `${back ? 'botão Gravar de volta' : 'preso'} · ${extra.length ? 'sobrou: ' + extra.join(', ') : 'nenhum arquivo novo'}`);
   });
 
   // ---------- OSC ----------
