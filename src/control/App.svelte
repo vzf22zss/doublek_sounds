@@ -86,7 +86,7 @@
   let preview: Renderer | null = null;
   let sync: ReturnType<typeof assetSync> | null = null;
   let perf: ReturnType<typeof Performance> = $state(null as any); // $state: o canvas de preview lê perf.getStaged()
-  let previewMode = $state(false); // DK-043: pads e MIDI c:<i> preparam no preview em vez de chamar
+  let previewMode = $state(false); // DK-043: pads, teclas 1–8 e MIDI c:<i> preparam no preview em vez de chamar
   let midiLit = $state(false);
 
   // ---------- atualização (Releases do GitHub) ----------
@@ -268,7 +268,7 @@
     PREVIEW_CLEAR: () => { perf.clearPreview(); status = 'Preview limpo.'; },
     PREVIEW_MODE: (c) => {
       previewMode = c.on ?? !previewMode;
-      status = previewMode ? 'Modo preview: tocar um pad prepara a cena; T ou TAKE manda para o telão.' : 'Modo preview desligado: pads chamam a cena direto.';
+      status = previewMode ? 'Modo preview: pad ou tecla 1–8 prepara a cena; T ou TAKE manda para o telão.' : 'Modo preview desligado: pads e teclas 1–8 chamam a cena direto.';
     },
     BANK_STEP: (c) => perf.stepBankBy(c.delta), // DK-041: os pads c:0..7 agem no banco ativo
     BANK_SET: (c) => perf.setBank(c.index),
@@ -735,7 +735,7 @@
     if (e.code === 'KeyM' && diario?.running && !e.ctrlKey && !e.metaKey && !e.repeat) { invoke('analysis_mark', { label: 'drop' }); status = 'Marca "drop" gravada na análise.'; return; } // marca do diário, não comando de show
     if (e.code === 'Space' || e.code === 'ArrowLeft' || e.code === 'ArrowRight') e.preventDefault();
     const c = keyCommand(e);
-    if (c) dispatch(c, 'keyboard');
+    if (c) dispatch(routePad(c, previewMode), 'keyboard'); // 1–8 no modo preview preparam, como o pad e o MIDI
   }
 
   function beatInfo() {
