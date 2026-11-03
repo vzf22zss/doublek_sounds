@@ -6,6 +6,15 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Não lançado]
 
+### Adicionado
+
+- Gravação: escolha do **tamanho** (Telão, 1080p, 720p; no vertical 1080×1920, 720×1280 ou pela qualidade), com aviso quando a imagem vai ser ampliada.
+- Gravação vertical pela placa de vídeo (WebCodecs): custa o mesmo que gravar em 16:9, sem a cópia por quadro; volta sozinha para o caminho antigo se o computador não suportar.
+- Resumo da análise dentro do app ao parar a gravação da análise, com orientação de ajuste e botão para abrir a pasta.
+- MIDI Clock: **Song Position Pointer** — o Continue do equipamento retoma na posição certa do compasso.
+- MIDI learn guarda de qual controlador veio cada controle; o **Testar tudo** avisa qual controlador ocupado ou desconectado tem controles mapeados.
+- Vídeo: a cena preparada no Preview já deixa o vídeo dela carregado, e o TAKE entra sem engasgo (o roteiro tocando tem prioridade).
+
 ## [0.3.9] - 2026-10-31
 
 ### Adicionado
