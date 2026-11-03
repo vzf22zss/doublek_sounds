@@ -19,7 +19,8 @@ export const VISUAL = {
   size: 40, amount: 0.45, chroma: 0, glow: 0.6, color: '#7c5cff', rmWhite: false, white: 230,
   // reação
   rel: 0.12, wave: 0.8, predict: true, offset: -40,
-  // na pausa (sem kick, nível abaixo de pauseThr): parar, respirar ou seguir o beat como antes da Onda 10. Fora das cenas
+  // na pausa (sem kick, nível abaixo de pauseThr): parar, respirar ou seguir o beat (o pulso previsto de antes da Onda 10;
+  // as fontes de banda e a onda usam `levels` em todos os modos). Fora das cenas
   pause: 'breathe' as Pause, pauseThr: 0.08,
   mod: {
     amount: 'auto', glow: 'auto', chroma: 'auto', bgPulse: 'auto',
