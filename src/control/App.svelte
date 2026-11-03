@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { invoke, Channel } from '@tauri-apps/api/core';
   import { emitTo, listen as onEvent } from '@tauri-apps/api/event';
   import Analyzer from './Analyzer.svelte';
@@ -156,11 +157,14 @@
     sync?.(pv);
   });
 
-  // preview: o mesmo renderer do telão, a 30 fps e meia resolução
+  // preview: o mesmo renderer do telão, a 30 fps e meia resolução. Criado uma vez por canvas: o visual inicial é lido
+  // com untrack (sem isso o efeito dependia do `vs` inteiro e recriava o renderer — 11 programas WebGL — a cada ajuste;
+  // achado pelo smoke e2e da 0.3.10). Os ajustes seguintes chegam pelo efeito de cima (setVisual + sync).
   $effect(() => {
-    preview = new Renderer(previewCanvas, { ...$state.snapshot(vs), renderScale: 0.5 });
+    const v0 = untrack(() => $state.snapshot(vs));
+    preview = new Renderer(previewCanvas, { ...v0, renderScale: 0.5 });
     sync = assetSync(preview, { beat: () => frame }); // a falha de vídeo quem avisa é o telão
-    sync($state.snapshot(vs), true);
+    sync(v0, true);
     let raf = 0, odd = false;
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
