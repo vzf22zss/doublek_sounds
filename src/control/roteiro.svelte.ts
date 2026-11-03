@@ -6,11 +6,11 @@ import { nextVideo } from '../lib/videoloop';
 import { checkFile, ext } from '../lib/limits';
 import { lookOf, type Look, type Visual } from '../lib/settings';
 import type { Frame } from '../lib/types';
-import { beatAt, due, loadRoteiros, newCue, rampAt, sanitizeRoteiro, stateAt, timeAt, uid, type Cue, type CueKind, type Roteiro } from '../lib/roteiro';
+import { beatAt, bpmLabel, due, loadRoteiros, newCue, rampAt, sanitizeRoteiro, stateAt, timeAt, uid, type Cue, type CueKind, type Roteiro, type Tempo } from '../lib/roteiro';
 import type { ShowCommand } from '../lib/commands';
 import { clear as clearFx, EMPTY, startBurst, startRamp, step as stepFx, type FxKind, type Running, type Values } from '../lib/roteiro-fx';
 
-export type TrackInfo = { duration: number; bpm: number; anchor: number; peaks: number[]; lows: number[] };
+export type TrackInfo = { duration: number; bpm: number; anchor: number; tempo: Tempo[]; peaks: number[]; lows: number[] };
 
 export const rt = $state({
   list: loadRoteiros(),
@@ -51,8 +51,13 @@ export async function load(r: Roteiro) {
     const info = await invoke<TrackInfo>('load_track', { id: r.track, lo, hi, output: rt.output || null });
     rt.info = info;
     rt.loaded = r.track;
-    if (!r.bpm && info.bpm) Object.assign(r, { bpm: +info.bpm.toFixed(3), anchor: info.anchor });
-    ctx.status(r.bpm ? `${r.trackName}: ${r.bpm.toFixed(2)} BPM` : 'Não achei o BPM: confira a faixa de andamento (aba Áudio) e analise de novo, ou digite o BPM.');
+    if (!r.bpm && info.bpm) {
+      Object.assign(r, { bpm: +info.bpm.toFixed(3), anchor: info.anchor });
+      // andamento que muda no arquivo: o mapa inteiro (o 1º trecho é o bpm/anchor acima)
+      if (info.tempo.length > 1) r.tempo = info.tempo;
+      else delete r.tempo;
+    }
+    ctx.status(r.bpm ? `${r.trackName}: ${bpmLabel(r)}` : 'Não achei o BPM: confira a faixa de andamento (aba Áudio) e analise de novo, ou digite o BPM.');
   } catch (e) {
     rt.info = null;
     rt.loaded = '';
@@ -87,6 +92,7 @@ export async function replaceTrack(file: File) {
   if (!r) return;
   try {
     Object.assign(r, { track: await upload(file), trackName: file.name, bpm: 0, anchor: 0 });
+    delete r.tempo;
     await load(r);
   } catch (e) {
     rt.busy = '';
@@ -281,7 +287,7 @@ export async function play() {
     if (rt.loaded !== r.track) return;
     const from = Math.max(0, timeAt(r, rt.cursor));
     try {
-      await invoke('play_track', { from, anchor: r.anchor, period: 60 / r.bpm, output: rt.output || null });
+      await invoke('play_track', { from, anchor: r.anchor, period: 60 / r.bpm, tempo: r.tempo ?? null, output: rt.output || null });
     } catch (e) {
       return ctx.status(String(e));
     }

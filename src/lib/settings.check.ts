@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { blend, lookOf, sanitizeLook, validScenes, validVisual, VISUAL, type Visual } from './settings.ts';
 import { pickColors } from './assets.ts';
-import { barLabel, beatAt, cueLabel, due, newCue, rampAt, sanitizeRoteiro, snap, stateAt, timeAt, type Roteiro } from './roteiro.ts';
+import { barLabel, beatAt, bpmLabel, cueLabel, due, newCue, nudgeGrid, rampAt, sanitizeRoteiro, snap, stateAt, timeAt, type Roteiro } from './roteiro.ts';
 
 const from: Visual = { ...VISUAL, amount: 0, color: '#000000', bgGrad: false, strobeDiv: 1, blackout: true };
 const to = { ...lookOf(VISUAL), amount: 1, color: '#ffffff', bgGrad: true, strobeDiv: 4, mod: { ...VISUAL.mod, glow: 'bass' as const } };
@@ -115,6 +115,37 @@ assert.equal(sanitizeRoteiro({ cues: 'x' }), null);
   assert.deepEqual([validVisual({ pauseThr: 5 }).pauseThr, validVisual({ pauseThr: -1 }).pauseThr], [0.3, 0]);
   const look = lookOf({ ...VISUAL, pause: 'stop' }) as Record<string, unknown>;
   assert.ok(!('pause' in look) && !('pauseThr' in look), 'pausa fora das cenas');
+}
+// mapa de andamento (onda 10): opcional; roteiro antigo (só bpm/anchor) carrega e calcula igual
+{
+  const antigo = { app: 'doublek-roteiro', version: 1, roteiro: { name: 'velho', track: 'x.mp3', bpm: 145.123, anchor: 0.37, barShift: 1, goBeat: 64, cues: [{ kind: 'scene', beat: 32, scene: 1 }] } };
+  const r = sanitizeRoteiro(JSON.parse(JSON.stringify(antigo)).roteiro)!;
+  assert.ok(!('tempo' in r), 'sem mapa no arquivo = sem a chave');
+  for (const t of [0, 0.37, 61.2, 300]) assert.equal(beatAt(r, t), (t - 0.37) / (60 / 145.123));
+  assert.equal(timeAt(r, 100), 0.37 + 100 * (60 / 145.123));
+  assert.equal(bpmLabel(r), '145.12 BPM');
+
+  // 140 → 146 no beat 140 (t = 0.37 + 140·60/140 = 60.37): âncora do 2º trecho = a do beat 0 extrapolada
+  const t1 = 0.37 + 140 * (60 / 140), tempo = [{ t: 0, bpm: 140, anchor: 0.37 }, { t: t1, bpm: 146, anchor: t1 - 140 * (60 / 146) }];
+  const m = sanitizeRoteiro({ ...antigo.roteiro, bpm: 140, anchor: 0.37, tempo }, true)!;
+  assert.deepEqual(m.tempo, tempo);
+  const near = (a: number, b: number, what: string) => assert.ok(Math.abs(a - b) < 1e-9, `${what}: ${a} ≠ ${b}`);
+  near(beatAt(m, 60), (60 - 0.37) / (60 / 140), 'antes da troca: 140');
+  near(beatAt(m, t1), 140, 'na troca: beat 140 nos dois trechos');
+  assert.ok(Math.abs(beatAt(m, t1 - 1e-6) - 140) < 1e-5, 'contínuo na troca');
+  near(beatAt(m, t1 + 60), 140 + 146, '1 min depois: +146 beats');
+  for (const b of [-2, 0, 50, 139.5, 140, 140.5, 400]) near(beatAt(m, timeAt(m, b)), b, `ida e volta no beat ${b}`);
+  near(timeAt(m, 286), t1 + 60, 'timeAt usa o trecho do beat');
+  assert.equal(bpmLabel(m), '140.00 → 146.00 BPM');
+  nudgeGrid(m, 0.005);
+  assert.deepEqual([m.anchor, m.tempo![0].t, m.tempo![1].t], [0.375, 0, t1 + 0.005], 'arrastar move a grade e os trechos, o 1º fica no início');
+  near(beatAt(m, t1 + 0.005), 140, 'arrastada, a troca anda junto');
+  // mapa inválido cai fora inteiro (vale o bpm/anchor)
+  for (const bad of [[tempo[0]], [tempo[1], tempo[0]], [{ ...tempo[0], t: 1 }, tempo[1]], [tempo[0], { ...tempo[1], bpm: NaN }], [tempo[0], { ...tempo[1], bpm: 0 }], 'x', Array(501).fill(tempo[0])]) {
+    assert.ok(!('tempo' in sanitizeRoteiro({ ...antigo.roteiro, tempo: bad })!), JSON.stringify(bad).slice(0, 60));
+  }
+  // só os campos conhecidos de cada trecho
+  assert.deepEqual(sanitizeRoteiro({ ...antigo.roteiro, tempo: tempo.map((s) => ({ ...s, x: 1 })) })!.tempo, tempo);
 }
 
 console.log('settings: ok');

@@ -69,6 +69,7 @@ pub struct Frame {
     pub stability: f32, // 0..1: quanto o relógio do beat é confiável (jitter dos kicks × tempo desde a trava)
     pub kick_rate: f32, // kicks por compasso nos últimos 8 beats (0 no breakdown, ~4 no groove)
     pub clock: &'static str, // quem manda no relógio do beat: "audio" | "midi" (DK-112)
+    pub off_range: f32, // kicks regulares fora da faixa de BPM escolhida: o BPM deles (0 = não); a UI sugere outra faixa
 }
 
 /// Indicadores de energia musical por compasso (DK-031), para o show-engine escolher cenas.
@@ -249,6 +250,7 @@ pub struct Analyzer {
     sub_over: bool,
     no_click: bool, // o cruzamento atual do sub foi recusado só por falta de click
     pend: Vec<(f64, f32)>, // candidatos com click acumulando o punch (30 ms) para a fase da grade
+    off_range: f32,        // Frame.off_range, refeito a cada kick
     orphans: Vec<f64>,     // candidatos com click recusados fora da grade desde o último kick aceito
     last_click: f64,
     last_soft_click: f64, // click mais fraco, só vale no beat previsto
@@ -303,6 +305,7 @@ impl Analyzer {
             sub_over: false,
             no_click: false,
             pend: vec![],
+            off_range: 0.0,
             orphans: vec![],
             last_click: -1.0,
             last_soft_click: -1.0,
@@ -488,6 +491,7 @@ impl Analyzer {
         self.last_kick = t;
         self.trend.kicks.push_back(t);
         self.beat.on_kick(t, lo, hi, p.lock || self.ext.is_some());
+        self.off_range = self.beat.outside(lo, hi) as f32;
         Some((0.5 + (ds / thr - 1.0) * 0.5).clamp(0.3, 1.0))
     }
 
@@ -585,6 +589,7 @@ impl Analyzer {
             stability: self.trend.stability,
             kick_rate: self.trend.kick_rate,
             clock: if self.ext.is_some() { "midi" } else { "audio" },
+            off_range: self.off_range,
         }
     }
 }
@@ -596,6 +601,40 @@ mod tests {
 
     fn track(bpm: f64, secs: f64, sr: f32, rolling: bool) -> (Vec<f32>, Vec<f64>) {
         Synth { bpm, secs, sr, rolling, ..Default::default() }.render()
+    }
+
+    /// Faixa errada para a música: o Frame traz o BPM dos kicks (a UI sugere Auto); certa, nunca.
+    #[test]
+    fn dica_de_faixa_de_bpm_errada() {
+        // devolve (travou no fim, off_range no fim, maior off_range em toda a faixa)
+        let run = |s: Synth, ranges: &[(f32, f32)]| {
+            let x = s.render().0;
+            let mut an = Analyzer::new(48000.0);
+            let mut max = 0f32;
+            for (i, c) in x.chunks_exact(HOP).enumerate() {
+                let (lo, hi) = ranges[(i * ranges.len()) / (x.len() / HOP)];
+                an.process(c, &Params { bpm_min: lo, bpm_max: hi, ..Default::default() });
+                max = max.max(an.off_range);
+            }
+            (an.beat.locked, an.off_range, max)
+        };
+        let psy = (135.0, 150.0);
+        let (locked, fim, _) = run(Synth { bpm: 175.0, secs: 20.0, ..Default::default() }, &[psy]);
+        assert!(!locked && (fim - 175.0).abs() < 0.5, "Psy com a música a 175: travou {locked}, dica {fim}");
+        // trocou para Auto: trava e a dica some
+        let (locked, fim, _) = run(Synth { bpm: 175.0, secs: 40.0, ..Default::default() }, &[psy, (80.0, 220.0)]);
+        assert!(locked && fim == 0.0, "depois do Auto: travou {locked}, dica {fim}");
+        // faixa certa, inclusive com chimbal no contratempo, jitter e breakdown: nunca há dica
+        for (s, r) in [
+            (Synth { bpm: 145.0, secs: 30.0, ..Default::default() }, psy),
+            (Synth { bpm: 145.0, secs: 40.0, hats: 0.5, jitter_ms: 4.0, breakdown: Some((15.0, 25.0)), seed: 9, ..Default::default() }, psy),
+            (Synth { bpm: 175.0, secs: 30.0, ..Default::default() }, (145.0, 185.0)),
+            (Synth { bpm: 128.0, secs: 30.0, ..Default::default() }, (80.0, 220.0)),
+        ] {
+            let bpm = s.bpm;
+            let (_, _, max) = run(s, &[r]);
+            assert_eq!(max, 0.0, "{bpm} BPM em {r:?}: dica falsa");
+        }
     }
 
     fn check(bpm: f64, lo: f32, hi: f32) {

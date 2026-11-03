@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 
 const WINDOW: f64 = 8.0; // segundos de kicks usados no ajuste
 const HOLD: f64 = 30.0; // quanto tempo a grade segura sem kick (breakdown)
-const TOL: f64 = 0.12; // fração do beat que um kick pode estar fora da grade
+pub(crate) const TOL: f64 = 0.12; // fração do beat que um kick pode estar fora da grade
 const FLIP: f32 = 1.5; // o contratempo precisa de 1.5× mais punch para virar a fase
 const FLIP_MIN: usize = 3; // candidatos em cada fase antes de comparar
 
@@ -20,6 +20,7 @@ pub struct Beat {
     last: f64,
     count: i64, // mantém o índice do beat contínuo quando a âncora muda
     fixed: bool, // grade vinda da análise do arquivo: os kicks não mexem nela
+    map: Vec<(f64, f64, f64)>, // ... e, se o andamento muda no arquivo, os trechos (início, âncora, período)
     pub external: bool, // um relógio externo (MIDI Clock) manda: os kicks só acertam a fase
     ext_phase: bool,    // ... e nem isso, se ele trouxe a fase (Start)
     fresh: bool, // recomeçou a partir de kicks já conferidos (restart): trava com 4 limpos
@@ -138,8 +139,11 @@ impl Beat {
         }
     }
 
-    /// Chamar a cada hop: solta a grade depois de muito tempo sem kick.
+    /// Chamar a cada hop: solta a grade depois de muito tempo sem kick; com mapa, passa ao trecho de `t`.
     pub fn tick(&mut self, t: f64) {
+        if let Some(&(_, a, p)) = self.seg(t) {
+            (self.anchor, self.period) = (a, p);
+        }
         if self.locked && !self.fixed && t - self.last > HOLD {
             self.locked = false;
         }
@@ -163,13 +167,25 @@ impl Beat {
         *self = Self { anchor, period, locked: true, fixed: true, ..Default::default() };
     }
 
+    /// Mapa de andamento do arquivo: trechos (início, âncora, período), com o índice do beat contínuo.
+    pub fn set_map(&mut self, map: Vec<(f64, f64, f64)>) {
+        let Some(&(_, a, p)) = map.first() else { return };
+        self.set_grid(a, p);
+        self.map = map;
+    }
+
+    fn seg(&self, t: f64) -> Option<&(f64, f64, f64)> {
+        self.map.iter().rev().find(|s| s.0 <= t).or(self.map.first())
+    }
+
     /// (bpm, fase 0..1 dentro do beat, índice do beat)
     pub fn at(&self, t: f64) -> (f32, f32, i64) {
-        if self.period <= 0.0 {
+        let (a, p) = self.seg(t).map_or((self.anchor, self.period), |s| (s.1, s.2));
+        if p <= 0.0 {
             return (0.0, 0.0, 0);
         }
-        let x = (t - self.anchor) / self.period;
-        ((60.0 / self.period) as f32, (x - x.floor()) as f32, self.count + x.floor() as i64)
+        let x = (t - a) / p;
+        ((60.0 / p) as f32, (x - x.floor()) as f32, self.count + x.floor() as i64)
     }
 
     fn rebase(&mut self, anchor: f64, period: f64) {
@@ -253,6 +269,18 @@ impl Beat {
         self.scored.clear();
     }
 
+    /// Kicks regulares num andamento fora da faixa escolhida (ex.: faixa Psy e a música a 175): o BPM
+    /// que eles mostram, para a UI sugerir outra faixa. 0 = travou, cabe na faixa ou não dá para dizer.
+    pub fn outside(&self, lo: f64, hi: f64) -> f64 {
+        if self.locked || self.fixed || self.external || self.kicks.len() < 8 {
+            return 0.0;
+        }
+        let ks: Vec<f64> = self.kicks.iter().copied().collect();
+        let Some((p, _, n, sd)) = median_ioi(&ks, 80.0, 220.0).and_then(|p0| fit(&ks, p0, None, false)) else { return 0.0 };
+        let bpm = 60.0 / p;
+        if n * 10 >= ks.len() * 7 && sd < 0.035 * p && (bpm < lo * 0.97 || bpm > hi * 1.03) { bpm } else { 0.0 }
+    }
+
     pub fn scale_tempo(&mut self, factor: f64) {
         if self.period > 0.0 {
             self.period /= factor;
@@ -262,7 +290,7 @@ impl Beat {
 }
 
 /// Mediana dos intervalos entre kicks, dobrados/divididos para cair na faixa de BPM.
-fn median_ioi(ks: &[f64], lo: f64, hi: f64) -> Option<f64> {
+pub(crate) fn median_ioi(ks: &[f64], lo: f64, hi: f64) -> Option<f64> {
     let (pmin, pmax) = (60.0 / hi * 0.93, 60.0 / lo * 1.07);
     let mut v: Vec<f64> = ks
         .windows(2)

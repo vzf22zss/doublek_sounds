@@ -17,6 +17,9 @@ export type Cue = {
   key?: string; to?: number; ramp?: number;   // ajuste visual até `to` em `ramp` beats
 };
 
+/** Trecho do mapa de andamento (análise do arquivo): a partir de `t` s, o beat n cai em anchor + n·60/bpm. */
+export type Tempo = { t: number; bpm: number; anchor: number };
+
 export type Roteiro = {
   id: string;
   name: string;
@@ -24,6 +27,7 @@ export type Roteiro = {
   trackName: string;
   bpm: number;
   anchor: number;    // s do 1º beat no arquivo
+  tempo?: Tempo[];   // andamento que muda no arquivo (≥ 2 trechos, o 1º = bpm/anchor); ausente = bpm/anchor valem para tudo
   barShift: number;  // 0..3: em qual beat começa o compasso
   goBeat: number;    // modo DJ: em que beat do roteiro o GO é apertado
   cues: Cue[];
@@ -65,9 +69,28 @@ export function newCue(kind: CueKind, beat: number): Cue {
 }
 
 // ---------- tempo ----------
-export const period = (r: Roteiro) => 60 / r.bpm;
-export const beatAt = (r: Roteiro, t: number) => (t - r.anchor) / period(r);
-export const timeAt = (r: Roteiro, beat: number) => r.anchor + beat * period(r);
+// com mapa, o trecho vale a partir do seu início (em s ou no seu 1º beat); antes do 1º, vale o 1º
+type Grid = { bpm: number; anchor: number };
+export const period = (r: Grid) => 60 / r.bpm;
+const segBy = (r: Roteiro, ok: (s: Tempo) => boolean): Grid => (r.tempo ? [...r.tempo].reverse().find(ok) ?? r.tempo[0] : r);
+export const beatAt = (r: Roteiro, t: number) => {
+  const s = segBy(r, (s) => s.t <= t);
+  return (t - s.anchor) / period(s);
+};
+export const timeAt = (r: Roteiro, beat: number) => {
+  const s = segBy(r, (s) => (s.t - s.anchor) / period(s) <= beat);
+  return s.anchor + beat * period(s);
+};
+/** Arrasta a grade inteira (com mapa, todos os trechos) `dt` segundos. */
+export function nudgeGrid(r: Roteiro, dt: number) {
+  r.anchor += dt;
+  for (const s of r.tempo ?? []) {
+    if (s.t) s.t += dt; // o 1º trecho continua no início do arquivo
+    s.anchor += dt;
+  }
+}
+/** "140.00 BPM" ou, com mapa, "140.00 → 146.00 BPM". */
+export const bpmLabel = (r: Roteiro) => (r.tempo ?? [r]).map((s) => s.bpm.toFixed(2)).join(' → ') + ' BPM';
 /** "33.2" = compasso 33, 2º tempo (compassos de 4, começando no barShift). */
 export function barLabel(r: Roteiro, beat: number) {
   const b = Math.floor(beat) - r.barShift;
@@ -111,6 +134,7 @@ export function sanitizeRoteiro(x: any, keepIds = false): Roteiro | null {
   return {
     id: id(x.id), name: str(x.name, 'Roteiro'), track: str(x.track, ''), trackName: str(x.trackName, ''),
     bpm: num(x.bpm, 0), anchor: num(x.anchor, 0), barShift: num(x.barShift, 0) & 3, goBeat: num(x.goBeat, 0),
+    ...(validTempo(x.tempo) ? { tempo: x.tempo.map((s: Tempo) => ({ t: s.t, bpm: s.bpm, anchor: s.anchor })) } : {}),
     cues: x.cues
       .filter((c: any) => c && kinds.includes(c.kind) && Number.isFinite(c.beat))
       .map((c: any): Cue => ({
@@ -121,4 +145,10 @@ export function sanitizeRoteiro(x: any, keepIds = false): Roteiro | null {
         video: str(c.video, ''), key: str(c.key, 'trail'), to: num(c.to, 0), ramp: num(c.ramp, 0),
       })),
   };
+}
+
+/** Mapa de 2 a 500 trechos em ordem, o 1º no início do arquivo, números finitos e BPM numa faixa possível. */
+function validTempo(v: unknown): v is Tempo[] {
+  const ok = (s: any) => s && [s.t, s.bpm, s.anchor].every(Number.isFinite) && s.bpm >= 20 && s.bpm <= 400;
+  return Array.isArray(v) && v.length >= 2 && v.length <= 500 && v.every(ok) && v[0].t === 0 && v.every((s, i) => !i || s.t > v[i - 1].t);
 }

@@ -21,12 +21,13 @@ pub struct Synth {
     pub hats: f32,                     // chimbal no contratempo (ruído agudo de 30 ms): pico; 0 = sem
     pub kick: f32,                     // volume do kick (sub e click); 1 = padrão
     pub riser: Option<(f64, f64)>,     // build-up: ruído subindo de 0 a 0,25 entre os dois instantes
+    pub change: Option<(f64, f64)>,    // troca de andamento: do 1º beat a partir deste instante em diante, este BPM
     pub seed: u32,
 }
 
 impl Default for Synth {
     fn default() -> Self {
-        Self { bpm: 140.0, secs: 20.0, sr: 48000.0, start: 0.05, rolling: true, noise: 0.02, gain: 1.0, breakdown: None, jitter_ms: 0.0, hats: 0.0, kick: 1.0, riser: None, seed: 1 }
+        Self { bpm: 140.0, secs: 20.0, sr: 48000.0, start: 0.05, rolling: true, noise: 0.02, gain: 1.0, breakdown: None, jitter_ms: 0.0, hats: 0.0, kick: 1.0, riser: None, change: None, seed: 1 }
     }
 }
 
@@ -40,11 +41,12 @@ impl Synth {
             rng = rng.wrapping_mul(1664525).wrapping_add(1013904223);
             (rng >> 8) as f32 / (1 << 24) as f32 * 2.0 - 1.0
         };
-        let beat = 60.0 / self.bpm;
+        let beat_at = |t: f64| 60.0 / self.change.filter(|c| t >= c.0).map_or(self.bpm, |c| c.1);
         let in_break = |t: f64| self.breakdown.is_some_and(|(a, b)| t >= a && t < b);
         let mut kicks = vec![];
         let mut t0 = self.start;
         while t0 + 0.4 < self.secs {
+            let beat = beat_at(t0);
             if !in_break(t0) {
                 let tk = t0 + noise() as f64 * self.jitter_ms / 1000.0;
                 kicks.push(tk);
