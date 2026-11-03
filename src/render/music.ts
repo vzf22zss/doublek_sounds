@@ -168,7 +168,9 @@ export function music(st: MusicState, v: Visual, now: number): MusicUniforms {
     // safeFlash: acende 1 em cada `every` pulsos para não passar de 3 flashes/s (ex.: 1/4 a 148 BPM = 9,9 Hz → 2,5 Hz)
     const every = v.safeFlash ? strobeEvery(f?.bpm ?? 0, v.strobeDiv) : 1;
     const allowed = strobeAllowed(Math.floor((st.absBeat + ph) * v.strobeDiv), every);
-    let strobe = predicting(st, v) ? (allowed && sub < 0.15 ? 1 - sub / 0.15 : 0) : st.kickEnv;
+    // na pausa com som (build-up sem kick), o strobe segue o relógio do beat; só o silêncio o apaga
+    const clocked = predicting(st, v) || (st.paused && st.sil < 0.5 && v.predict && !!f?.locked && f.bpm > 0);
+    let strobe = clocked ? (allowed && sub < 0.15 ? 1 - sub / 0.15 : 0) : st.kickEnv;
     strobe *= (v.safeFlash ? Math.min(v.strobe, SAFE_STROBE_MAX) : v.strobe) * gate(u, v, 'strobe');
     u.strobe = strobe;
   }

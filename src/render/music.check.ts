@@ -171,6 +171,20 @@ for (const pause of ['beat', 'breathe', 'stop'] as const) {
   assert.ok(back > 0.35, `${pause}: o pulso volta na hora (${back.toFixed(2)})`);
 }
 
+// Revisão 0.3.11: build-up alto sem kick na música do app (grade fixa) não apaga o strobe; o silêncio apaga
+for (const loud of [true, false]) {
+  const st = musicState(), v = V({ predict: true, pause: 'breathe', strobe: 1, safeFlash: false }), bpm = 148;
+  const levels = loud ? [0.8, 0.8, 0.8, 0.8, 0.8] : [0.01, 0.01, 0.01, 0.01, 0.01];
+  let t = 1000, max = 0;
+  for (; t < 5000; t += 16) {
+    musicFrame(st, at(t, bpm, { pos: 30, levels }), v, t);
+    const u = music(st, v, t);
+    if (t > 3000) max = Math.max(max, u.strobe);
+  }
+  if (loud) assert.ok(max > 0.5, `build-up sem kick: strobe ${max.toFixed(2)}`);
+  else assert.ok(max < 0.01, `silêncio: strobe ${max.toFixed(2)}`);
+}
+
 // Breakdown sem kick mas com música (pad) não é silêncio: nada de disparo previsto, a logo segue a onda pelos levels
 {
   const st = musicState(), v = V({ predict: true, pause: 'breathe', wave: 0.8 }), bpm = 148;
