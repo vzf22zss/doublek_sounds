@@ -207,6 +207,7 @@ impl Beat {
         let mut d: Vec<f64> = self.taps.windows(2).map(|w| w[1] - w[0]).collect();
         d.sort_by(f64::total_cmp);
         if let Some((p, a, _, _)) = fit(&self.taps, d[d.len() / 2], None, false) {
+            self.map.clear(); // o operador manda: o mapa do arquivo deixa de valer
             self.rebase(a, p);
             self.locked = true;
             self.last = t;
@@ -216,6 +217,9 @@ impl Beat {
 
     pub fn nudge(&mut self, dt: f64) {
         self.anchor += dt;
+        for s in &mut self.map {
+            (s.0, s.1) = (s.0 + dt, s.1 + dt); // com mapa, arrasta todos os trechos
+        }
     }
 
     /// Kick forte fora da grade depois de ≥ 1 compasso sem nenhum kick (pausa, corte): a fase
@@ -283,6 +287,7 @@ impl Beat {
 
     pub fn scale_tempo(&mut self, factor: f64) {
         if self.period > 0.0 {
+            self.map.clear(); // ½×/2× sobre o trecho atual; o mapa do arquivo deixa de valer
             self.period /= factor;
             self.kicks.clear();
         }
