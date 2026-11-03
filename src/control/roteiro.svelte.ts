@@ -6,7 +6,7 @@ import { nextVideo } from '../lib/videoloop';
 import { checkFile, ext } from '../lib/limits';
 import { lookOf, type Look, type Visual } from '../lib/settings';
 import type { Frame } from '../lib/types';
-import { beatAt, bpmLabel, due, loadRoteiros, newCue, rampAt, sanitizeRoteiro, stateAt, timeAt, uid, type Cue, type CueKind, type Roteiro, type Tempo } from '../lib/roteiro';
+import { beatAt, bpmLabel, due, jumped, loadRoteiros, newCue, rampAt, sanitizeRoteiro, stateAt, timeAt, uid, type Cue, type CueKind, type Roteiro, type Tempo } from '../lib/roteiro';
 import type { ShowCommand } from '../lib/commands';
 import { clear as clearFx, EMPTY, startBurst, startRamp, step as stepFx, type FxKind, type Running, type Values } from '../lib/roteiro-fx';
 
@@ -231,11 +231,13 @@ export function tick(f: Frame | null, frameAt: number) {
     if (!goAt || !f.bpm) return;
     cur = goAt.beat + (liveBeat(f, frameAt) - goAt.live);
   }
-  if (rt.mode !== 'sound') {
-    if (cur < last || cur - last > 8) chase(r, cur);
-    else due(r.cues, last, cur).forEach(fire);
+  if (jumped(last, cur)) {
+    if (rt.mode !== 'sound') chase(r, cur);
+    last = cur;
+  } else {
+    if (rt.mode !== 'sound' && cur > last) due(r.cues, last, cur).forEach(fire);
+    last = Math.max(last, cur); // recuo pequeno na troca de trecho: os pontos já disparados não repetem
   }
-  last = cur;
   rt.cursor = cur;
   preloadNext(r, cur);
   const r2 = stepFx(fx, cur);

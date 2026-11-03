@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { blend, lookOf, sanitizeLook, validScenes, validVisual, VISUAL, type Visual } from './settings.ts';
 import { pickColors } from './assets.ts';
-import { barLabel, beatAt, bpmLabel, cueLabel, due, newCue, nudgeGrid, rampAt, sanitizeRoteiro, snap, stateAt, timeAt, type Roteiro } from './roteiro.ts';
+import { barLabel, beatAt, jumped, bpmLabel, cueLabel, due, newCue, nudgeGrid, rampAt, sanitizeRoteiro, snap, stateAt, timeAt, type Roteiro } from './roteiro.ts';
 
 const from: Visual = { ...VISUAL, amount: 0, color: '#000000', bgGrad: false, strobeDiv: 1, blackout: true };
 const to = { ...lookOf(VISUAL), amount: 1, color: '#ffffff', bgGrad: true, strobeDiv: 4, mod: { ...VISUAL.mod, glow: 'bass' as const } };
@@ -147,5 +147,11 @@ assert.equal(sanitizeRoteiro({ cues: 'x' }), null);
   // só os campos conhecidos de cada trecho
   assert.deepEqual(sanitizeRoteiro({ ...antigo.roteiro, tempo: tempo.map((s) => ({ ...s, x: 1 })) })!.tempo, tempo);
 }
+
+// Revisão 0.3.11: recuo de até ¼ de beat na troca de trecho não é salto (não cancela strobe/crossfade)
+assert.equal(jumped(57.2, 57.0), false);
+assert.equal(jumped(57.2, 56.9), true);
+assert.equal(jumped(10, 19), true);
+assert.equal(jumped(10, 10.1), false);
 
 console.log('settings: ok');

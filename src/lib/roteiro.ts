@@ -71,6 +71,8 @@ export function newCue(kind: CueKind, beat: number): Cue {
 // ---------- tempo ----------
 // com mapa, o trecho vale a partir do seu início (em s ou no seu 1º beat); antes do 1º, vale o 1º
 type Grid = { bpm: number; anchor: number };
+// Na troca de trecho do mapa de andamento o índice do beat pode voltar até ¼ de beat (track.rs): isso não é salto
+export const jumped = (last: number, cur: number) => cur < last - 0.25 || cur - last > 8;
 export const period = (r: Grid) => 60 / r.bpm;
 const segBy = (r: Roteiro, ok: (s: Tempo) => boolean): Grid => (r.tempo ? [...r.tempo].reverse().find(ok) ?? r.tempo[0] : r);
 export const beatAt = (r: Roteiro, t: number) => {

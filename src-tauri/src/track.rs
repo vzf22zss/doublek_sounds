@@ -259,7 +259,7 @@ fn tempo_map(kicks: &[f64], lo: f64, hi: f64) -> Option<Vec<Seg>> {
             Some(prev) => {
                 let t = a + ((kicks[i0] - a) / p).round() * p;
                 let v = (t - prev.anchor) * prev.bpm / 60.0;
-                // ≥ v − ¼: o índice nunca volta (no máximo encurta um beat), e na troca sem pausa v já é inteiro
+                // ≥ v − ¼: o índice volta no máximo ¼ de beat (o roteiro tolera, `jumped`), e na troca sem pausa v já é inteiro
                 Seg { t, bpm: 60.0 / p, anchor: t - (v - 0.25).ceil() * p }
             }
         };
