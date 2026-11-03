@@ -157,7 +157,8 @@ export function reduce(s: RecState, e: RecEvent): RecState {
       return s.phase === 'recording' || s.phase === 'stopping' ? { ...s, bytes: e.bytes, ms: Math.max(0, e.at - s.startedAt), message: '' } : s;
     case 'stop':
       return s.phase === 'recording' || s.phase === 'starting' ? { ...s, phase: 'stopping', message: 'Finalizando a gravação…' } : s;
-    case 'done':
+    case 'done': // path '' = parada antes do 1º pedaço: o telão apagou o arquivo vazio (a última gravação continua a de antes)
+      if (!e.path) return { ...IDLE, path: s.path, message: 'Gravação cancelada antes do primeiro pedaço: nada foi gravado.' };
       return { ...IDLE, path: e.path, message: `Gravação salva: ${e.path} (${mb(e.bytes)} MB)` + (e.reason ? ` — parou sozinha: ${e.reason}.` : '.') };
     case 'error':
       return { ...IDLE, path: s.path, message: `A gravação parou: ${e.message}. O telão segue normal.` };

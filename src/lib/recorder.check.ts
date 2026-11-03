@@ -41,6 +41,13 @@ assert.equal(s.path, 'C:/rec/' + n);
 assert.equal(s.message, `Gravação salva: C:/rec/${n} (6.0 MB).`);
 // parada automática (limite) e erro
 assert.match(run([{ t: 'done', path: 'p', bytes: 1, reason: 'limite de 4 GiB por gravação' }]).message, /parou sozinha: limite de 4 GiB/);
+// Parar antes do 1º pedaço (revisão 0.3.10): o telão apaga o arquivo e manda path '' → sai de "Finalizando…", guarda a última
+{
+  const c = run([{ t: 'done', path: 'C:/rec/antiga.mp4', bytes: 1 }, { t: 'start', id: 'x.mp4', mime: 'video/mp4', at: 0, p95: 0 }, { t: 'stop' }, { t: 'done', path: '', bytes: 0 }]);
+  assert.equal(c.phase, 'idle');
+  assert.equal(c.path, 'C:/rec/antiga.mp4');
+  assert.equal(c.message, 'Gravação cancelada antes do primeiro pedaço: nada foi gravado.');
+}
 const e = run([{ t: 'start', id: n, mime: 'video/webm', at: 0, p95: 0 }, { t: 'started', at: 0 }, { t: 'error', message: 'disco cheio' }], { ...IDLE, path: 'anterior' });
 assert.deepEqual([e.phase, e.path, e.message], ['idle', 'anterior', 'A gravação parou: disco cheio. O telão segue normal.']);
 // eventos fora de hora não mudam o estado

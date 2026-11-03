@@ -15,6 +15,9 @@ type Chunk = { total: number; stop: string | null };
 export function initRecording(canvas: HTMLCanvasElement, log: (level: 'warn' | 'error', msg: string) => void) {
   let mr: FrameRec | null = null, id = '', t0 = 0, reason = '', failed = false, bytesSoFar = 0;
   let viaWebCodecs = false, noWebCodecs = false; // D-18: vertical por WebCodecs; depois de uma falha, só a cópia 2D
+  // "Parar" chegando enquanto a gravação ainda começa (rec_start, ensaio do WebCodecs: até ~2 s sem `mr`) não pode
+  // se perder: fica marcado e vale logo que o gravador existe (revisão 0.3.10). `cancelled` = parou antes de começar.
+  let starting = false, stopAsked = false, cancelled = false;
   let chain: Promise<unknown> = Promise.resolve(); // pedaços saem na ordem em que chegaram
   let frame: Framing = { zoom: 1, offset: 0 }, copying = false; // vertical: recorte atual e laço de cópia ligado
 
@@ -37,9 +40,9 @@ export function initRecording(canvas: HTMLCanvasElement, log: (level: 'warn' | '
   };
 
   listen<RecStart>('rec-start', async (e) => {
-    if (mr) return;
+    if (mr || starting) return;
     const o = e.payload;
-    failed = false; reason = ''; bytesSoFar = 0;
+    failed = false; reason = ''; bytesSoFar = 0; starting = true; stopAsked = false; cancelled = false;
     try {
       await invoke('rec_start', { id: o.id });
       id = o.id;
@@ -48,7 +51,10 @@ export function initRecording(canvas: HTMLCanvasElement, log: (level: 'warn' | '
       const rec = (await frameRecorder(o)) ?? (new MediaRecorder(source(o).captureStream(o.fps), opts) as unknown as FrameRec);
       const mp4 = o.mime.startsWith('video/mp4');
       mr = rec;
+      starting = false;
+      cancelled = stopAsked;
       rec.ondataavailable = (ev) => {
+        if (cancelled) return; // parou antes de começar: nenhum pedaço vai para o disco
         if (!ev.data.size) {
           // WebView que ignora o keyframe por tempo: MP4 sem pedaço nenhum = o vídeo iria inteiro para a memória
           if (mp4 && !bytesSoFar && performance.now() - t0 > 3500) fail(new Error('o MP4 não está saindo em pedaços neste WebView; a próxima gravação usa WebM'));
@@ -67,6 +73,12 @@ export function initRecording(canvas: HTMLCanvasElement, log: (level: 'warn' | '
         const rid = id, why = reason;
         chain = chain.then(async () => {
           if (failed || !rid) return;
+          if (cancelled || !bytesSoFar) { // nada escrito: apaga o arquivo vazio em vez de "salvar" 0 MB
+            await invoke('rec_abort', { id: rid }).catch(() => {});
+            cleanup();
+            emitTo('control', 'rec-done', { path: '', bytes: 0 }).catch(() => {});
+            return;
+          }
           const d = await invoke<{ path: string; bytes: number }>('rec_stop', { id: rid });
           cleanup();
           emitTo('control', 'rec-done', { ...d, reason: why || undefined }).catch(() => {});
@@ -75,9 +87,12 @@ export function initRecording(canvas: HTMLCanvasElement, log: (level: 'warn' | '
       rec.onerror = (ev) => fail((ev as unknown as { error?: Error }).error ?? new Error('erro do codificador'));
       rec.start(1000);
       t0 = performance.now();
+      if (cancelled) { rec.stop(); return; } // o controle já está em "Finalizando…": o onstop apaga e avisa
       emitTo('control', 'rec-started', { id: o.id }).catch(() => {});
     } catch (err) {
       fail(err);
+    } finally {
+      starting = false;
     }
   });
 
@@ -120,6 +135,7 @@ export function initRecording(canvas: HTMLCanvasElement, log: (level: 'warn' | '
   listen<Framing>('rec-frame', (e) => { frame = e.payload; }); // enquadramento ajustado durante a gravação
 
   listen('rec-stop', () => {
+    if (!mr && starting) { stopAsked = true; return; } // ainda começando: para assim que o gravador existir
     try { if (mr?.state === 'recording') mr.stop(); } catch (err) { fail(err); }
   });
 
