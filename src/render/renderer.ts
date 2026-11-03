@@ -27,7 +27,7 @@
 // desce a qualidade e depois desliga o módulo mais caro (budget.ts). É opt-in porque o preview desenha a 30 fps de
 // propósito (33 ms entre quadros) e se rebaixaria sozinho: só quem desenha o telão deve registrar o callback.
 import type { Frame } from '../lib/types';
-import type { Visual } from '../lib/settings';
+import type { Source, Visual } from '../lib/settings';
 import type { Prepared } from '../lib/assets';
 import { percentile } from '../lib/telemetry';
 import { music, musicFrame, musicState } from './music';
@@ -72,6 +72,8 @@ export class Renderer {
 
   private v: Visual;
   private st = musicState();
+  /** Fontes de modulação do último quadro (a régua do controle mostra o nível ao vivo). */
+  lastS: Record<Source, number> | null = null;
 
   // medição por passe (média móvel de ~1 s)
   private timer: TimerExt | null;
@@ -265,6 +267,7 @@ export class Renderer {
     this.pollTimers();
     this.sampleBudget(now, dt);
     const u = music(this.st, v, now);
+    this.lastS = u.S;
 
     // tamanho do canvas (escala de render para notebook fraco)
     const W = Math.max(2, Math.round(this.canvas.clientWidth * devicePixelRatio * v.renderScale));

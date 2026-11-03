@@ -1,6 +1,6 @@
 // npm run check — crossfade de cenas, saneamento de presets, cores e roteiro.
 import assert from 'node:assert/strict';
-import { blend, lookOf, sanitizeLook, VISUAL, type Visual } from './settings.ts';
+import { blend, lookOf, sanitizeLook, validScenes, validVisual, VISUAL, type Visual } from './settings.ts';
 import { pickColors } from './assets.ts';
 import { barLabel, beatAt, cueLabel, due, newCue, rampAt, sanitizeRoteiro, snap, stateAt, timeAt, type Roteiro } from './roteiro.ts';
 
@@ -31,6 +31,27 @@ assert.ok(!('bogus' in dr.drop!));
 assert.equal(dr.dropFade, 2);
 assert.equal(blend(from, { ...to, drop: { ...VISUAL.drop, trail: true } }, 1).drop.trail, true);
 assert.deepEqual(sanitizeLook({ mod: 'x', drop: [1] }).drop, { ...VISUAL.drop }); // objeto inválido não passa
+
+// régua (onda 10): só [mín, máx] com 0 ≤ mín < máx ≤ 1 em alvo conhecido; preset/cena antiga carrega sem régua
+{
+  const r = sanitizeLook({ range: {
+    glow: [0.2, 0.8], amount: [0.5, 0.5], chroma: [-0.1, 0.5], tunnel: [0, 2], bogus: [0, 1],
+    mid: 'x', fxFlash: [0.1, 'a'], kaleido: [0.1, 0.3, 0.5], organic: [NaN, 1],
+  } }).range;
+  assert.deepEqual(r, { glow: [0.2, 0.8] });
+  assert.deepEqual(sanitizeLook({ range: 'x' }).range, {});
+  assert.ok(!('range' in sanitizeLook({ amount: 0.7 })), 'preset antigo: sem régua');
+  const old = validScenes([{ name: 'Velha', look: { amount: 0.7, mod: { glow: 'bass' } } }, null, null, null, null, null, null, null]);
+  assert.deepEqual(old[0]!.look.range, {});
+  assert.equal(old[0]!.look.amount, 0.7);
+  // o visual salvo guarda a régua (o `shaped` sozinho, com o padrão {}, jogava fora)
+  assert.deepEqual(validVisual({ range: { amount: [0.1, 0.9], glow: [1, 0] } }).range, { amount: [0.1, 0.9] });
+  assert.deepEqual(validVisual({}).range, {});
+  // crossfade: troca no meio, como o mod
+  const tr = { ...to, range: { glow: [0.2, 0.8] as [number, number] } };
+  assert.deepEqual(blend(from, tr, 0.4).range, {});
+  assert.deepEqual(blend(from, tr, 0.6).range, { glow: [0.2, 0.8] });
+}
 
 // cores da foto: muito azul escuro + um pouco de vermelho vivo → brilho vermelho, fundo azul escuro
 const px = (rgb: number[], n: number) => Array.from({ length: n }, () => [...rgb, 255]).flat();
