@@ -6,6 +6,27 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Não lançado]
 
+## [0.3.11] - 2026-11-03
+
+### Adicionado
+
+- **Régua por faixa**: em cada efeito com fonte (inclusive o pulso, o brilho e a aberração da logo), mínimo e máximo do nível da fonte, com o nível ao vivo; o efeito fica parado abaixo do mínimo e chega ao máximo no limite de cima. Entra nas cenas e presets; presets antigos carregam sem régua.
+- **Na pausa** (aba Logo › Reação): parar, respirar ou seguir o beat quando a música silencia, com sensibilidade ajustável (MIDI learn). Padrão: respirar.
+- Música tocada pelo app com andamento que muda: a análise gera um **mapa de andamento** (trechos), e a timeline, o roteiro e o relógio do beat seguem cada trecho sem pular beat. Faixas de BPM constante ficam exatamente como antes, e roteiros antigos abrem igual.
+- Selo **BPM FIXO** no topo com "Travar BPM" ligado (clicar solta a trava) e aviso quando a música parece estar fora da faixa de andamento escolhida ("usar Auto?", clique troca).
+
+### Corrigido
+
+- Num silêncio da música tocada pelo app, a logo continuava dando zoom e os anéis continuavam aparecendo no beat previsto.
+- Num trecho quase silencioso da entrada ao vivo, o chiado voltava a mexer a logo depois de poucos segundos.
+
+### Mudou
+
+- As fontes Sub, Bass, Mid e Hats e o "Seguir a música sem kick" medem o som em relação ao último minuto (antes, 4 s): trechos mais baixos aparecem mais baixos. Efeitos da comunidade (uBands) não mudam.
+- Sem kick por 2 a 3 beats, a logo e os anéis param de bater no beat previsto e seguem a onda (escolha **Na pausa: seguir o beat** para o comportamento antigo).
+- O estado do BPM "travado" passou a se chamar **firme** (a grade explica os kicks; o número continua se ajustando).
+- Strobe do roteiro num build-up sem kick (com som) continua no beat; só o silêncio o apaga.
+
 ## [0.3.10] - 2026-11-03
 
 ### Adicionado
@@ -212,7 +233,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 - Crossfade de cena, barra do topo em 1280px e selo MIDI nos pads.
 
-[Não lançado]: https://github.com/vzf22zss/doublek_sounds/compare/cc2cf94...main
+[Não lançado]: https://github.com/vzf22zss/doublek_sounds/compare/HASH0311...main
+[0.3.11]: https://github.com/vzf22zss/doublek_sounds/compare/cc2cf94...HASH0311
 [0.3.10]: https://github.com/vzf22zss/doublek_sounds/compare/7f1252a...cc2cf94
 [0.3.9]: https://github.com/vzf22zss/doublek_sounds/compare/078fe13...7f1252a
 [0.3.8]: https://github.com/vzf22zss/doublek_sounds/compare/8b5e6f2...078fe13

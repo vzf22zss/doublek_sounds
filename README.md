@@ -23,7 +23,7 @@ sozinho, nunca com o telão aberto). Passo a passo: [Tutorial §2](docs/TUTORIAL
 
 - **Kick e BPM confiáveis no psy.** Ele separa o kick do baixo rolante exigindo o grave e o
   "click" ao mesmo tempo. O BPM trava em poucos segundos e se segura nos breakdowns.
-- **Pulso no tempo.** Com o BPM travado, o pulso sai do relógio do beat, e um **offset**
+- **Pulso no tempo.** Com o BPM firme, o pulso sai do relógio do beat, e um **offset**
   adianta a imagem para compensar o atraso do projetor.
 - **Duas janelas.** O controle fica no notebook; o telão abre em tela cheia no datashow.
 - **Cenas** com crossfade que começa no próximo beat: 8 por banco, até 4 bancos.
