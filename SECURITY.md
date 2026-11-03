@@ -25,8 +25,8 @@ Só a **última versão publicada** recebe correção. O app avisa no rodapé qu
 ## O que o app faz e não faz
 
 - **Funciona offline.** Nada do show depende de internet.
-- **Não abre porta de rede.** Não há servidor, API ou controle remoto na versão atual.
-- **Não envia dados.** O único acesso externo é, ao abrir, a consulta do arquivo `latest.json` nas Releases do GitHub para saber se há versão nova. Sem internet, a consulta falha em silêncio e o app segue normal. A atualização nunca é instalada sozinha e fica bloqueada com o telão aberto.
+- **Só abre porta de rede se o operador ligar.** Há dois servidores, ambos **desligados por padrão** e, ligados, só em `127.0.0.1`, a menos que o operador marque **Abrir para a rede local**: o **OSC** (UDP, porta 9000, sem autenticação; [docs/OSC.md](docs/OSC.md)) e o **celular** (HTTP, porta 8008, pareamento por código e token, sem TLS; [docs/REMOTO.md](docs/REMOTO.md)). Na rede local, use só rede confiável. A saída Spout é local (placa de vídeo), não é rede.
+- **Não envia dados.** O único acesso externo automático é, ao abrir, a consulta do arquivo `latest.json` nas Releases do GitHub para saber se há versão nova. Sem internet, a consulta falha em silêncio e o app segue normal. **Relatar problema** só salva o Diagnóstico, copia um resumo e abre a página do GitHub no navegador: nada é enviado sozinho. A atualização nunca é instalada sozinha e fica bloqueada com o telão aberto.
 - **Só aceita atualização assinada** com a chave privada do mantenedor, que fica fora do repositório.
 
 ### Onde os dados ficam
@@ -35,11 +35,13 @@ Tudo local, na máquina do operador ([BASELINE.md, seção 6](docs/quality/BASEL
 
 | Dado | Onde |
 |---|---|
-| Ajustes de áudio, visual, 8 cenas, transição, mapa MIDI, lista de vídeos, roteiros | `localStorage` do WebView2 (chaves `doublek.*`, envelope versionado) |
-| Logo, foto e vídeos de fundo | IndexedDB `doublek` |
+| Ajustes de áudio, visual, cenas e bancos, transição, mapa MIDI, lista de vídeos, roteiros, mapa de automação, presets importados, lista de efeitos da comunidade | `localStorage` do WebView2 (chaves `doublek.*`, envelope versionado) |
+| Logo, foto, vídeos de fundo e o código dos efeitos da comunidade | IndexedDB `doublek` |
 | Músicas dos roteiros | `%APPDATA%\com.doublek.visuals\tracks\` |
 
-Presets e roteiros exportados em `.json` não levam mídia nem música.
+| Gravações do telão, gravações da análise (só números) e backups de antes de abrir um Show Pack | pastas `recordings\`, `analysis\` e `backups\` em `%APPDATA%\com.doublek.visuals\` |
+
+Presets (`.doublekpreset`) e roteiros exportados não levam mídia nem música. O Show Pack (`.doublekshow`) leva logo, foto e vídeos; músicas, por enquanto, nunca.
 
 ### CSP e limites de arquivo
 
@@ -51,11 +53,11 @@ Desde o DK-005 ([BASELINE.md, seção 7](docs/quality/BASELINE.md)):
 
 ### Diagnóstico
 
-Clicar nas **4 bolinhas de saúde** no topo da janela de controle salva um `.json` com versão do app, ajustes, estatísticas do telão, monitores, nomes dos dispositivos de áudio e MIDI, roteiro em uso e os últimos 200 eventos do diário. **Não contém áudio** nem a logo, foto, vídeos ou músicas. Pode ser anexado a um relato sem expor o set.
+Clicar na **pílula de saúde** no topo da janela de controle → **Salvar diagnóstico** salva um `.json` com versão do app, ajustes, estatísticas do telão, monitores, nomes dos dispositivos de áudio e MIDI, estado do OSC, do celular e da gravação, roteiro em uso, histórico de comandos e os últimos 200 eventos do diário. **Não contém áudio** nem a logo, foto, vídeos ou músicas. Pode ser anexado a um relato sem expor o set.
 
 ## Instalador e aviso do SmartScreen
 
-O `.msi` **não tem assinatura de código paga**. Ao instalar, o Windows mostra "O Windows protegeu o computador"; clique em **Mais informações → Executar assim mesmo**. O aviso é esperado e não indica vírus. Assinatura com certificado real e hash SHA-256 publicado estão planejados no DK-004 do roadmap e dependem de decisão do mantenedor.
+O `.msi` **não tem assinatura de código paga**. Ao instalar, o Windows mostra "O Windows protegeu o computador"; clique em **Mais informações → Executar assim mesmo**. O aviso é esperado e não indica vírus. Cada Release publica o hash SHA-256 do `.msi` em `SHA256SUMS.txt` (como conferir: [docs/RELEASE.md](docs/RELEASE.md)). Assinatura com certificado real depende de decisão do mantenedor.
 
 Baixe o instalador **só das Releases** de <https://github.com/vzf22zss/doublek_sounds/releases>.
 

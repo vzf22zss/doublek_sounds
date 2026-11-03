@@ -15,7 +15,7 @@ O DoubleK pode seguir o andamento de um CDJ, de um mixer ou do Traktor/Rekordbox
 - **Andamento:** regressão instante × índice dos últimos 96 pulsos (4 beats). Pulsos perdidos contam pelo intervalo, e pulsos fora do lugar (duplicados, jitter grosso) são descartados. Numa troca de andamento, se o último beat de pulsos foge mais de 3 % da regressão, a janela recomeça nele.
 - **Stop (0xFC)** não muda o relógio; **Continue (0xFB)** sem Song Position também não. Quem para de mandar pulsos devolve o relógio ao áudio.
 - A detecção de kick continua rodando: os flashes, o espectro e o "tem grave" vêm do áudio.
-- A reprodução de faixa pelo roteiro (o app tocando o arquivo) usa a grade da própria faixa e ignora o clock.
+- A reprodução de faixa pelo roteiro (o app tocando o arquivo) usa a grade da própria faixa (ou o mapa de andamento, se o BPM dela muda) e ignora o clock.
 
 ## Song Position Pointer (D-17)
 

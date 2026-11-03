@@ -1,6 +1,6 @@
 # Efeitos da comunidade (`.doublekfx`)
 
-Um efeito é um **shader de pós-processamento**: recebe a imagem do DoubleK e devolve a imagem modificada, reagindo à música. Nesta versão os efeitos existem **só no editor** (aba **Efeitos → Efeitos da comunidade (FX)**), com pré-visualização própria; ligá-los ao telão como camada é a próxima etapa (DK-123).
+Um efeito é um **shader de pós-processamento**: recebe a imagem do DoubleK e devolve a imagem modificada, reagindo à música. Você cria e testa no editor (aba **Efeitos → Efeitos da comunidade (FX)**), com pré-visualização própria, e liga no telão como **camada** (até 2 ao mesmo tempo; veja [No telão](#no-telão)).
 
 > ⚠ **Shader de terceiros pode travar a placa de vídeo.** O app valida o código e compila num contexto separado, mas isso não é uma sandbox. Use só efeitos de quem você confia.
 
@@ -37,7 +37,7 @@ meu-efeito.doublekfx
 | `id` | 3–40 caracteres: minúsculas, números, hífen. Identifica o efeito instalado |
 | `name` | obrigatório, até 60; `author` opcional, até 60; `version` texto curto (`1.0.0`) |
 | `entry` | sempre `"effect.frag"` |
-| `params` | até **8**. Cada um: `key` (letra + letras/números, única), `label`, `min < max`, `default` dentro da faixa, `step` > 0 (padrão: faixa/100), `mod` opcional (`kick`, `sub`, `bass`, `mid`, `hats`, `beat`, `bar`, `lfo`, `auto`) — informativo nesta versão |
+| `params` | até **8**. Cada um: `key` (letra + letras/números, única), `label`, `min < max`, `default` dentro da faixa, `step` > 0 (padrão: faixa/100), `mod` opcional (`kick`, `sub`, `bass`, `mid`, `hats`, `beat`, `bar`, `lfo`, `auto`): com ele, o valor que chega ao shader é o valor do slider × o nível da fonte (0..1), preso entre `min` e `max`; sem ele, vai o valor do slider. `label` até 24 caracteres |
 
 O parâmetro *n* chega no shader como `uP[n]` (na ordem da lista).
 
@@ -59,11 +59,14 @@ out vec4 o;                    // a cor de saída
 
 | Uniform | O que é |
 |---|---|
+| `uInput` | a imagem que chega até esta camada (leia com `texture(uInput, vUv)`) |
+| `uRes` | tamanho da imagem em pixels |
 | `uTime` | segundos |
 | `uBeat` | beats desde o início (contínuo), `uPhase` 0..1 dentro do beat |
 | `uKick` | 1 na batida, decai em ~150 ms |
 | `uLow` | 1 com grave tocando (drop), 0 no breakdown |
-| `uBands[5]` | energia por banda: 0 sub, 1 bass, 2 mid, 3 click, 4 air |
+| `uBands[5]` | energia por banda: 0 sub, 1 bass, 2 mid, 3 click, 4 air, relativa aos **últimos ~4 s** (0 sem som). Não mudou na 0.3.11: as fontes Sub/Bass/Mid/Hats dos sliders passaram a medir em relação ao último minuto, mas `uBands` continua igual |
+| `uP[8]` | seus parâmetros, na ordem de `params` (já modulados pelo `mod`, se houver); sobra = 0 |
 
 Exemplo mínimo:
 
@@ -92,6 +95,13 @@ Na aba **Efeitos**, seção **Efeitos da comunidade (FX)** (recolhível):
 - Compila **500 ms depois de você parar de digitar**, no máximo **2 vezes por segundo**. Erros aparecem com a **linha do seu código**. **Reverter para o último válido** volta ao último código que compilou.
 - Sliders para os parâmetros do manifesto; valores e efeitos ficam salvos (`doublek.fx`; o código fica no armazenamento local do app, junto com a mídia).
 - **Segurança:** se o contexto WebGL cair ou a primeira renderização passar de **2 s**, o efeito fica **suspeito** e não recompila sozinho (botão *Tentar de novo*). **3 falhas** → **desabilitado** até você clicar em *Reativar*.
+
+## No telão
+
+Na aba **Efeitos**, seção **Camadas**, **+ Adicionar camada… → Efeito da comunidade: <nome>**. No máximo **2** efeitos como camada; cada um tem ordem, opacidade e mistura como as outras camadas, e a opacidade e o liga/desliga aprendem no MIDI. Só entram efeitos saudáveis (não suspeitos nem desabilitados). A lista de camadas entra nas cenas, como as outras.
+
+- **Desligamento automático:** o efeito que não compila no telão, que custa mais de **2× o orçamento do Psy Engine** (`psyBudgetMs`, padrão 22 ms → 44 ms) por **3 s seguidos**, ou que estava desenhando quando a placa de vídeo perdeu o contexto, é desligado (só ele) e conta como falha (suspeito → desabilitado na 3ª), com aviso no Diagnóstico.
+- **Modo seguro:** nenhum efeito da comunidade carrega no telão. Liga pelo botão **Abrir telão em modo seguro** do editor, com **Shift + Projetar**, ou sozinho quando o último telão caiu com efeito ligado (nos primeiros 10 s depois de carregar os efeitos). Para sair: **Sair do modo seguro** no editor.
 
 ## Exemplos
 

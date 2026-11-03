@@ -9,7 +9,7 @@
 Para conferir as notas antes, rode:
 
 ```powershell
-node scripts/release-notes.mjs 0.3.8      # imprime as notas; sai com erro se a seção faltar ou estiver vazia
+node scripts/release-notes.mjs 0.3.11     # imprime as notas; sai com erro se a seção faltar ou estiver vazia
 npm run check:scripts                     # testes do gerador de notas (também roda no CI)
 ```
 

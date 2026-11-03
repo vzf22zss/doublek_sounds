@@ -6,7 +6,7 @@ Obrigado por querer ajudar. Este guia diz como rodar o app, o que conferir antes
 
 ## Rodar
 
-Requer **Node 20+**, **Rust** (via rustup) e **Visual Studio Build Tools** com a carga de trabalho C++. O alvo é Windows 10/11 64 bits.
+Requer **Node 22.18+** (o `npm run check` roda os `.ts` direto no Node; a CI usa o 22), **Rust** (via rustup) e **Visual Studio Build Tools** com a carga de trabalho C++. O alvo é Windows 10/11 64 bits.
 
 ```
 npm install
@@ -17,11 +17,13 @@ Abre a janela de controle; **F** abre o telão. Detalhes de uso estão no [tutor
 
 ## Checagens
 
-Rode as três antes de qualquer commit. São as mesmas que a CI roda em push e PR (`.github/workflows/ci.yml`).
+Rode estas antes de qualquer commit. São as mesmas que a CI roda em push na `main` e em PR (`.github/workflows/ci.yml`).
 
 ```
 npm run typecheck            # svelte-check sobre tudo
-npm run check                # testes de settings, store, telemetry, limits e safety
+npm run check                # testes TS puros (*.check.ts): ajustes, store, limites, comandos, OSC, Show Pack, presets, efeitos, motor do show...
+npm run check:scripts        # testes do gerador de notas da Release
+npm run build                # build do front
 cd src-tauri && cargo test --release
 ```
 

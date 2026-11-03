@@ -57,7 +57,7 @@ Argumentos a mais são ignorados. Endereço desconhecido, índice fora da faixa 
 O valor 0–1 do fader é escalado para a faixa do slider correspondente e arredondado no passo dele (tabela `OSC_PARAMS` em `src/lib/osc.ts`):
 
 - os 22 ajustes do ponto "Knob" do roteiro (`KNOBS` em `src/lib/roteiro.ts`), por exemplo `size` 10–150, `trail` 0–1, `bgHue` −180–180;
-- os demais ajustes de cena, com a faixa dos sliders: `rel` 0,03–0,5 · `wave` 0–1 · `dropFade` 0,25–8 · `bgAngle` 0–360 · `bgBlur` 0–40 · `kaleido` 0–1 · `kaleidoN` 3–12 (inteiro) · `kaleidoSpin` −1–1 · `kaleidoZoom` 0,5–2 · `tunnel` 0–1 · `tunnelSpeed` 0–2 · `tunnelDensity` 0–1 · `mandala` 0–1 · `mandalaPetals` 4–16 (de 2 em 2) · `particles`, `particlesDensity`, `particlesTurb` 0–1 · `particlesDir` 0–360 · `organic` 0–1 · `organicScale` 0,3–3 · `glitch` 0–1.
+- os demais ajustes numéricos, com a faixa dos sliders: `rel` 0,03–0,5 · `wave` 0–1 · `pauseThr` 0–0,3 (a "Sensibilidade do silêncio" do **Na pausa**, aba Logo › Reação; é ajuste da operação, não entra nas cenas) · `dropFade` 0,25–8 · `bgAngle` 0–360 · `bgBlur` 0–40 · `kaleido` 0–1 · `kaleidoN` 3–12 (inteiro) · `kaleidoSpin` −1–1 · `kaleidoZoom` 0,5–2 · `tunnel` 0–1 · `tunnelSpeed` 0–2 · `tunnelDensity` 0–1 · `mandala` 0–1 · `mandalaPetals` 4–16 (de 2 em 2) · `particles`, `particlesDensity`, `particlesTurb` 0–1 · `particlesDir` 0–360 · `organic` 0–1 · `organicScale` 0,3–3 · `glitch` 0–1.
 
 **Fora de propósito:** `strobeDiv` (só aceita 1, 2 ou 4) e os ajustes de operação (`renderScale`, `psyQuality`, `psyBudgetMs`, `offset`, `white`), que não devem mudar no meio do set por um fader de rede. O `npm run check` falha se um ajuste numérico novo do Visual não estiver nem na tabela nem nesta lista.
 

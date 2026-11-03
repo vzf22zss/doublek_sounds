@@ -6,13 +6,13 @@ Controle do show pelo celular/tablet no Wi-Fi do palco: o app serve uma página 
 
 1. No app: **Saída → Celular (rede)**, marque **Abrir para a rede local**, **Ligar celular** e **Mostrar código**.
 2. No celular (mesmo Wi-Fi): abra o endereço mostrado (`http://<IP>:8008`) e digite os 6 dígitos — pareia sozinho no 6º. Código errado ou vencido avisa na hora; 5 erros bloqueiam por 1 min (com contagem; um código novo no app libera).
-3. Tela de controle: BPM e estado da batida (e a pílula DROP), banco (1–4), os 8 pads com os nomes das cenas (o pad aceso é a cena no telão), **BLACKOUT** e **SÓ LOGO** (acendem conforme o app), macros Build-up/Drop/Chaos/Reset, TAP e fase ◀ ▶ (5 ms), sliders Pulso, Glow, Flash e Rastro (acompanham o app; no máximo 10 envios/s) e **PÂNICO** separado. Em paisagem, os pads e o PÂNICO ficam à esquerda.
+3. Tela de controle: BPM e estado da batida (*procurando*, *ajustando*, **firme** — a grade explica os kicks; o número ainda se ajusta — ou *segurando (sem kick)*) e a pílula DROP, banco (1–4), os 8 pads com os nomes das cenas (o pad aceso é a cena no telão), **BLACKOUT** e **Só logo** (acendem conforme o app), macros Build-up/Drop/Caos/Reset, TAP e fase ◀ ▶ (5 ms), sliders Pulso, Glow, Flash e Rastro (acompanham o app; no máximo 10 envios/s) e **PÂNICO** separado. Em paisagem, os pads e o PÂNICO ficam à esquerda.
 4. Se o app sumir (Wi-Fi caiu, serviço desligado), aparece a faixa **"Sem conexão com o app"** e os botões ficam apagados; volta sozinho quando a conexão volta. Se o app desconectar o celular (Desconectar todos, desligou/religou o serviço, reiniciou), a tela volta para o código.
 5. O pareamento vale enquanto a aba estiver aberta (recarregar mantém); fechar a aba esquece.
 
 ![Celular em retrato](img/celular-retrato.png) ![Celular em paisagem](img/celular-paisagem.png)
 
-A página tem ~13 KB (HTML, `/app.js`, `/app.css` embutidos no app), funciona sem internet e não usa nada de fora. Comandos têm tempo-limite de 2 s; o estado é lido a 2 Hz.
+A página tem ~14 KB (HTML, `/app.js`, `/app.css` embutidos no app), funciona sem internet e não usa nada de fora. Comandos têm tempo-limite de 2 s; o estado é lido a 2 Hz.
 
 ## Ligar na tela
 
@@ -32,7 +32,7 @@ Porta, rede local e ligado/desligado ficam em `doublek.settings`; ao abrir o app
 | `GET /` · `/app.js` · `/app.css` | — | a tela do celular, embutida no app (sem servir arquivos do disco) |
 | `POST /pair` | — | `{"code":"123456"}` → `{"token":"<64 hex>","client":"celular 1 (IP)"}` |
 | `POST /cmd` | `Authorization: Bearer <token>` | `{"addr":"/doublek/v1/blackout","args":[{"t":"T","v":true}]}` → `{"ok":true}` |
-| `GET /state` | `Authorization: Bearer <token>` | `{"state":"<linha de status>","bpm":145.2,"music":"firme","drop":true,"scene":3,"bank":1,"blackout":false,"logoOnly":false,"sceneNames":[...8],"bankNames":[...] \| null,"knobs":{"amount":0.3,"glow":0.6,"fxFlash":0.35,"trail":0}}` (cena/banco a partir de 1; `null` se não há; `knobs` em 0–1 na faixa do `/parameter`) |
+| `GET /state` | `Authorization: Bearer <token>` | `{"state":"<linha de status>","bpm":145.2,"music":"firme","drop":true,"scene":3,"bank":1,"blackout":false,"logoOnly":false,"sceneNames":[...8],"bankNames":[...] \| null,"knobs":{"amount":0.3,"glow":0.6,"fxFlash":0.35,"trail":0}}` (cena/banco a partir de 1; `null` se não há; `music` = `procurando`, `ajustando`, `firme` ou `segurando (sem kick)` — até a 0.3.10 era `travado` no lugar de `firme`; `knobs` em 0–1 na faixa do `/parameter`) |
 
 - `/cmd` usa **exatamente o formato e os endereços do OSC** (`docs/OSC.md`): o app passa por `oscToCommand` e pelo dispatcher com a fonte `remote`, que só é aceita com o serviço ligado. `200` significa "chegou", não "executou": endereço inválido ou comando recusado vai para o diário (Diagnóstico) com o nome do cliente.
 - Erros: `400` pedido/corpo inválido · `401` sem token, token errado/desconectado ou código errado/vencido · `403` Host que não é IP ou Origin de outro site · `404` · `405` método errado (inclui `OPTIONS`) · `408` tempo esgotado · `413` corpo > 4 KB · `429` limite de taxa ou pareamento bloqueado · `431` cabeçalho > 8 KB · `501` `Transfer-Encoding`. Corpo de erro: `{"error":"<motivo em português>"}`.

@@ -3,7 +3,7 @@
 **Status:** contrato da DK-011 (schema 1) · **Data:** 2026-10-30 · **Decisões:** ADR 0001, DEC-03 (limites), DEC-09 (música opt-in)
 **Código:** `src/lib/showpack/manifest.ts` (tipos + `safeAssetPath` + `validateManifest`) · testes em `manifest.check.ts`
 
-Um Show Pack é **um arquivo ZIP** com extensão `.doublekshow` que leva tudo o que um show precisa para abrir igual em outro computador: visual, cenas, roteiros, logo, foto, vídeos, mapeamento MIDI (opcional) e, só se o DJ escolher, as músicas dos roteiros. Esta página define o **contrato**; exportar (DK-012), importar (DK-013) e a interface (DK-014) implementam em cima dela.
+Um Show Pack é **um arquivo ZIP** com extensão `.doublekshow` que leva tudo o que um show precisa para abrir igual em outro computador: visual, cenas, roteiros, logo, foto, vídeos, mapeamento MIDI (opcional) e, só se o DJ escolher, as músicas dos roteiros (o formato já aceita; **o app ainda não tem botão para incluir músicas** até a DEC-09, então hoje um `.doublekshow` exportado pelo app nunca leva áudio). Esta página define o **contrato**; exportar (DK-012), importar (DK-013) e a interface (DK-014) implementam em cima dela.
 
 ## 1. Layout do ZIP
 
@@ -102,14 +102,15 @@ Cada chave `doublek.*` (ver `docs/quality/BASELINE.md` §6 e `src/lib/store.ts`)
 
 | Chave hoje | Onde fica hoje | No pacote | Observação |
 |---|---|---|---|
-| `doublek.visual` | localStorage | `visual.json` → `"doublek.visual"` | `blackout`/`logoOnly` entram como `false` (já é o comportamento de `validVisual`). |
+| `doublek.visual` | localStorage | `visual.json` → `"doublek.visual"` | `blackout`/`logoOnly` entram como `false` (já é o comportamento de `validVisual`). Leva também a régua por fonte (`range`, desde a 0.3.11) e o **Na pausa** (`pause`, `pauseThr`). |
 | `doublek.trans` | localStorage | `visual.json` → `"doublek.trans"` | Transição padrão (beats). |
 | `doublek.videos` | localStorage | `visual.json` → `"doublek.videos"` | Biblioteca `{id, name}[]`; cada `id` deve ter um asset `video` com `refId = id`. |
-| `doublek.scenes` | localStorage | `scenes.json` → `"doublek.scenes"` | 8 posições, `null` permitido. Desde a DK-041 é o espelho do banco ativo. |
+| `doublek.scenes` | localStorage | `scenes.json` → `"doublek.scenes"` | 8 posições, `null` permitido. Desde a DK-041 é o espelho do banco ativo. Cada `look` leva a régua (`range`), mas não o **Na pausa** nem os outros ajustes de operação (`NOT_IN_SCENE` em `settings.ts`). |
 | `doublek.banks` | localStorage | `banks.json` → `"doublek.banks"` | `{ active, banks: [{ name, scenes[8] }] }`, 1 a 4 bancos. O app sempre exporta. Na importação, **`banks.json` manda**; pacote sem ele (gerado antes da DK-041) vira um banco "Principal" com o `scenes.json`. `doublek.scenes` é regravado com o banco ativo. |
 | `doublek.roteiros` | localStorage | `roteiros.json` → `"doublek.roteiros"` | `Roteiro.track` aponta para o asset `track` com `refId = track` **se** `includeTracks`; senão fica como está e o app pede "Trocar música". |
 | `doublek.midi` | localStorage | `midi.json` → `"doublek.midi"` | Opcional. Chaves são `cc:<canal>:<nº>`, independentes do nome do dispositivo. |
 | `doublek.settings` | localStorage | **não vai** | Dispositivo de áudio, ganho, gate: são da máquina, não do show. |
+| `doublek.automation` · `doublek.presets` · `doublek.fx` | localStorage (+ IndexedDB `fx:<id>`) | **não vão** | Mapa de automação, presets importados e efeitos da comunidade instalados ficam na máquina; a importação não mexe neles. |
 | `logo` | IndexedDB `doublek/kv` | `assets/`, `kind: "logo"`, `refId: "logo"` | No máximo um. Ausente = logo padrão do app. |
 | `bg` | IndexedDB `doublek/kv` | `assets/`, `kind: "bg"`, `refId: "bg"` | No máximo um. |
 | `video:<id>` | IndexedDB `doublek/kv` | `assets/`, `kind: "video"`, `refId: <id>` | Um por vídeo da biblioteca. |

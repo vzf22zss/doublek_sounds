@@ -35,9 +35,9 @@ assignees: ''
 
 ## Diagnóstico
 
-<!-- Clique nas 4 bolinhas de saúde no topo da janela de controle (ao lado de PÂNICO e BLACKOUT).
+<!-- Clique na pílula de saúde (as 4 bolinhas no topo da janela de controle) → "Salvar diagnóstico".
      Isso salva um arquivo doublek-diagnostico-<data>.json. Ele NÃO contém áudio, logo, foto nem músicas.
-     Arraste o arquivo para cá. -->
+     Arraste o arquivo para cá. (Se você chegou aqui pelo "Relatar problema" do mesmo menu, o arquivo já foi salvo.) -->
 
 ## Aconteceu num show?
 
