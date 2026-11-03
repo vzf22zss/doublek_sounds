@@ -194,13 +194,15 @@ async fn load_track(engine: State<'_, Engine>, app: AppHandle, id: String, lo: f
     Ok(info)
 }
 
-/// O app toca a faixa carregada a partir de `from` (s), com a grade (âncora, período) do roteiro.
+/// O app toca a faixa carregada a partir de `from` (s), com a grade (âncora, período) do roteiro ou,
+/// se o andamento muda no arquivo, o mapa dele (`tempo`).
 #[tauri::command]
-fn play_track(engine: State<Engine>, from: f64, anchor: f64, period: f64, output: Option<String>) -> Result<(), String> {
+fn play_track(engine: State<Engine>, from: f64, anchor: f64, period: f64, tempo: Option<Vec<track::Seg>>, output: Option<String>) -> Result<(), String> {
     let t = engine.track.lock().unwrap().clone().ok_or("Carregue a faixa primeiro")?;
     let (stop, rx) = engine.restart();
     let (params, emit) = (engine.params.clone(), engine.broadcast());
-    std::thread::spawn(move || audio::play(t, from, output, Some((anchor, period)), params, rx, stop, emit));
+    let grid = tempo.filter(|m| !m.is_empty()).unwrap_or(vec![track::Seg { t: 0.0, bpm: 60.0 / period, anchor }]);
+    std::thread::spawn(move || audio::play(t, from, output, grid, params, rx, stop, emit));
     Ok(())
 }
 

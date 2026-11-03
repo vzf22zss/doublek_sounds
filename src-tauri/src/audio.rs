@@ -51,14 +51,14 @@ pub fn output_rate(name: Option<&str>) -> Result<u32, String> {
 }
 
 /// O app toca a faixa: empurra o áudio para a saída e, junto, para o mesmo Analyzer do ao vivo.
-/// `grid` = (âncora, período) da análise do arquivo: o relógio do beat fica exato desde o 1º beat.
+/// `grid` = mapa de andamento da análise do arquivo: o relógio do beat fica exato desde o 1º beat.
 /// `Frame.pos` vem do que a saída já tocou (não do que foi analisado), então o roteiro segue o som.
 #[allow(clippy::too_many_arguments)]
 pub fn play(
     track: Arc<Track>,
     from: f64,
     output: Option<String>,
-    grid: Option<(f64, f64)>,
+    grid: Vec<crate::track::Seg>,
     params: Arc<Mutex<Params>>,
     cmds: Receiver<BeatCmd>,
     stop: Arc<AtomicBool>,
@@ -95,9 +95,8 @@ pub fn play(
         return;
     }
     let mut an = Analyzer::new(sr as f32);
-    if let Some((a, p)) = grid.filter(|g| g.1 > 0.0) {
-        an.beat.set_grid(a - from, p);
-    }
+    // a grade é do arquivo; o relógio aqui conta a partir de `from`
+    an.beat.set_map(grid.iter().filter(|s| s.bpm > 0.0).map(|s| (s.t - from, s.anchor - from, 60.0 / s.bpm)).collect());
     let (mut pos, mut mono, mut n, mut kick) = ((from.max(0.0) * sr as f64) as usize, [0f32; HOP], 0u64, 0f32);
     while !stop.load(Relaxed) && !failed.load(Relaxed) {
         if pos + HOP > track.frames() {
@@ -135,7 +134,7 @@ pub fn play(
             f.kick = std::mem::take(&mut kick);
             let t = played.load(Relaxed) as f64 / sr as f64;
             f.pos = from + t;
-            if grid.is_some() {
+            if !grid.is_empty() {
                 (f.bpm, f.beat_phase, f.beat) = an.beat.at(t);
             }
             if !emit(Msg::Frame(f)) {
