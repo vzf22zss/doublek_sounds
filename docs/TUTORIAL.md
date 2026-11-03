@@ -49,7 +49,7 @@ projetar no telão e operar ao vivo (inclusive com controlador MIDI).
 ```
 
 - O app **escuta** o som que sai da mesa e acha o **kick** (o bumbo) e o **BPM**.
-- Com o BPM travado, ele **prevê** onde vai cair o próximo beat. Por isso o pulso pode
+- Com o BPM firme, ele **prevê** onde vai cair o próximo beat. Por isso o pulso pode
   sair até um pouco *antes* do som, para compensar o atraso do projetor.
 - São **duas janelas**. Você opera na do notebook e o público só vê a do telão.
 
@@ -116,7 +116,7 @@ Funciona no improviso: pode ser o microfone do notebook ou um microfone USB pert
 |---|---|---|
 | 1 | **Entrada de áudio** + **Ouvir** | Escolhe de onde vem o som (interface, mic) e o canal. *Ouvir* liga a escuta. |
 | 2 | **Medidor** | Nível do sinal. Verde é bom; **CLIP** vermelho quer dizer que está alto demais. |
-| 3 | **BPM** + bolinhas | O andamento detectado e o estado (*procurando / ajustando / travado / segurando*). As 4 bolinhas andam no compasso; a pílula **DROP** acende quando há grave (seção 12). |
+| 3 | **BPM** + bolinhas | O andamento detectado e o estado (*procurando / ajustando / firme / segurando*); com **Travar BPM** ligado aparece o selo **BPM FIXO**. As 4 bolinhas andam no compasso; a pílula **DROP** acende quando há grave (seção 12). |
 | 4 | **TAP ½ ×2 ◀ ▶** | Ajuste manual do andamento (seção 7). |
 | 5 | **MIDI**, **PÂNICO** e **BLACKOUT** | Liga o modo de mapear o controlador (seção 17); PÂNICO para o roteiro e zera os efeitos agressivos; BLACKOUT apaga o telão na hora. Ao lado ficam as **4 bolinhas de saúde** (áudio · BPM · MIDI · telão) e o fps do telão; clicar nelas abre o menu **Salvar diagnóstico** / **Relatar problema**. |
 | 6 | **Preview** | O mesmo visual que está no telão, em tamanho pequeno. |
@@ -130,7 +130,7 @@ Funciona no improviso: pode ser o microfone do notebook ou um microfone USB pert
 | Bolinha | Verde | Laranja | Vermelha |
 |---|---|---|---|
 | **Áudio** | som chegando | — (apagada = nada chega há mais de 1,5 s) | o app avisou que a entrada ou a saída caiu |
-| **BPM** | travado | achou, mas ainda ajustando | — |
+| **BPM** | firme | achou, mas ainda ajustando | — |
 | **MIDI** | controlador conectado | — | — |
 | **Telão** | aberto e fluido | aberto, mas engasgando (p95 acima de 25 ms) | perdeu a placa de vídeo (ele se recupera sozinho quando ela volta) |
 
@@ -226,7 +226,8 @@ Escolher a faixa certa evita o erro clássico de o app achar 74 em vez de 148.
 
 - **procurando**: ainda não achou o andamento.
 - **ajustando**: achou, mas os kicks ainda estão irregulares.
-- **travado**: firme. O número fica branco e brilha. A partir daqui, o pulso é **previsto**.
+- **firme**: a grade explica os kicks. O número fica branco e brilha, e a partir daqui o pulso é
+  **previsto**. Firme não quer dizer preso: se a música muda de andamento, ele acompanha.
 - **segurando (sem kick)**: veio um breakdown sem kick. O app segura o andamento por até
   30 segundos, para o visual não morrer no meio da música.
 
@@ -241,7 +242,11 @@ Escolher a faixa certa evita o erro clássico de o app achar 74 em vez de 148.
 | **▶** | → | Empurra a fase 5 ms para frente (atrasa o pulso). |
 
 **Travar BPM:** com a opção ligada, o número não muda mais. Só a fase continua acompanhando
-os kicks. Use quando o BPM estiver certo e você não quiser que ele oscile.
+os kicks. Use quando o BPM estiver certo e você não quiser que ele oscile. Enquanto ela está
+ligada, o selo **BPM FIXO** aparece no topo; clique nele para soltar.
+
+**Faixa errada:** se a faixa escolhida não combina com a música, o BPM não firma e o topo avisa
+*"A música parece estar a X BPM, fora da faixa…; usar Auto?"*. Clique no aviso para trocar.
 
 ---
 
@@ -268,6 +273,8 @@ os kicks. Use quando o BPM estiver certo e você não quiser que ele oscile.
 | **Aberração cromática** | Separa o vermelho e o azul nas bordas: efeito "glitch" no beat. |
 | **Duração do pulso** | Quanto tempo o pulso leva para voltar. Curto = seco; longo = macio. |
 | **Seguir a música sem kick** | Nos trechos sem kick, a logo continua respirando com a música. |
+| **Na pausa** | Quando a música silencia (sem kick e com o som baixo): **respirar** (padrão: sem pulso nem anéis, a logo respira devagar), **parar** (fica parada) ou **seguir o beat** (continua pulsando no beat previsto, como nas versões antigas). Um breakdown sem kick mas com música não é silêncio: a logo segue a onda. Quando o kick volta, o pulso volta na hora. |
+| **Sensibilidade do silêncio** | Abaixo deste nível (em % do mais alto que tocou no último minuto), sem kick, é silêncio. Se um trecho baixo da música vira silêncio, diminua; se o chiado de uma pausa ainda mexe a logo, aumente. Aceita MIDI learn. Se você usa **TAP** ou **MIDI Clock** numa música em que o kick não é detectado, escolha **seguir o beat**. |
 
 > A logo fica salva dentro do app. Pode apagar ou mover o arquivo original depois.
 
@@ -446,6 +453,19 @@ move aquele efeito**:
 Ideias: **Glow → Bass** (a aura vibra com o baixo rolante), **Aberração → Hats**
 (o glitch acompanha o chimbal), **Zoom do fundo → Compasso** (o fundo respira devagar).
 
+Sub, Bass, Mid e Hats são medidos em relação ao **mais alto que tocou no último minuto**: um
+trecho mais baixo aparece mais baixo, e o chiado de uma pausa fica perto de zero.
+
+**Régua (faixa):** ao lado da fonte há o botão **faixa**. Ele abre uma régua com **mínimo** e
+**máximo** e uma marca que mostra, ao vivo, o nível da fonte escolhida (fica rosa quando passa do
+mínimo). Abaixo do mínimo o efeito fica parado; entre o mínimo e o máximo ele cresce; no máximo
+chega a 100%. Exemplo: **Pulso** com **Bass** em 30–80 faz a logo só respirar quando o grave
+passa de 30% e bater cheia a partir de 80%. Vale para a logo (pulso, brilho, aberração) e para
+cada efeito. Duplo clique volta à faixa inteira. Fechado, o botão mostra a faixa escolhida
+(ex.: 30–80). A régua entra nas cenas e presets.
+
+![Régua da fonte aberta no Pulso](img/regua.png)
+
 ---
 
 ## 12. Efeitos só no drop (quando o grave entra)
@@ -550,7 +570,7 @@ quadro. O Spout é de Lynn Jarvis, licença BSD-2 (ver [docs/CREDITOS.md](CREDIT
 Todo projetor atrasa a imagem (30 a 80 ms é comum). Se nada for feito, o pulso parece
 chegar "depois" do kick. Como o app prevê o beat, dá para **adiantar** o pulso.
 
-1. Toque uma faixa com kick bem marcado e espere o BPM ficar **travado**.
+1. Toque uma faixa com kick bem marcado e espere o BPM ficar **firme**.
 2. Olhe para o **telão** (não para o preview) e escute o kick.
 3. Na aba **Saída**, mexa no **Offset visual**:
    - O pulso vem **depois** do kick → deixe **mais negativo** (−50, −60…).
@@ -675,7 +695,7 @@ Regras que valem sempre: **qualquer comando seu** (pad, knob, tecla, MIDI) pausa
 8 segundos (o Diagnóstico mostra quanto falta); com um **roteiro tocando**, o roteiro manda e a
 automação não troca cena, banco nem vídeo; no modo **só roteiro** a automação fica desligada;
 **Reset** e **PÂNICO** desfazem o que a automação estava fazendo. As ações entram no próximo
-beat (drop) ou compasso (entradas de estado) quando o BPM está travado; sem trava, na hora.
+beat (drop) ou compasso (entradas de estado) quando o BPM está firme; sem isso, na hora.
 Para começar, deixe em **Assistido** durante um set inteiro e veja se as rampas acompanham o
 seu gosto antes de passar para Automático.
 
@@ -729,6 +749,10 @@ beats no build, outro vídeo no breakdown, o rastro subindo devagar até o clím
    - Se as linhas estão um pouco antes ou depois dos kicks, use **−5ms / +5ms**.
    - Se o BPM saiu errado, digite o BPM certo, ou confira a faixa de andamento na aba Áudio e
      clique em **Analisar de novo**.
+   - Se o andamento muda dentro da música, a análise acha cada trecho e o painel mostra
+     *"Andamento muda na música: 140.00 → 146.00 BPM"*. A timeline e o app seguem cada trecho.
+     **−5ms / +5ms** arrastam a grade inteira; digitar um BPM troca o mapa por esse BPM fixo, e
+     **Analisar de novo** refaz o mapa.
 
 ### Marcar os pontos
 
@@ -772,7 +796,7 @@ com o **GO**:
 
 1. Escolha o **compasso do GO**, por exemplo o 1º compasso ou o primeiro drop. Coloque o
    cursor lá e clique em **usar cursor**.
-2. Com a música tocando e o **BPM travado**, aperte **GO** (**G** ou um pad MIDI) **no beat**
+2. Com a música tocando e o **BPM firme**, aperte **GO** (**G** ou um pad MIDI) **no beat**
    em que a música chega naquele compasso.
 3. Daí em diante, o roteiro anda junto com o BPM ao vivo, mesmo com o pitch mexido.
 4. Errou o GO? **‹ ›** corrigem 1 beat e **« »** corrigem 1 compasso (teclas **, .** e **; '**).
@@ -982,7 +1006,7 @@ modo de automação, clique no chip de estado).
 - [ ] **Projetar** → o número ao lado das bolinhas de saúde marca ~60 (quadros por segundo).
 - [ ] Acertar o **Offset visual** olhando para o telão.
 - [ ] Com a música tocando e o telão projetado: aba **Saída** → **Testar tudo**. Em 10 s o app
-      confere áudio entrando, BPM travado, telão no monitor certo e fluido, MIDI, espaço em disco,
+      confere áudio entrando, BPM firme, telão no monitor certo e fluido, MIDI, espaço em disco,
       limite de flashes, efeitos da comunidade, versão e rede, e mostra cada item em verde,
       amarelo ou vermelho com o que fazer. Resolva os vermelhos antes de abrir a pista.
 - [ ] Ter na cabeça: **B** = blackout, **L** = só logo, **Espaço** = tap, **P** = pânico.
@@ -997,13 +1021,15 @@ modo de automação, clique no chip de estado).
 | Medidor no **CLIP** | Abaixe o **Ganho** (ou o volume do booth). |
 | BPM na metade ou no dobro | Escolha a faixa certa de andamento ou use **½ / ×2**. |
 | BPM pulando | Ligue **Travar BPM** quando ele estiver certo, ou dê **TAP**. |
+| BPM não firma | Veja se o topo sugere outra faixa (aviso *fora da faixa*) ou use **Auto**. |
 | O pulso sai atrasado em relação ao som | **Offset visual** mais negativo (seção 14). |
 | A logo pulsa com o baixo, não com o kick | Ligue **Exigir o "click" do kick** e baixe um pouco a **Sensibilidade**. |
-| Logo quase parada num breakdown longo | Depois de 30 s sem kick, o app solta o BPM e a logo passa a seguir a onda da música. Suba **Seguir a música sem kick** para ela mexer mais. O BPM volta sozinho quando o kick volta. |
+| Logo quase parada num breakdown longo | Sem kick, a logo segue a onda da música (no modo **Na pausa: respirar** ou **parar**, já a partir de 2 a 3 beats sem kick). Suba **Seguir a música sem kick** para ela mexer mais, ou escolha **Na pausa: seguir o beat** para manter o pulso no beat. |
+| Logo pulsando ou anéis no silêncio | Escolha **Na pausa: respirar** ou **parar** e suba a **Sensibilidade do silêncio** (aba Logo). |
 | Telão travando, fps baixo | Abaixe a **Resolução de render**. Feche outros programas. Deixe o notebook na tomada. |
 | O telão abriu no monitor errado | Feche (**F**), escolha o outro monitor na aba **Saída** e projete de novo. |
 | Efeito "só no drop" não aparece com o grave tocando | A pílula **DROP** está apagada: baixe o **Limiar do grave** (aba Áudio). |
-| Roteiro no modo DJ escorregando | O BPM ao vivo não estava travado no GO. Espere travar (ou dê TAP), e corrija com **‹ ›** / **« »**. |
+| Roteiro no modo DJ escorregando | O BPM ao vivo não estava firme no GO. Espere firmar (ou dê TAP), e corrija com **‹ ›** / **« »**. |
 | Roteiro: pontos adiantados ou atrasados em relação à música | Alinhe a grade com **−5ms / +5ms**; se for um beat inteiro, **1º tempo − / +**. |
 | "A saída está em … Hz" ao tocar o roteiro | A saída de áudio mudou: escolha a saída de novo na aba Roteiro (a música é preparada de novo). |
 | Telão ficou preto e a bolinha do telão está vermelha | A placa de vídeo "sumiu" por um instante (driver, monitor trocado). O app recria o telão sozinho quando ela volta; se não voltar em alguns segundos, **F** duas vezes (fecha e reabre). |
