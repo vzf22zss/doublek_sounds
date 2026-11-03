@@ -5,7 +5,9 @@ Feito para psytrance, dark/forest e hi-tech (135–220 BPM).
 
 ![O telão pulsando no beat](docs/img/telao.gif)
 
-**📘 [Tutorial completo, do cabo ao show](docs/TUTORIAL.md)**
+| Primeira vez? | Já usa o app? |
+|---|---|
+| **🌱 [Guia para iniciantes](docs/GUIA-INICIANTE.md)**: os conceitos (kick, BPM, cena, telão…) e o primeiro show em 15 minutos | **📘 [Guia completo](docs/TUTORIAL.md)**: cada botão, do cabo ao show |
 
 ![Janela de controle](docs/img/controle.png)
 
@@ -15,16 +17,21 @@ Baixe `DoubleK Visuals_<versão>_x64_pt-BR.msi` na página de
 [**Releases**](https://github.com/vzf22zss/doublek_sounds/releases/latest) e dê dois cliques. Se
 o Windows avisar "O Windows protegeu o computador", clique em **Mais informações → Executar
 assim mesmo**. Quando sair versão nova, o app avisa no rodapé e atualiza com um clique (nunca
-sozinho, nunca com o telão aberto). Passo a passo: [Tutorial §2](docs/TUTORIAL.md#2-instalar).
+sozinho, nunca com o telão aberto). Passo a passo: [Guia completo §2](docs/TUTORIAL.md#2-instalar).
 
 ## O que ele faz
 
 ### No show
 
 - **Kick e BPM confiáveis no psy.** Ele separa o kick do baixo rolante exigindo o grave e o
-  "click" ao mesmo tempo. O BPM trava em poucos segundos e se segura nos breakdowns.
+  "click" ao mesmo tempo. O BPM firma em poucos segundos, acompanha a música quando o
+  andamento muda e se segura nos breakdowns. Se a faixa de BPM escolhida não combina com a
+  música, o topo avisa e sugere **Auto**.
 - **Pulso no tempo.** Com o BPM firme, o pulso sai do relógio do beat, e um **offset**
   adianta a imagem para compensar o atraso do projetor.
+- **Logo orgânica.** No silêncio a logo respira ou para (**Na pausa**), em vez de seguir
+  pulsando; cada efeito tem uma **régua** de mínimo e máximo do nível da fonte, com o nível ao
+  vivo, para ele só agir quando o sub, o baixo, os médios ou o chimbal chegam onde você quer.
 - **Duas janelas.** O controle fica no notebook; o telão abre em tela cheia no datashow.
 - **Cenas** com crossfade que começa no próximo beat: 8 por banco, até 4 bancos.
   **Preview/TAKE** prepara a cena sem o público ver e manda no beat.
@@ -34,8 +41,9 @@ sozinho, nunca com o telão aberto). Passo a passo: [Tutorial §2](docs/TUTORIAL
   em **Assistido** mexe nos efeitos sozinho, em **Automático** também troca a cena, seguindo um
   mapa que você ajusta. Qualquer comando seu tem prioridade. Abre sempre em **Manual**.
 - **Roteiro por música.** Você sobe a faixa, marca os pontos na timeline (cena, strobe, vídeo,
-  knob) e roda com o app tocando o arquivo ou com o DJ nos decks (GO). Com a tecla **R** dá
-  para comparar na hora com "só o som".
+  knob) e roda com o app tocando o arquivo ou com o DJ nos decks (GO). Faixa com andamento que
+  muda ganha um mapa de andamento, trecho a trecho. Com a tecla **R** dá para comparar na hora
+  com "só o som".
 - **Testar tudo antes do show:** um botão confere em 10 s áudio, BPM, telão, MIDI, disco e
   segurança, e diz o que fazer em cada item vermelho.
 - **Saúde do show:** 4 bolinhas (áudio · BPM · MIDI · telão); clique nelas para salvar o
@@ -46,7 +54,8 @@ sozinho, nunca com o telão aberto). Passo a passo: [Tutorial §2](docs/TUTORIAL
 
 - **Efeitos:** glow, anéis, flash, rastro/túnel, espectro (barras e radial), strobe no tempo,
   aberração, tremor, vinheta, linhas de TV e granulado. Cada um pode reagir ao kick, ao sub, ao
-  baixo, aos médios, aos hats, ao beat, ao compasso ou a um LFO, e pode entrar **só no drop**.
+  baixo, aos médios, aos hats, ao beat, ao compasso ou a um LFO, com uma **régua** (faixa de
+  atuação), e pode entrar **só no drop**.
 - **Psy Engine:** caleidoscópio, túnel fractal, mandala, partículas, padrão orgânico e glitch,
   cada um com seu knob, fonte de modulação e "só no drop". Se o telão engasgar, o app baixa a
   qualidade sozinho. 23 presets de fábrica no **Catálogo**.
@@ -112,7 +121,7 @@ sozinho, nunca com o telão aberto). Passo a passo: [Tutorial §2](docs/TUTORIAL
 | R | roteiro: comparar com roteiro × só o som |
 
 Shift+clique numa cena grava o visual atual nela. Knobs: arrastar (Shift = fino), roda do
-mouse, duplo clique = padrão. Lista completa: [Tutorial §18](docs/TUTORIAL.md#18-atalhos-do-teclado).
+mouse, duplo clique = padrão. Lista completa: [Guia completo §18](docs/TUTORIAL.md#18-atalhos-do-teclado).
 
 ## Para desenvolvedores
 
@@ -136,7 +145,7 @@ Todo comando (teclado, MIDI, botões, roteiro, automação, OSC, celular) passa 
 |---|---|
 | `src-tauri/src/analysis.rs` · `beat.rs` | Filtros, onset, kick, indicadores de energia; relógio do beat (BPM, fase, tap, nudge) |
 | `src-tauri/src/audio.rs` · `midi.rs` | Captura com reconexão; reprodução da faixa do roteiro; MIDI (learn, Clock, SPP) |
-| `src-tauri/src/track.rs` | Decodifica (symphonia), reamostra (rubato), grade de BPM e forma de onda |
+| `src-tauri/src/track.rs` | Decodifica (symphonia), reamostra (rubato), grade de BPM, mapa de andamento e forma de onda |
 | `src-tauri/src/osc.rs` · `remote.rs` · `spout.rs` | Servidor OSC, servidor do celular (pareamento), saída Spout |
 | `src-tauri/src/rec.rs` · `diary.rs` | Gravação do telão em disco; diário de análise e resumo |
 | `src/render/` | Renderer WebGL2 (telão e preview), módulos do Psy Engine, camadas e compositor |

@@ -1,7 +1,10 @@
-# Tutorial — DoubleK Visuals
+# DoubleK Visuals — Guia completo
 
-Guia completo, do zero até o show: instalar, ligar os cabos, regular o som, montar o visual,
-projetar no telão e operar ao vivo (inclusive com controlador MIDI).
+Tudo o que o app faz, do zero até o show: instalar, ligar os cabos, regular o som, montar o visual,
+projetar no telão e operar ao vivo (inclusive com controlador MIDI, celular e roteiro). Versão 0.3.11.
+
+> **Primeira vez?** Comece pelo [Guia do iniciante](GUIA-INICIANTE.md): o caminho curto até a sua
+> logo pulsando no telão. Volte aqui quando quiser ir além.
 
 > As imagens deste guia foram feitas com uma logo de exemplo ("DK") e um som simulado a 148 BPM.
 > No seu notebook, a tela é a mesma, só que com a sua logo e a sua música.
@@ -28,7 +31,7 @@ projetar no telão e operar ao vivo (inclusive com controlador MIDI).
 14. [Acertar o atraso do projetor (offset)](#14-acertar-o-atraso-do-projetor-offset)
 15. [Cenas: trocar o visual no meio do set](#15-cenas-trocar-o-visual-no-meio-do-set)
 16. [Roteiro: efeitos marcados numa música](#16-roteiro-efeitos-marcados-numa-música)
-17. [Controlador MIDI](#17-controlador-midi)
+17. [Controlador MIDI, OSC e celular](#17-controlador-midi-osc-e-celular)
 18. [Atalhos do teclado](#18-atalhos-do-teclado)
 19. [Checklist do dia do show](#19-checklist-do-dia-do-show)
 20. [Problemas e soluções](#20-problemas-e-soluções)
@@ -147,7 +150,8 @@ O número ao lado é o fps do telão. **Clicar nas bolinhas** abre um menu:
 
 **Como mexer nos controles:**
 
-- **Sliders:** arraste. **Duplo clique** volta ao valor padrão.
+- **Sliders:** arraste. **Duplo clique** volta ao valor padrão. Alguns sliders têm, ao lado do
+  nome, o seletor roxo da fonte e o botão **faixa** (seção 11) e o chip **drop** (seção 12).
 - **Knobs:** arraste para cima ou para baixo, ou use a roda do mouse.
   Segure **Shift** para ajuste fino. **Duplo clique** volta ao padrão.
 - **Tudo é salvo sozinho.** Fechou e abriu o app, está tudo como você deixou.
@@ -188,7 +192,7 @@ O analisador é onde você vê se o app está "entendendo" a música:
 
 | O que você vê | O que fazer |
 |---|---|
-| Faltam kicks (beats sem traço rosa) | Aumente a **Sensibilidade**. |
+| Faltam kicks (beats sem traço rosa) | Aumente a **Sensibilidade** (de 0,50× a 3,00×; padrão 1,40×). |
 | Traços a mais, entre os kicks (o app está pegando o baixo rolante) | Diminua a **Sensibilidade** e confira se **Exigir o "click" do kick** está ligado. |
 | Nada detecta, nem com sensibilidade alta, usando microfone | **Desligue** Exigir o "click" do kick e suba o **Ganho**. |
 
@@ -196,18 +200,19 @@ O analisador é onde você vê se o app está "entendendo" a música:
 grave do kick. A diferença é que o kick tem um estalo agudo (o "click") e o baixo não.
 Exigindo os dois juntos, o app ignora o baixo.
 
----
-
 ### Gravar a análise para ajustar a detecção
 
 Para deixar a detecção afinada com a **sua** música, grave a análise de um set: na aba **Áudio**,
-clique em **Gravar análise (sem áudio)**, toque normalmente e aperte **M** no instante de cada
-drop. **Parar** salva um arquivo `.jsonl` com só números (BPM, grave, kicks por compasso, a cada
+seção **Gravar análise (calibração)**, clique em **Gravar análise (sem áudio)**, toque normalmente e
+aperte **M** no instante de cada drop. **Parar gravação da análise** salva um arquivo `.jsonl` com
+só números (BPM, grave, kicks por compasso, a cada
 50 ms) — **nenhum som é gravado**. Com esse arquivo dá para medir onde o app errou e ajustar os
 limites. Ao parar, a aba Áudio mostra um **resumo**: quanto tempo o BPM ficou travado, quantos
 drops você marcou, quantos o app pegou (e com que atraso) e quantos perdeu, com uma orientação
 pronta (por exemplo, "o app perdeu 2 de 5 drops: baixe o Limiar do grave"). **Abrir pasta das
 análises** mostra os arquivos. Como gravar e mandar o arquivo: [docs/quality/CALIBRACAO.md](quality/CALIBRACAO.md).
+
+---
 
 ## 7. BPM e andamento
 
@@ -230,6 +235,7 @@ Escolher a faixa certa evita o erro clássico de o app achar 74 em vez de 148.
   **previsto**. Firme não quer dizer preso: se a música muda de andamento, ele acompanha.
 - **segurando (sem kick)**: veio um breakdown sem kick. O app segura o andamento por até
   30 segundos, para o visual não morrer no meio da música.
+- **MIDI CLK**: o andamento está vindo do MIDI Clock do equipamento do DJ (seção 17).
 
 **Botões manuais** (no topo):
 
@@ -245,8 +251,12 @@ Escolher a faixa certa evita o erro clássico de o app achar 74 em vez de 148.
 os kicks. Use quando o BPM estiver certo e você não quiser que ele oscile. Enquanto ela está
 ligada, o selo **BPM FIXO** aparece no topo; clique nele para soltar.
 
-**Faixa errada:** se a faixa escolhida não combina com a música, o BPM não firma e o topo avisa
-*"A música parece estar a X BPM, fora da faixa…; usar Auto?"*. Clique no aviso para trocar.
+**Faixa errada:** se a faixa escolhida não combina com a música, o BPM não firma e o topo avisa,
+em laranja, *"A música parece estar a X BPM, fora da faixa Psy; usar Auto?"* (com o nome da sua
+faixa). Clique no aviso para trocar para **Auto**. O aviso só aparece enquanto o BPM não está firme
+e a faixa não é Auto.
+
+![O selo BPM FIXO e o aviso de faixa errada no topo](img/bpm-dica-e-selo.png)
 
 ---
 
@@ -267,16 +277,30 @@ ligada, o selo **BPM FIXO** aparece no topo; clique nele para soltar.
 
 | Ajuste | O que faz |
 |---|---|
-| **Tamanho** | Tamanho da logo no telão (% da altura da tela). |
+| **Tamanho** | Tamanho da logo no telão (de 10% a 150% da altura da tela; padrão 40%). |
 | **Pulso** | Quanto a logo cresce a cada kick. |
 | **Brilho (glow)** | A aura de luz em volta da logo. |
-| **Aberração cromática** | Separa o vermelho e o azul nas bordas: efeito "glitch" no beat. |
+| **Aberração cromática** | Separa o vermelho e o azul nas bordas: efeito "glitch" no beat. Tem chip **drop** (seção 12). |
+
+Pulso, Brilho e Aberração têm o seletor da fonte e a régua **faixa** (seção 11).
+
+**Reação** (mais abaixo, na mesma aba):
+
+| Ajuste | O que faz |
+|---|---|
 | **Duração do pulso** | Quanto tempo o pulso leva para voltar. Curto = seco; longo = macio. |
 | **Seguir a música sem kick** | Nos trechos sem kick, a logo continua respirando com a música. |
 | **Na pausa** | Quando a música silencia (sem kick e com o som baixo): **respirar** (padrão: sem pulso nem anéis, a logo respira devagar), **parar** (fica parada) ou **seguir o beat** (continua pulsando no beat previsto, como nas versões antigas). Um breakdown sem kick mas com música não é silêncio: a logo segue a onda. Quando o kick volta, o pulso volta na hora. |
-| **Sensibilidade do silêncio** | Abaixo deste nível (em % do mais alto que tocou no último minuto), sem kick, é silêncio. Se um trecho baixo da música vira silêncio, diminua; se o chiado de uma pausa ainda mexe a logo, aumente. Aceita MIDI learn. Se você usa **TAP** ou **MIDI Clock** numa música em que o kick não é detectado, escolha **seguir o beat**. |
+| **Sensibilidade do silêncio** | Só aparece com **Na pausa** em *respirar* ou *parar*. Abaixo deste nível (em % do mais alto que tocou no último minuto; de 0% a 30%, padrão 8%), sem kick, é silêncio. Se um trecho baixo da música vira silêncio, diminua; se o chiado de uma pausa ainda mexe a logo, aumente. Aceita MIDI learn. Se você usa **TAP** ou **MIDI Clock** numa música em que o kick não é detectado, escolha **seguir o beat**. |
+
+![O seletor Na pausa e a Sensibilidade do silêncio, na seção Reação da aba Logo](img/na-pausa.png)
+
+![No telão: pulsa com o kick, só respira no silêncio e volta a bater com o kick](img/telao-pausa.gif)
 
 > A logo fica salva dentro do app. Pode apagar ou mover o arquivo original depois.
+>
+> **Na pausa**, a **Sensibilidade do silêncio** e o recorte do fundo branco são ajustes da máquina:
+> não mudam quando você troca de cena.
 
 ---
 
@@ -284,16 +308,20 @@ ligada, o selo **BPM FIXO** aparece no topo; clique nele para soltar.
 
 ![Aba Fundo](img/aba-fundo.png)
 
-- **Cor 1 / Cor 2 / Degradê:** um fundo liso ou em degradê, com ângulo ajustável.
+- **Cor 1 / Cor 2 / Degradê:** um fundo liso ou em degradê. Com **Degradê** marcado aparece o
+  **Ângulo do degradê**.
 - **Foto de fundo:** escolha uma imagem, ou **arraste a imagem para cima da janela**.
   *Preencher* corta para cobrir a tela toda; *Caber inteira* mostra a foto inteira.
+  **Remover foto** volta para a cor.
 - **Cores do fundo (automático):** ao escolher a foto ou o vídeo, o app tira dele a cor mais
   viva para o **brilho** (glow, anéis, flash e espectro) e as **Cor 1 / Cor 2** do fundo. Mudou
   as cores na mão e quer voltar às do fundo? Clique em **Cores do fundo**.
 - **Opacidade, Desfoque e Brilho da foto/vídeo:** para a foto não brigar com a logo.
   Escurecer e desfocar um pouco costuma ficar ótimo.
-- **Girar matiz:** as cores do fundo giram sem parar (graus por segundo).
-- **Zoom do fundo / Brilho do fundo:** o fundo "respira" junto com o beat.
+- **Girar matiz:** as cores do fundo giram sem parar (graus por segundo; é o mesmo que o knob
+  **Matiz** da barra de performance).
+- **Zoom do fundo / Brilho do fundo:** o fundo "respira" junto com o beat. Os dois têm seletor de
+  fonte, régua **faixa** (seção 11) e chip **drop** (seção 12).
 
 ### Vídeo em loop
 
@@ -305,11 +333,11 @@ ligada, o selo **BPM FIXO** aparece no topo; clique nele para soltar.
    para **MP4 H.264** ou **WebM VP9**. Aceito, o vídeo fica guardado na sua biblioteca.
 2. Clique no nome de um vídeo para usá-lo, ou em **Sem vídeo** para voltar à foto ou cor.
    O **×** tira o vídeo da biblioteca.
-3. **Velocidade do vídeo:** de 0,25× (câmera lenta) a 2×.
-4. **Início e fim do loop:** com o vídeo na tela, escolha de que segundo a que segundo ele
+3. **Velocidade do vídeo** (aparece com um vídeo escolhido): de 0,25× (câmera lenta) a 2×.
+4. **Início** e **Fim** (em segundos): com o vídeo na tela, escolha de que segundo a que segundo ele
    repete (fim 0 = até o final). Bom para aproveitar só o trecho bonito de um clipe.
 5. **Reiniciar no compasso:** quando esse vídeo entra (por cena ou roteiro), ele volta ao
-   começo no próximo 1º tempo da música, em vez de entrar no meio.
+   começo no próximo 1º tempo da música, em vez de entrar no meio. Sem BPM firme, volta na hora.
 
 ![Vídeo em loop com início e fim do trecho e reinício no compasso](img/video-loop.png)
 
@@ -330,43 +358,50 @@ tocando, então trocar de cena pode trocar o vídeo.
 
 ![Aba Efeitos](img/aba-efeitos.png)
 
+Os efeitos clássicos ficam no fim da aba, depois do Psy Engine e das Camadas:
+
 | Efeito | O que faz |
 |---|---|
 | **Flash** | A tela clareia a cada kick. |
 | **Anéis a cada kick** | Ondas de anel saindo da logo. |
 | **Espectro em barras** | Barras do espectro na base da tela. |
 | **Espectro radial na logo** | As barras em círculo em volta da logo (veja a cena "Radial"). |
-| **Rastro** | Cada quadro deixa um rastro. Junto com o zoom, vira um **túnel**. |
+| **Rastro / túnel › Rastro** | Cada quadro deixa um rastro. Junto com o zoom, vira um **túnel**. |
 | **Zoom do rastro / Giro do rastro** | Para onde o rastro anda: para dentro, para fora, girando. |
-| **Strobe** + 1/1, 1/2, 1/4 | Pisca no tempo: a cada beat, a cada meio beat ou a cada quarto de beat. |
-| **Vinheta** | Escurece os cantos. |
+| **Strobe › Intensidade** + 1/1, 1/2, 1/4 | Pisca no tempo: a cada beat, a cada meio beat ou a cada quarto de beat. |
+| **Tela › Vinheta** | Escurece os cantos. |
 | **Linhas de TV / Granulado** | Textura de tela antiga e de filme. |
 | **Tremor** | A imagem treme no kick. |
+
+Flash, Zoom do rastro e Tremor têm o seletor da fonte e a régua **faixa** (seção 11). Flash, Anéis,
+os dois Espectros, Rastro, Strobe e Tremor têm o chip **drop** (seção 12).
 
 ### Psy Engine
 
 Acima dos efeitos clássicos (logo depois do **Mapa de automação** e dos **Efeitos da comunidade**), a aba Efeitos tem a seção **Psy Engine**: seis módulos que
-desenham por cima ou por baixo da logo, cada um com o próprio knob (0 = desligado, custo zero),
-fonte de modulação e chip **drop**.
+desenham por cima ou por baixo da logo, cada um com o próprio slider (0 = desligado, custo zero),
+seletor da fonte, régua **faixa** e chip **drop**. Os ajustes extras de cada módulo aparecem
+quando o slider dele sai do 0.
 
-| Módulo | O que faz | O que a fonte de modulação move |
-|---|---|---|
-| **Caleidoscópio** | Dobra o quadro inteiro em N fatias simétricas (3–12), com giro e zoom. A logo entra na dobra. | Empurrão no giro |
-| **Túnel fractal** | Túnel procedural por baixo da logo, com velocidade e densidade. | Velocidade |
-| **Mandala** | Anéis e pétalas geométricas em volta da logo, abrindo no compasso. | Brilho |
-| **Partículas** | Campo de partículas com direção e turbulência. | Velocidade e brilho |
-| **Orgânico** | Padrão orgânico/floresta por baixo da logo, cores do fundo, matiz pelo knob **Matiz**. | Acende a cor da logo nos picos |
-| **Glitch** | Fatias deslocadas, blocos e separação RGB em rajadas curtas (≤ 120 ms). | **Disparo** da rajada |
+| Módulo | O que faz | Ajustes extras | O que a fonte move |
+|---|---|---|---|
+| **Caleidoscópio** | Dobra o quadro inteiro em fatias simétricas. A logo entra na dobra. | **Fatias** (3–12), **Giro**, **Zoom**, **Espelhar as fatias** | Empurrão no giro |
+| **Túnel fractal** | Túnel por baixo da logo e dos anéis. | **Velocidade**, **Densidade** | Velocidade |
+| **Mandala** | Anéis e pétalas em volta da logo, abrindo a cada compasso. | **Pétalas** (4–16) | Brilho |
+| **Partículas** | Campo de partículas por baixo da logo. | **Quantidade**, **Direção** (90° = sobem), **Turbulência** | Empurrão e brilho |
+| **Orgânico** | Textura viva com as cores do fundo; gira com o **Girar matiz** do fundo (knob **Matiz**). | **Escala** | Acende a cor |
+| **Glitch** | Fatias deslocadas, blocos e separação RGB em rajadas curtas (120 ms). | — | **Disparo** da rajada |
 
-- **Qualidade** (baixa/média/alta) é ajuste da máquina, não da cena. Com **Ajuste automático**
-  ligado, se o telão engasgar (p95 acima do **Teto do quadro**, 22 ms por padrão) por 3 s, o
-  app desce um degrau sozinho e, em baixa, desliga o módulo mais caro; volta devagar quando
-  sobra folga. A linha de status avisa.
+- **Qualidade do Psy Engine** (Baixa/Média/Alta) é ajuste da máquina, não da cena. Com **Ajuste
+  automático** ligado, se o telão engasgar (p95 acima do **Teto do quadro (p95)**, de 12 a 40 ms,
+  22 ms por padrão) por 3 s, o app desce um degrau sozinho e, em baixa, desliga o módulo mais caro;
+  volta devagar quando sobra folga. A linha abaixo avisa.
 - Abaixo de cada knob aparece o **custo medido** (ms de GPU, ou de CPU quando a placa não
   informa).
 - **Psy Engine: ligado/desligado** é um interruptor que pausa os seis módulos sem mexer nos
   valores das cenas. **PÂNICO** e **Reset** zeram os seis módulos.
-- O glitch respeita o limite de flashes: com ele ligado, no máximo 3 rajadas por segundo.
+- O glitch respeita o limite de flashes: com ele ligado, no máximo 3 rajadas por segundo (6 com o
+  limite desligado).
 
 Exemplos de cenas que já vêm prontas:
 
@@ -425,18 +460,21 @@ ou derrubar a placa, o telão desliga **só aquele efeito** e avisa no Diagnóst
 
 **Modo seguro:** **Abrir telão em modo seguro** (no editor) ou **Shift + Projetar** abre o
 telão sem nenhum efeito da comunidade. Se o último telão caiu com efeitos ligados, o app abre o
-próximo em modo seguro sozinho e avisa.
+próximo em modo seguro sozinho e avisa. Para voltar ao normal, clique em **Sair do modo seguro** no
+editor.
 
 > ⚠ Código de shader de outra pessoa pode travar a placa de vídeo. Importe só de quem você
-> confia. Um efeito que derruba a pré-visualização fica marcado como **suspeito** e, depois de
-> 3 falhas, é desligado até você reativar. O formato está em [docs/SHADERS.md](SHADERS.md).
+> confia. Um efeito que derruba a pré-visualização fica marcado como **suspeito** (**Tentar de
+> novo** testa outra vez) e, depois de 3 falhas, é desligado até você clicar em **Reativar**. O formato está em [docs/SHADERS.md](SHADERS.md).
 
 ---
 
 ## 11. O que no som move cada efeito
 
 Ao lado de vários ajustes há um seletor pequeno, em roxo. Ele escolhe **qual parte da música
-move aquele efeito**:
+move aquele efeito**. Ele aparece em: **Pulso**, **Brilho (glow)** e **Aberração cromática** (aba
+Logo); **Zoom do fundo** e **Brilho do fundo** (aba Fundo); **Flash**, **Zoom do rastro**,
+**Tremor** e os seis módulos do **Psy Engine** (aba Efeitos).
 
 | Fonte | Reage a |
 |---|---|
@@ -459,12 +497,15 @@ trecho mais baixo aparece mais baixo, e o chiado de uma pausa fica perto de zero
 **Régua (faixa):** ao lado da fonte há o botão **faixa**. Ele abre uma régua com **mínimo** e
 **máximo** e uma marca que mostra, ao vivo, o nível da fonte escolhida (fica rosa quando passa do
 mínimo). Abaixo do mínimo o efeito fica parado; entre o mínimo e o máximo ele cresce; no máximo
-chega a 100%. Exemplo: **Pulso** com **Bass** em 30–80 faz a logo só respirar quando o grave
-passa de 30% e bater cheia a partir de 80%. Vale para a logo (pulso, brilho, aberração) e para
-cada efeito. Duplo clique volta à faixa inteira. Fechado, o botão mostra a faixa escolhida
-(ex.: 30–80). A régua entra nas cenas e presets.
+chega a 100%. Exemplo: **Pulso** com **Bass** em 30–80 faz a logo só começar a mexer quando o
+grave passa de 30% e bater cheia a partir de 80%. Vale para todos os ajustes que têm o seletor da
+fonte (a lista acima). **Duplo clique** na régua volta à faixa inteira. Fechado, o botão mostra a
+faixa escolhida (ex.: 30–80); com a faixa inteira, mostra só "faixa". A régua entra nas cenas e
+presets (presets antigos abrem sem régua).
 
 ![Régua da fonte aberta no Pulso](img/regua.png)
+
+![Régua aberta num efeito, com a marca do nível ao vivo](img/regua-efeito.png)
 
 ---
 
@@ -481,16 +522,16 @@ limpa, e no drop os efeitos entram.
 **Como usar:**
 
 1. Nos sliders de efeito (Flash, Anéis, Espectros, Rastro, Strobe, Aberração, Tremor, Zoom e
-   Brilho do fundo, Opacidade da foto/vídeo) há um chip **drop**.
+   Brilho do fundo, Opacidade da foto/vídeo e os seis módulos do Psy Engine) há um chip **drop**.
 2. Clique nele para ligar (fica rosa). Aquele efeito passa a sumir no breakdown e entrar no drop.
 3. No topo, ao lado das bolinhas do compasso, a pílula **DROP** acende quando o app ouve grave.
 
-**Regulagem** (aba **Áudio**, seção *Drop*):
+**Regulagem** (aba **Áudio**, seção **Drop (grave)**):
 
-- **Limiar do grave:** se a pílula DROP apaga com o grave tocando, **baixe**. Se ela acende
-  no breakdown, **suba**.
-- **Entrada/saída do drop:** quantos beats o efeito leva para aparecer e sumir. Com 1 beat o
-  drop "explode"; com 4 a 8 beats ele entra suave.
+- **Limiar do grave** (10% a 80%; padrão 35%): se a pílula DROP apaga com o grave tocando,
+  **baixe**. Se ela acende no breakdown, **suba**.
+- **Entrada/saída do drop** (0,25 a 8 beats; padrão 1): quantos beats o efeito leva para aparecer
+  e sumir. Com 1 beat o drop "explode"; com 4 a 8 beats ele entra suave. Aceita MIDI learn.
 
 > O app compara o grave de agora com o grave do último minuto. Por isso funciona igual numa
 > pista alta ou baixa, e não confunde uma faixa mais "magra" com um breakdown.
@@ -507,11 +548,24 @@ limpa, e no drop os efeitos entram.
    A janela abre em tela cheia no datashow, sem bordas e sem cursor.
 4. No topo do controle, o número ao lado das bolinhas de saúde mostra os quadros por segundo do
    telão (60 é o ideal; "—" com o telão fechado). Se cair muito abaixo de 60, abaixe a
-   **Resolução de render** (ex.: 75%).
-5. Para fechar: **Fechar telão**, **F** no controle, ou **Esc** com o mouse no telão.
+   **Resolução de render** (aba Saída, seção **Desempenho**; de 40% a 100%), por exemplo para 75%.
+5. Para fechar: **Fechar telão**, **F** no controle, ou **Esc** no telão (clique nele antes, para ele ficar em foco).
 
 > Enquanto o telão está aberto, o Windows não apaga a tela nem entra em descanso.
 > Mesmo assim, deixe o notebook **na tomada** e no modo de energia **Melhor desempenho**.
+
+A aba **Saída** tem, de cima para baixo: **Antes do show** (Testar tudo), **Telão**, **Spout
+(Resolume)**, **Gravação**, **Sincronia** (offset, seção 14), **Segurança visual**,
+**Desempenho**, **OSC (rede)** e **Celular (rede)** (seção 17).
+
+### Testar tudo (antes de abrir a pista)
+
+No topo da aba **Saída**, seção **Antes do show**, o botão **Testar tudo** confere o show em
+10 segundos. Deixe a música tocando e o telão projetado e clique: o botão conta "Testando… N s" e
+depois mostra uma lista com **Áudio**, **BPM**, **Telão** (aberto, em tela cheia, no monitor certo
+e fluido), **MIDI**, **Disco**, **Flashes** (limite ligado?), **Efeitos da comunidade**,
+**Versão** e **OSC / celular / Spout**. Cada item vem em verde, amarelo ou vermelho, com o que
+fazer. Resolva os vermelhos antes de abrir a pista.
 
 ### Segurança visual e os dois botões de emergência
 
@@ -520,20 +574,22 @@ limpa, e no drop os efeitos entram.
   da WCAG 2.3.1 para fotossensibilidade. Não é laudo médico: avise na entrada quando usar strobe.
 - **BLACKOUT (B):** apaga o telão na hora, por cima de qualquer efeito, transição ou roteiro.
   Funciona até se a placa de vídeo travar, porque não depende do desenho.
-- **PÂNICO (P):** não apaga; **para o roteiro**, zera na hora strobe, tremor, aberração, rastro,
-  granulado, linhas de TV e os módulos do Psy Engine, e baixa o flash. Fica só a logo pulsando calma. Use quando algo sair do
-  controle mas você não quer o telão preto.
+- **PÂNICO (P):** não apaga; **para o roteiro** e a macro em andamento, zera na hora strobe,
+  tremor, aberração, rastro, granulado, linhas de TV e os seis módulos do Psy Engine, baixa o flash e
+  o brilho do fundo, limpa o Preview, desliga BLACKOUT e Só logo e religa o limite de flashes. Fica
+  só a logo pulsando calma. Use quando algo sair do controle mas você não quer o telão preto.
 
 ---
 
 ### Gravar o telão
 
 Na aba **Saída**, seção **Gravação**, o app grava exatamente o que o telão está mostrando (sem
-som), para postar depois. Escolha a qualidade (**Leve**, **Média** ou **Alta**) e 30 ou 60 quadros
-por segundo e clique em **Gravar** (precisa do telão aberto). Enquanto grava, a seção mostra
-`● REC` com o tempo e o tamanho, e uma bolinha vermelha pisca no rodapé. **Parar** fecha o
-arquivo; **Abrir pasta das gravações** mostra onde ficou (um `.mp4` com data e hora no nome, que
-abre em qualquer player). Se a gravação pesar no telão, o app avisa para baixar para 30 fps ou
+som), para postar depois. Escolha **Formato**, **Tamanho**, **Qualidade** (**Leve**, **Média** ou
+**Alta**) e **FPS** (30 ou 60) e clique em **Gravar** (precisa do telão aberto). Enquanto grava, a
+seção mostra `● REC` com o tempo e o tamanho, e uma bolinha vermelha pisca no rodapé. **Parar**
+fecha o arquivo ("Finalizando…" por um instante); **Abrir pasta das gravações** mostra onde ficou
+(um `.mp4` com data e hora no nome, que abre em qualquer player; num Windows sem H.264 o app grava
+em `.webm`). Se a gravação pesar no telão, o app avisa para baixar para 30 fps ou
 Leve; se algo der errado (disco cheio, telão fechado), a gravação para com uma mensagem e **o
 telão continua normal**. A gravação para sozinha em 4 GB ou se o disco ficar com menos de 1 GB
 livre. Apague as gravações antigas de vez em quando: o app não apaga nada sozinho.
@@ -543,11 +599,12 @@ ou **720p** gravam nesse tamanho mesmo que o telão seja outro (um pouco mais de
 redimensiona cada quadro). A linha "Grava em W×H" mostra o resultado antes de começar, e avisa
 quando o telão tem menos detalhe e a imagem vai ser ampliada.
 
-**Vertical (9:16) para Reels/TikTok:** em **Formato**, escolha **Vertical**. Um retângulo ciano
-aparece por cima do PREVIEW mostrando o pedaço do telão que vai ser gravado; ajuste o **Zoom do
-recorte** e a **Posição horizontal** (dá para mexer gravando). Em **Tamanho**, escolha 1080×1920
-(o que Reels e TikTok pedem) ou 720×1280; em **Pela qualidade**, o app escolhe sozinho e cai para
-720×1280 quando o telão é pequeno demais para 1080. O arquivo sai com `V9x16` no nome. O app
+**Vertical (9:16) para Reels/TikTok:** em **Formato**, troque **Telão (16:9)** por **Vertical
+(9:16)**. Um retângulo ciano aparece por cima do PREVIEW mostrando o pedaço do telão que vai ser
+gravado; ajuste o **Zoom do recorte** (1× a 3×) e a **Posição horizontal** (dá para mexer gravando).
+Em **Tamanho**, escolha 1080×1920 (o que Reels e TikTok pedem) ou 720×1280; em **Pela qualidade**,
+o app grava 720×1280 no Leve e 1080×1920 em Média ou Alta, e cai para 720×1280 quando o telão é
+pequeno demais para 1080. O arquivo sai com `V9x16` no nome. O app
 recorta o quadro pela placa de vídeo (WebCodecs) e o vertical custa o mesmo que o 16:9; num
 Windows sem esse recurso ele copia cada quadro e pesa mais — aí prefira Leve ou 30 fps.
 
@@ -565,6 +622,8 @@ telão de monitor, o Spout religa sozinho com o mesmo nome. Fechar o telão desl
 quase nada para a placa de vídeo (menos de 0,5 ms por quadro) e atrasa a imagem em cerca de um
 quadro. O Spout é de Lynn Jarvis, licença BSD-2 (ver [docs/CREDITOS.md](CREDITOS.md)).
 
+---
+
 ## 14. Acertar o atraso do projetor (offset)
 
 Todo projetor atrasa a imagem (30 a 80 ms é comum). Se nada for feito, o pulso parece
@@ -572,7 +631,8 @@ chegar "depois" do kick. Como o app prevê o beat, dá para **adiantar** o pulso
 
 1. Toque uma faixa com kick bem marcado e espere o BPM ficar **firme**.
 2. Olhe para o **telão** (não para o preview) e escute o kick.
-3. Na aba **Saída**, mexa no **Offset visual**:
+3. Na aba **Saída**, seção **Sincronia**, mexa no **Offset visual** (de −150 a +50 ms; padrão
+   −40 ms):
    - O pulso vem **depois** do kick → deixe **mais negativo** (−50, −60…).
    - O pulso vem **antes** do kick → deixe **menos negativo** (−30, −20…).
 4. Achou o ponto em que os dois "colam"? Pronto. Esse valor vale para esse projetor.
@@ -611,7 +671,9 @@ calmos.
 (Importar troca as cenas desse banco). Para levar tudo de uma vez (bancos, logo, vídeos,
 roteiros, MIDI), use **Salvar show**, logo abaixo.
 
-> O que **não** entra na cena: offset, resolução, recorte da logo, blackout e só logo.
+> O que **não** entra na cena: offset e "Pulsar pelo relógio do beat", resolução de render,
+> qualidade e interruptor do Psy Engine, solo de camada, modo seguro, **Na pausa** e a
+> sensibilidade do silêncio, recorte do fundo branco da logo, limite de flashes, blackout e só logo.
 > São ajustes do lugar e da operação, não do visual.
 
 ### Bancos de cenas
@@ -629,8 +691,9 @@ e a confirmação avisa quantos são.
 
 ### Catálogo e presets compartilhados
 
-O botão **Catálogo** lista os 23 presets de fábrica por estilo: **Aplicar agora** muda o visual,
-**Gravar no pad** guarda num pad. Para trocar presets com outros DJs, **Exportar preset** salva o
+O botão **Catálogo** lista os 23 presets de fábrica por estilo (Psy, Dark, Forest, Hi-Tech,
+Ambient, Breakdown, Drop): **Aplicar agora** muda o visual sem gravar em cena, **Gravar no pad**
+guarda na cena ativa ou na primeira vazia (pergunta antes de gravar por cima). Para trocar presets com outros DJs, **Exportar preset** salva o
 visual atual num arquivo `.doublekpreset` (pequeno, só os ajustes: sem logo, foto nem vídeo) e
 **Importar preset** traz um arquivo desses para a seção **Importados** do Catálogo (até 100;
 **Apagar** remove um importado). Arquivos que não são preset, ou de uma versão mais nova do app,
@@ -656,8 +719,8 @@ no tempo da música: **Build-up** sobe rastro, anéis e zoom do fundo aos poucos
 (para a subida antes do drop); **Drop** dá flash + strobe por 2 beats com anéis no máximo e
 depois volta ao que estava (com o limite de flashes ligado, o strobe e o flash respeitam o
 teto); **Caos** sorteia aberração, tremor e giro do rastro a cada beat por 4 beats e volta;
-**Reset** zera strobe, flash, tremor, aberração e rastro sem parar o roteiro (o **PÂNICO** para
-o roteiro também). Cada macro pode ser aprendida no MIDI learn como qualquer botão. Chamar uma
+**Reset** acalma o visual como o PÂNICO (zera strobe, tremor, aberração, rastro e os módulos do
+Psy Engine e baixa o flash), mas **sem parar o roteiro**. Cada macro pode ser aprendida no MIDI learn como qualquer botão. Chamar uma
 cena, o PÂNICO ou outra macro interrompe a que estiver rodando.
 
 ### Intelligent Show: o app lê o momento da música
@@ -685,10 +748,10 @@ Ao lado, o seletor **Manual / Assistido / Automático** decide o que o app faz c
 
 ![Mapa de automação aberto na aba Efeitos](img/mapa-automacao.png)
 
- Ali dá para
-desligar cada regra (breakdown, build-up, drop, groove), escolher até onde as rampas levam
-rastro, anéis, zoom do fundo e aberração em cada momento (duplo clique volta ao padrão) e
-escolher a cena do drop e a do groove (banco e pad, ou "nenhuma"). Mexer no mapa não pausa a
+Ali dá para ligar ou desligar cada regra (**Breakdown acalma**, **Build-up sobe**, **Drop: macro
+(e cena)**, **Groove: cena**), escolher o teto de rastro, anéis, zoom do fundo e aberração no
+**Breakdown** e no **Build-up** (duplo clique volta ao padrão) e, em **Cenas (só no Automático)**,
+escolher a cena **No drop** e **No groove** (banco e pad, ou "nenhuma (só a macro)"). Mexer no mapa não pausa a
 automação. O mapa fica salvo neste computador e ainda não vai junto no Show Pack.
 
 Regras que valem sempre: **qualquer comando seu** (pad, knob, tecla, MIDI) pausa a automação por
@@ -709,7 +772,8 @@ para levar o show do seu PC para o notebook da festa, ou para guardar uma cópia
 incluir o MIDI. O arquivo `.doublekshow` vai para a pasta de downloads. As **músicas dos
 roteiros não vão no arquivo** (direitos autorais e tamanho): no outro computador, o roteiro
 abre e pede **Trocar música**. Os ajustes de áudio (entrada, ganho, ruído) também não vão,
-porque são da máquina.
+porque são da máquina, nem o mapa de automação, os efeitos da comunidade instalados e os presets
+importados: leve esses à parte (os `.doublekfx` e `.doublekpreset`).
 
 **Abrir:** clique em **Abrir show** e escolha o arquivo. O app confere tudo antes de mexer em
 qualquer coisa: se o arquivo estiver corrompido, incompleto ou for de uma versão mais nova do
@@ -740,19 +804,23 @@ beats no build, outro vídeo no breakdown, o rastro subindo devagar até o clím
 ### Criar um roteiro
 
 1. Abra a aba **Roteiro** e clique em **Nova música**. Escolha o arquivo (mp3, wav, flac, m4a,
-   aac ou ogg). Ele fica **guardado dentro do app**.
+   aac ou ogg; até 300 MB e 20 minutos). Ele fica **guardado dentro do app**. O roteiro ganha o
+   nome do arquivo (dá para mudar no campo de nome) e depois é escolhido na lista
+   "— escolha um roteiro —".
 2. O app analisa a música, acha o **BPM** e o **1º beat** e desenha a música na timeline (no
    lugar do analisador). Em **rosa** aparece o grave, então dá para ver onde estão os drops e
    os breakdowns.
 3. Confira a grade. As linhas são os beats, e as numeradas são os compassos.
    - Se o "1" do compasso não cai no tempo forte, use **1º tempo − / +**.
-   - Se as linhas estão um pouco antes ou depois dos kicks, use **−5ms / +5ms**.
+   - Se as linhas estão um pouco antes ou depois dos kicks, use **Alinhar −5ms / +5ms**.
    - Se o BPM saiu errado, digite o BPM certo, ou confira a faixa de andamento na aba Áudio e
      clique em **Analisar de novo**.
-   - Se o andamento muda dentro da música, a análise acha cada trecho e o painel mostra
-     *"Andamento muda na música: 140.00 → 146.00 BPM"*. A timeline e o app seguem cada trecho.
+   - Se o andamento muda dentro da música, a análise monta um **mapa de andamento** com cada
+     trecho e o painel mostra *"Andamento muda na música: 140.00 → 146.00 BPM (2 trechos)"*. Com
+     o app tocando a música, a timeline, os pontos e o pulso seguem cada trecho sem pular beat.
      **−5ms / +5ms** arrastam a grade inteira; digitar um BPM troca o mapa por esse BPM fixo, e
-     **Analisar de novo** refaz o mapa.
+     **Analisar de novo** refaz o mapa. Música de BPM constante e roteiros antigos ficam como
+     sempre foram.
 
 ### Marcar os pontos
 
@@ -765,7 +833,9 @@ beats no build, outro vídeo no breakdown, o rastro subindo devagar até o clím
 | **Arrastar** um ponto | Muda o ponto de lugar (com **Shift**, de compasso em compasso). |
 | **Clique** no fundo | Leva o cursor (linha branca) até ali. |
 | **Arrastar** o fundo / **roda** | Rola / dá zoom. |
-| **Delete** | Apaga o ponto selecionado. |
+| **Delete** | Apaga o ponto selecionado (ou **Apagar ponto**, na aba Roteiro). |
+
+Também dá para criar pelo painel: em **Pontos**, escolha o tipo e clique em **+ no cursor**.
 
 Cada ponto é de um tipo (a cor na timeline mostra qual):
 
@@ -785,7 +855,8 @@ mesmo se o DJ mexer no pitch.
 
 1. Escolha a **saída de áudio** (por exemplo, a que vai para a mesa).
 2. Posicione o cursor e clique em **▶ Tocar** (ou **G**). O app toca o arquivo e os pontos
-   disparam exatamente no tempo.
+   disparam exatamente no tempo. **⏸ Pausar** (ou **G** de novo) pausa; **■** (ou **Shift + G**)
+   para. A barra da timeline mostra o compasso, o tempo e o próximo ponto.
 3. Clicar na timeline durante a música pula para aquele ponto. O visual já assume a cena e o
    vídeo daquele trecho.
 
@@ -828,8 +899,10 @@ ou se o som sozinho já resolve.
 Voltar para o roteiro aplica na hora a cena e o vídeo daquele trecho. O modo também pode ser
 trocado na aba Roteiro, a qualquer momento.
 
-**Exportar / Importar** salvam o roteiro em `.json`, sem a música. Para levar a outro
-computador, importe o roteiro e use **Trocar música** para apontar o arquivo de novo.
+**Exportar / Importar** (seção **Arquivo** da aba Roteiro) salvam o roteiro em `.json`, sem a
+música. Para levar a outro computador, importe o roteiro e use **Trocar música** para apontar o
+arquivo de novo (os pontos ficam; a música nova é analisada). **Apagar** remove o roteiro (pede
+confirmação).
 
 **Ponto de cena de outro banco:** ao editar um ponto de cena, escolha "Banco aberto na hora"
 (o pad do banco que estiver aberto quando o ponto passar, como sempre foi) ou um banco fixo.
@@ -840,7 +913,7 @@ mesmo e para o roteiro. Tudo o que o roteiro faz fica registrado no Diagnóstico
 
 ---
 
-## 17. Controlador MIDI
+## 17. Controlador MIDI, OSC e celular
 
 Qualquer controlador MIDI USB funciona (Korg nanoKONTROL, Akai LPD8/MPD, Novation Launch
 Control, Arturia BeatStep…).
@@ -865,7 +938,8 @@ aprenda de novo para o teste ficar preciso.
 
 **O que dá para mapear:**
 
-- os 10 knobs de performance e os sliders das abas Logo, Fundo, Efeitos e Saída;
+- os 10 knobs de performance e os sliders das abas Logo, Fundo, Efeitos e Saída (inclusive os do
+  Psy Engine e a **Sensibilidade do silêncio**), e a **Entrada/saída do drop** da aba Áudio;
 - as 8 cenas;
 - TAP, ½, ×2, ◀, ▶, BLACKOUT, Só logo e PÂNICO;
 - as 4 macros, TAKE, Preview e limpar o Preview, os botões de banco (‹ ›) e o chip do modo de
@@ -931,7 +1005,8 @@ BLACKOUT por OSC têm a mesma prioridade de sempre.
 ### Celular na mesma rede
 
 Dá para comandar o show pelo celular, sem instalar nada: na aba **Saída**, seção **Celular
-(rede)**, marque **Abrir para a rede local**, clique em **Ligar** e depois em **Mostrar código**.
+(rede)**, marque **Abrir para a rede local** (antes de ligar: com o servidor ligado a opção fica
+travada), clique em **Ligar celular** e depois em **Mostrar código**.
 No celular (no mesmo Wi-Fi), abra o endereço que aparece (`http://IP-do-notebook:8008`) e digite
 os 6 dígitos. O código vale 2 minutos e uma vez só; depois de 5 tentativas erradas o pareamento
 trava por 1 minuto.
@@ -1008,7 +1083,7 @@ modo de automação, clique no chip de estado).
 - [ ] Com a música tocando e o telão projetado: aba **Saída** → **Testar tudo**. Em 10 s o app
       confere áudio entrando, BPM firme, telão no monitor certo e fluido, MIDI, espaço em disco,
       limite de flashes, efeitos da comunidade, versão e rede, e mostra cada item em verde,
-      amarelo ou vermelho com o que fazer. Resolva os vermelhos antes de abrir a pista.
+      amarelo ou vermelho com o que fazer (seção 13). Resolva os vermelhos antes de abrir a pista.
 - [ ] Ter na cabeça: **B** = blackout, **L** = só logo, **Espaço** = tap, **P** = pânico.
 
 ---
@@ -1026,6 +1101,8 @@ modo de automação, clique no chip de estado).
 | A logo pulsa com o baixo, não com o kick | Ligue **Exigir o "click" do kick** e baixe um pouco a **Sensibilidade**. |
 | Logo quase parada num breakdown longo | Sem kick, a logo segue a onda da música (no modo **Na pausa: respirar** ou **parar**, já a partir de 2 a 3 beats sem kick). Suba **Seguir a música sem kick** para ela mexer mais, ou escolha **Na pausa: seguir o beat** para manter o pulso no beat. |
 | Logo pulsando ou anéis no silêncio | Escolha **Na pausa: respirar** ou **parar** e suba a **Sensibilidade do silêncio** (aba Logo). |
+| Não acho a **Sensibilidade do silêncio** | Ela só aparece com **Na pausa** em *respirar* ou *parar* (aba Logo › Reação). |
+| O selo **BPM FIXO** está aceso e o BPM não muda | **Travar BPM** está ligado (aba Áudio). Clique no selo para soltar. |
 | Telão travando, fps baixo | Abaixe a **Resolução de render**. Feche outros programas. Deixe o notebook na tomada. |
 | O telão abriu no monitor errado | Feche (**F**), escolha o outro monitor na aba **Saída** e projete de novo. |
 | Efeito "só no drop" não aparece com o grave tocando | A pílula **DROP** está apagada: baixe o **Limiar do grave** (aba Áudio). |
