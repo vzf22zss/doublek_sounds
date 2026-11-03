@@ -6,6 +6,10 @@
 // - gravação em blocos de 5 min (5 ligada, 5 desligada), 16:9 e vertical alternados, bytes descartados;
 // - editor de FX aberto 10 de cada 30 min.
 // Por minuto: p95/fps do telão, heap das duas janelas (CDP depois de GC), alvos GL, histórico, fila, erros.
+// ATENÇÃO (D-22): o telão é popup do controle (window.open, mesma origem), então as duas janelas dividem o mesmo
+// processo e isolate V8: heapC e heapO medem o MESMO heap. O mock precisa de __TAURI_EVENT_PLUGIN_INTERNALS__
+// (o unlisten() da API chama unregisterListener antes do invoke), senão cada listen/unlisten do app fica retido.
+// SOAK_NO_FX=1: rodada de controle sem o editor de FX (não cria efeito nem visita a aba Efeitos).
 // Uso: DOUBLEK_MOCK=<pasta com inject.js e puppeteer-core> node scripts/stress/soak.mjs [segundos=7200]
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
@@ -15,6 +19,7 @@ if (!CAP || !fs.existsSync(path.join(CAP, 'inject.js'))) { console.error('Defina
 const puppeteer = createRequire(path.join(CAP, 'package.json'))('puppeteer-core');
 const URL0 = `http://localhost:${process.env.PORT ?? 4183}/`;
 const SECS = +(process.argv[2] ?? 7200);
+const NO_FX = process.env.SOAK_NO_FX === '1'; // D-22: rodada de controle sem o editor de FX
 const OUT = process.cwd();
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
@@ -104,11 +109,13 @@ await tab('Roteiro'); await wait(300);
 await c.select('aside select', 'r1').catch(() => {});
 await wait(1500);
 await ui(() => window.__dispatch({ type: 'AUTOMATION_MODE', mode: 'AUTO' }, 'ui'));
+if (!NO_FX) {
 await tab('Efeitos'); await wait(300);
 await ui(() => { const d = document.querySelector('details.fx'); if (!d.open) d.querySelector('summary').click(); });
 await wait(500);
 await ui(() => [...document.querySelectorAll('details.fx button')].find((x) => x.textContent === 'Novo')?.click());
 await wait(1500);
+}
 await tab('Saída');
 // telemetria do telão + estado do Intelligent Show, guardados na página
 await c.evaluate(() => {
@@ -144,7 +151,7 @@ await c.evaluate(() => {
 const targets = () => o.evaluate(async () => (await import('/src/render/gl/texture.ts')).targetsMade()).catch(() => -1);
 const minutes = [];
 const t0 = Date.now();
-let lastPhase = '', recOn = false, fxOn = true, rotOn = false, recFmt = 'TELAO';
+let lastPhase = '', recOn = false, fxOn = !NO_FX, rotOn = false, recFmt = 'TELAO';
 const setRec = async (on) => {
   await tab('Saída'); await wait(300);
   if (on) {
@@ -161,7 +168,7 @@ for (let m = 1; Date.now() - t0 < SECS * 1000; m++) {
     const s = Math.floor((Date.now() - t0) / 1000), min = s / 60;
     const ph = phaseAt(s);
     if (ph !== lastPhase) { lastPhase = ph; for (const p of [c, o]) await p.evaluate((ph) => { window.__phase = ph; window.__breakdown = ph === 'breakdown' || ph === 'virada' || ph === 'pausa'; }, ph).catch(() => {}); }
-    const wantFx = min % 30 < 10, wantRot = min % 30 >= 10 && min % 30 < 20, wantRec = min % 10 < 5;
+    const wantFx = !NO_FX && min % 30 < 10, wantRot = min % 30 >= 10 && min % 30 < 20, wantRec = min % 10 < 5;
     if (wantFx !== fxOn) { fxOn = wantFx; if (fxOn) { await tab('Efeitos'); await wait(300); await ui(() => { const d = document.querySelector('details.fx'); if (d && !d.open) d.querySelector('summary').click(); }); } else await tab('Saída'); }
     if (wantRot !== rotOn) { rotOn = wantRot; await ui((on) => window.__dispatch({ type: on ? 'ROTEIRO_GO' : 'ROTEIRO_STOP' }, 'ui'), rotOn); }
     if (wantRec !== recOn) { recOn = wantRec; if (recOn) recFmt = recFmt === 'TELAO' ? 'VERTICAL' : 'TELAO'; await setRec(recOn); }
@@ -177,10 +184,11 @@ for (let m = 1; Date.now() - t0 < SECS * 1000; m++) {
     rec: recOn ? recFmt : '-', fx: fxOn, roteiro: rotOn,
     hist: await c.evaluate(() => window.__commands.history().length).catch(() => null),
     errors: errors.length,
+    mockC: await c.evaluate(() => window.__mockStats?.()).catch(() => null), mockO: await o.evaluate(() => window.__mockStats?.()).catch(() => null), // listen/unlisten do mock, se ele contar
   };
   minutes.push(row);
   log('min', JSON.stringify(row));
-  fs.writeFileSync(path.join(OUT, 'soak-result.json'), JSON.stringify({ secs: SECS, minutes, errors, states: await c.evaluate(() => window.__states).catch(() => null) }, null, 1));
+  fs.writeFileSync(path.join(OUT, 'soak-result.json'), JSON.stringify({ secs: SECS, noFx: NO_FX, minutes, errors, states: await c.evaluate(() => window.__states).catch(() => null) }, null, 1));
 }
 
 // ---- critérios ----
@@ -205,7 +213,7 @@ const criteria = {
   filaPresa: { valor: minutes.at(-1)?.notIdle ?? null, ok: (minutes.at(-1)?.notIdle ?? 1) === 0 },
   historicoNoTeto: { valor: Math.max(...minutes.map((r) => r.histMax ?? 0)), ok: Math.max(...minutes.map((r) => r.histMax ?? 0)) <= 50 },
 };
-fs.writeFileSync(path.join(OUT, 'soak-result.json'), JSON.stringify({ secs: SECS, minutes, errors, criteria, states: await c.evaluate(() => window.__states).catch(() => null) }, null, 1));
+fs.writeFileSync(path.join(OUT, 'soak-result.json'), JSON.stringify({ secs: SECS, noFx: NO_FX, minutes, errors, criteria, states: await c.evaluate(() => window.__states).catch(() => null) }, null, 1));
 log('critérios', JSON.stringify(criteria));
 await b.close();
 process.exit(Object.values(criteria).every((x) => x.ok) ? 0 : 1);
