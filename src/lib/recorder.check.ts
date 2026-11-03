@@ -1,6 +1,6 @@
 // npm run check — gravação (DK-072): codec, nome, máquina de estados e aviso de desempenho.
 import assert from 'node:assert/strict';
-import { BITRATE, cropRect, IDLE, pickMime, recLabel, recName, reduce, verticalSize, type RecEvent, type RecState } from './recorder.ts';
+import { BITRATE, cropRect, IDLE, outputSize, pickMime, recLabel, recName, reduce, verticalSize, type Format, type Quality, type RecEvent, type RecState, type Size } from './recorder.ts';
 
 // codec: MP4/H.264 primeiro (nível certo para o fps), depois WebM
 const all = () => true, only = (...ok: string[]) => (m: string) => ok.includes(m);
@@ -93,5 +93,57 @@ assert.equal(run([{ t: 'start', id: n, mime: 'video/mp4', at: 0, p95: 0 }, { t: 
 }
 
 assert.match(run([{ t: 'start', id: 'x.mp4', mime: 'video/mp4', at: 0, p95: 0, vertical: true }, { t: 'started', at: 0 }]).message, /\(MP4, vertical 9:16, sem áudio\)/);
+
+// tamanho do vídeo (D-15a): 16:9 em 1080p/720p com o aspecto do telão; escolha explícita ganha (amplia e avisa);
+// só o vertical "Pela qualidade" é limitado pelas linhas do recorte. " !" = aviso.
+{
+  const sz = (w: number, h: number, f: Format, s: Size, q: Quality = 'MEDIA') => { const o = outputSize(w, h, f, s, q); return `${o.w}x${o.h}${o.copy ? '' : ' nativo'}${o.warn ? ' !' : ''}`; };
+  const T: [number, number, string, string, string][] = [ // telão, nativo, 1080p, 720p
+    [1280, 720, '1280x720 nativo', '1920x1080 !', '1280x720'], // 1080p escolhido: amplia e avisa
+    [1920, 1080, '1920x1080 nativo', '1920x1080', '1280x720'],
+    [2560, 1440, '2560x1440 nativo', '1920x1080', '1280x720'],
+    [3440, 1440, '3440x1440 nativo', '1892x792', '1204x504'], // ultra-wide 43:18: largura cabe em 1920/1280
+    [1080, 1920, '1080x1920 nativo', '1080x1920', '720x1280'], // telão em pé
+    [800, 600, '800x600 nativo', '1440x1080 !', '960x720 !'],
+  ];
+  for (const [w, h, nat, p1080, p720] of T) {
+    assert.equal(sz(w, h, 'TELAO', 'NATIVO'), nat);
+    assert.equal(sz(w, h, 'TELAO', '1080'), p1080, `${w}x${h} 1080p`);
+    assert.equal(sz(w, h, 'TELAO', '720'), p720, `${w}x${h} 720p`);
+    for (const s of ['1080', '720'] as const) {
+      const o = outputSize(w, h, 'TELAO', s, 'MEDIA');
+      assert.ok(o.w % 2 === 0 && o.h % 2 === 0, 'pares');
+      assert.equal(o.w * h, o.h * w, `${w}x${h} ${s}: aspecto exato`);
+    }
+  }
+  // vertical: telão, 1080×1920 escolhido, 720×1280 escolhido, "Pela qualidade" (Média/Alta)
+  const V: [number, number, string, string, string][] = [
+    [1280, 720, '1080x1920 !', '720x1280 !', '720x1280 !'], // recorte de 720 linhas
+    [1920, 1080, '1080x1920 !', '720x1280 !', '720x1280 !'], // 1080 linhas: até o 720×1280 é ampliado
+    [2560, 1440, '1080x1920 !', '720x1280', '720x1280 !'],
+    [3440, 1440, '1080x1920 !', '720x1280', '720x1280 !'],
+    [1080, 1920, '1080x1920', '720x1280', '1080x1920'],
+    [800, 600, '1080x1920 !', '720x1280 !', '720x1280 !'],
+    [3840, 2160, '1080x1920', '720x1280', '1080x1920'],
+  ];
+  for (const [w, h, v1080, v720, auto] of V) {
+    assert.equal(sz(w, h, 'VERTICAL', '1080'), v1080, `${w}x${h} vertical 1080 escolhido`);
+    assert.equal(sz(w, h, 'VERTICAL', '720'), v720, `${w}x${h} vertical 720 escolhido`);
+    assert.equal(sz(w, h, 'VERTICAL', 'NATIVO', 'ALTA'), auto, `${w}x${h} pela qualidade`);
+    assert.equal(sz(w, h, 'VERTICAL', 'NATIVO', 'MEDIA'), auto);
+    assert.equal(sz(w, h, 'VERTICAL', 'NATIVO', 'LEVE'), '720x1280', 'pela qualidade: Leve = 720, sem aviso');
+  }
+  assert.equal(outputSize(1920, 1080, 'VERTICAL', '1080', 'MEDIA').warn, 'O telão tem menos detalhe que 1080×1920: a imagem vai ser ampliada.');
+  assert.equal(outputSize(2560, 1440, 'VERTICAL', 'NATIVO', 'ALTA').warn, 'O telão é pequeno para 1080p vertical: gravando em 720×1280.');
+  assert.equal(outputSize(1280, 720, 'TELAO', '1080', 'MEDIA').warn, 'O telão tem menos detalhe que 1920×1080: a imagem vai ser ampliada.');
+  // qualquer telão: sempre pares, dentro da caixa e aspecto com erro < 1 px; valor salvo estranho = nativo
+  for (const [w, h] of [[1366, 768], [1600, 900], [1920, 1200], [1024, 768], [2560, 1080], [1081, 1921], [5120, 1440], [640, 480]])
+    for (const s of ['1080', '720'] as const) {
+      const o = outputSize(w, h, 'TELAO', s, 'MEDIA'), t = +s, L = Math.round((t * 16) / 9);
+      assert.ok(o.w % 2 === 0 && o.h % 2 === 0 && o.w <= (w >= h ? L : t) && o.h <= (w >= h ? t : L), `${w}x${h} ${s}: ${o.w}x${o.h}`);
+      assert.ok(Math.abs(o.w - (o.h * w) / h) < 1 + 1e-9, `${w}x${h} ${s}: aspecto ${o.w}x${o.h}`);
+    }
+  assert.equal(sz(1920, 1080, 'TELAO', 'xyz' as Size), '1920x1080 nativo');
+}
 
 console.log('recorder: ok');
