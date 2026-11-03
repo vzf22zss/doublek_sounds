@@ -51,11 +51,11 @@ export async function load(r: Roteiro) {
     const info = await invoke<TrackInfo>('load_track', { id: r.track, lo, hi, output: rt.output || null });
     rt.info = info;
     rt.loaded = r.track;
+    if (!r.bpm) delete r.tempo; // reanálise: o mapa velho não vale, mesmo se a nova não achar o BPM
     if (!r.bpm && info.bpm) {
       Object.assign(r, { bpm: +info.bpm.toFixed(3), anchor: info.anchor });
       // andamento que muda no arquivo: o mapa inteiro (o 1º trecho é o bpm/anchor acima)
       if (info.tempo.length > 1) r.tempo = info.tempo;
-      else delete r.tempo;
     }
     ctx.status(r.bpm ? `${r.trackName}: ${bpmLabel(r)}` : 'Não achei o BPM: confira a faixa de andamento (aba Áudio) e analise de novo, ou digite o BPM.');
   } catch (e) {
