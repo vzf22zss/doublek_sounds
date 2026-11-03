@@ -4,7 +4,7 @@ import { evaluate, onChosenMonitor, worst, type Mon, type PreshowInput } from '.
 import { mappedByDevice, normDevice } from './midimap.ts';
 
 const OK: PreshowInput = {
-  rms: Array(100).fill(0.2), gate: 0.003, lockedAtS: 3.2,
+  peak: Array(100).fill(0.2), gate: 0.003, lockedAtS: 3.2,
   output: { open: true, fullscreen: true, monitorOk: true, p95: [17, 18, 30, 18, 17], lost: false },
   midi: { devices: ['nanoKONTROL2'], mapped: 5 },
   diskFree: 50e9, recording: false, safeFlash: true,
@@ -22,10 +22,10 @@ assert.equal(worst(all), 'verde');
 assert.match(run({}).output.msg, /p95 18 ms/); // mediana, um engasgo não pinta
 
 // 1. áudio: ≥ 50% acima do corte
-assert.equal(color({ rms: [...Array(50).fill(0.2), ...Array(50).fill(0)] }, 'audio'), 'verde');
-assert.equal(color({ rms: [...Array(49).fill(0.2), ...Array(51).fill(0)] }, 'audio'), 'vermelho');
-assert.equal(color({ rms: [] }, 'audio'), 'vermelho');
-assert.match(run({ rms: Array(100).fill(0.002) }).audio.msg, /ganho.*cabo/);
+assert.equal(color({ peak: [...Array(50).fill(0.2), ...Array(50).fill(0)] }, 'audio'), 'verde');
+assert.equal(color({ peak: [...Array(49).fill(0.2), ...Array(51).fill(0)] }, 'audio'), 'vermelho');
+assert.equal(color({ peak: [] }, 'audio'), 'vermelho');
+assert.match(run({ peak: Array(100).fill(0.002) }).audio.msg, /ganho.*cabo/);
 
 // 2. BPM em ≤ 10 s
 assert.equal(color({ lockedAtS: 0 }, 'bpm'), 'verde');
@@ -145,3 +145,12 @@ assert.equal(color(net({ oscLan: true }), 'net'), 'verde'); // marcado mas desli
 assert.equal(worst(evaluate({ ...OK, safeFlash: false })), 'amarelo');
 assert.equal(worst(evaluate({ ...OK, safeFlash: false, diskFree: 1e9 })), 'vermelho');
 console.log('preshow ok');
+
+// calibração do corte de ruído: ruído baixo vira corte; som tocando é recusado (o corte ia a 0,2 e zerava os níveis)
+{
+  const { noiseGate, GATE_HIGH } = await import('./preshow.ts');
+  assert.deepEqual(noiseGate(0.002), { gate: 0.0026 });
+  const r = noiseGate(0.18);
+  assert.ok('error' in r && /Tinha som/.test(r.error), JSON.stringify(r));
+  assert.ok('gate' in noiseGate(GATE_HIGH / 1.3 - 1e-4) && 'error' in noiseGate(GATE_HIGH / 1.3 + 1e-3));
+}

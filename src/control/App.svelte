@@ -14,6 +14,7 @@
   import { Renderer } from '../render/renderer';
   import { PAUSES, VISUAL, loadVisual, saveVisual } from '../lib/settings';
   import { SAFE_LOOK, strobeRate } from '../lib/safety';
+  import { GATE_HIGH, noiseGate } from '../lib/preshow';
   import { createMusicState, type StateName } from '../lib/show-engine/state';
   import { plan, quantizeDelay } from '../lib/show-engine/rules';
   import { loadAutomation, saveAutomation } from '../lib/show-engine/config';
@@ -185,8 +186,9 @@
       if (frameAt < calUntil) calMax = Math.max(calMax, f.peak);
       else {
         calUntil = 0;
-        s.gate = Math.min(0.2, +(calMax * 1.3).toFixed(4));
-        status = `Ruído calibrado: corte em ${s.gate}. Pode soltar o som.`;
+        const r = noiseGate(calMax);
+        if ('gate' in r) s.gate = r.gate;
+        status = 'gate' in r ? `Ruído calibrado: corte em ${s.gate}. Pode soltar o som.` : r.error;
       }
     }
   }
@@ -911,6 +913,9 @@
         <h2>Entrada</h2>
         <Slider label="Ganho" bind:value={s.gain} min={0.25} max={40} step={0.25} def={1} fmt={(v) => v.toFixed(2) + '×'} />
         <Slider label="Corte de ruído" bind:value={s.gate} min={0} max={0.2} step={0.001} def={0.003} fmt={(v) => v.toFixed(3)} />
+        {#if s.gate > GATE_HIGH}
+          <p class="keys">⚠ Corte alto: ele pode estar cortando a música (Sub, Bass, Mid, Hats e a pílula DROP ficam em 0). Duplo clique no fader volta ao padrão (0,003).</p>
+        {/if}
         <button class="wide" onclick={calibrate} disabled={!!calUntil}>
           {calUntil ? 'Calibrando…' : 'Calibrar ruído (2 s de silêncio)'}
         </button>

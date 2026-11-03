@@ -41,7 +41,7 @@
 
   async function run() {
     running = true;
-    const rms: number[] = [], p95: number[] = [];
+    const peak: number[] = [], p95: number[] = [];
     let lockedAtS: number | null = frame?.locked ? 0 : null, lost = false, prev: Frame | null = null, prevTel: Telemetry | null = null;
     const diskP = invoke<number | null>('disk_free').catch(() => null);
     const t0 = Date.now(); // relógio de parede: janela em segundo plano espaça o setTimeout, mas são sempre 10 s
@@ -49,7 +49,7 @@
       left = Math.ceil(10 - s);
       await new Promise((r) => setTimeout(r, 100));
       const f = frame, fresh = f && f !== prev; // mesmo objeto = não chegou quadro novo
-      rms.push(fresh ? f.rms : 0);
+      peak.push(fresh ? f.peak : 0); // o corte é calibrado em pico
       if (fresh && f.locked && lockedAtS === null) lockedAtS = (Date.now() - t0) / 1000;
       prev = f;
       if (tel !== prevTel && tel.fps > 0) { p95.push(tel.p95); lost ||= tel.lost; } // telemetria chega 1×/s
@@ -58,7 +58,7 @@
     const w = await outputWindow();
     const fx = load('doublek.fx', validFxList, () => [] as FxEntry[]);
     items = evaluate({
-      rms, gate, lockedAtS,
+      peak, gate, lockedAtS,
       output: { ...w, p95, lost },
       midi: { devices: [...midi.devices], mapped: Object.keys(midi.map).length, mappedBy: mappedByDevice(midi.map) },
       diskFree: await diskP, recording: rec.s.phase !== 'idle',
