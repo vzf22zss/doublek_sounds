@@ -23,7 +23,7 @@
   import RecordPanel from './RecordPanel.svelte';
   import PreShow, { preshowLast } from './PreShow.svelte';
   import { initRec, rec, recTelemetry } from './rec.svelte';
-  import { cropRect } from '../lib/recorder';
+  import { cropRect, type Size } from '../lib/recorder';
   import { busy as fxBusy, clear as clearFx, EMPTY as NO_FX, startBurst, startRamp, step as stepFx, type Running } from '../lib/roteiro-fx';
   import { createDispatcher, fromTarget, keyCommand, routePad, startMacro, type AutomationMode, type Handlers, type MacroId, type MacroRun, type ShowCommand, type Source } from '../lib/commands';
   import { applyLayerParam } from '../render/layers';
@@ -44,7 +44,7 @@
     'Hi-tech': [175, 220],
     Auto: [80, 220],
   };
-  const DEFAULTS = { device: '', channel: 0, gain: 1, gate: 0.003, sens: 1.4, range: 'Psy', lock: false, needClick: true, monitor: 1, dropThr: 0.35, oscOn: false, oscPort: 9000, oscLan: false, remoteOn: false, remotePort: 8008, remoteLan: false, spoutName: 'DoubleK Visuals' };
+  const DEFAULTS = { device: '', channel: 0, gain: 1, gate: 0.003, sens: 1.4, range: 'Psy', lock: false, needClick: true, monitor: 1, dropThr: 0.35, oscOn: false, oscPort: 9000, oscLan: false, remoteOn: false, remotePort: 8008, remoteLan: false, spoutName: 'DoubleK Visuals', recSize: 'NATIVO' as Size };
   const TABS = ['Áudio', 'Logo', 'Fundo', 'Efeitos', 'Saída', 'Roteiro'] as const;
 
   const load = () => storeLoad('doublek.settings', (r) => shaped(r, DEFAULTS), () => ({ ...DEFAULTS }));
@@ -1012,7 +1012,7 @@
         </div>
         <p class="keys">{spout?.running ? `Enviando "${spout.name}" ${spout.width}×${spout.height} · ${spout.fps.toFixed(0)} fps · ${spout.frames} quadros` : spout?.lastError ? '⚠ ' + spout.lastError : 'Desligado. Projete o telão e ligue para o Resolume receber como fonte Spout.'}</p>
         <p class="keys">A janela do telão não pode ficar minimizada: o Spout copia o que ela mostra.</p>
-        <RecordPanel outputOpen={fps > 0} p95={tel.p95} />
+        <RecordPanel outputOpen={fps > 0} p95={tel.p95} src={{ w: (monitors[+s.monitor]?.width || 1920) * vs.renderScale, h: (monitors[+s.monitor]?.height || 1080) * vs.renderScale }} bind:size={s.recSize} />
         <h2>Sincronia</h2>
         <label class="check">
           <input type="checkbox" bind:checked={vs.predict} />

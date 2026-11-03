@@ -55,6 +55,45 @@ export function cropRect(srcW: number, srcH: number, outW: number, outH: number,
   return { sx, sy, sw, sh };
 }
 
+// ---------- tamanho do vídeo (D-15a): independente do tamanho do telão ----------
+
+/** NATIVO: 16:9 grava o canvas do telão como está (sem cópia); no vertical, o tamanho vem da qualidade. */
+export type Size = 'NATIVO' | '1080' | '720';
+export const SIZE_NAMES: Record<Format, Partial<Record<Size, string>>> = {
+  TELAO: { NATIVO: 'Telão (nativo)', '1080': '1080p', '720': '720p' },
+  VERTICAL: { NATIVO: 'Pela qualidade', '1080': '1080×1920', '720': '720×1280' },
+};
+const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
+
+/** Maior w×h com o aspecto de srcW×srcH dentro de boxW×boxH, lados pares (H.264): exato quando a razão deixa. */
+function fit(srcW: number, srcH: number, boxW: number, boxH: number) {
+  const s = Math.min(boxW / srcW, boxH / srcH), g = gcd(srcW, srcH), a = srcW / g, b = srcH / g;
+  let k = Math.floor(s * g + 1e-9);
+  if (k % 2) k--; // a e b são primos entre si: um deles é ímpar, então k par deixa os dois lados pares
+  if (k > 0 && a * k >= 0.9 * srcW * s) return { w: a * k, h: b * k }; // até 10% menor para não distorcer nada
+  const even = (x: number) => Math.max(2, Math.round(x / 2) * 2); // razão "feia" (ex.: 1366×768): erro < 1 px
+  return { w: even(srcW * s), h: even(srcH * s) };
+}
+
+/**
+ * Tamanho do vídeo para um telão srcW×srcH (canvas real: monitor × resolução de render). `copy` = passa pelo canvas
+ * 2D (recorte → w×h); sem cópia só o 16:9 nativo. 16:9: 1080p/720p cabem em 1920×1080/1280×720 (deitado) ou
+ * 1080×1920/720×1280 (em pé) com o aspecto do telão, ampliando se preciso. Vertical: se o recorte 9:16 do telão tiver
+ * menos linhas que a saída, cai para 720×1280 e avisa (ampliar não traz detalhe).
+ */
+export function outputSize(srcW: number, srcH: number, format: Format, size: Size, q: Quality): { w: number; h: number; copy: boolean; warn: string } {
+  srcW = Math.max(2, Math.round(srcW) || 2); srcH = Math.max(2, Math.round(srcH) || 2);
+  if (format === 'VERTICAL') {
+    const want = size === '1080' ? { w: 1080, h: 1920 } : size === '720' ? { w: 720, h: 1280 } : verticalSize(q);
+    if (want.h > 1280 && cropRect(srcW, srcH, 9, 16, { zoom: 1, offset: 0 }).sh < want.h)
+      return { w: 720, h: 1280, copy: true, warn: `O telão é pequeno para 1080p vertical: gravando em 720×1280.` };
+    return { ...want, copy: true, warn: '' };
+  }
+  if (size !== '1080' && size !== '720') return { w: srcW, h: srcH, copy: false, warn: '' };
+  const t = +size, long = Math.round((t * 16) / 9);
+  return { ...(srcW >= srcH ? fit(srcW, srcH, long, t) : fit(srcW, srcH, t, long)), copy: true, warn: '' };
+}
+
 export type Phase = 'idle' | 'starting' | 'recording' | 'stopping';
 export type RecState = {
   phase: Phase;

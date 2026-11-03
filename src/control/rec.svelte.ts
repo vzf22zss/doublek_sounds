@@ -2,7 +2,7 @@
 // para o telão por evento e a máquina de estados de lib/recorder. O telão grava; o Rust escreve o arquivo.
 import { invoke } from '@tauri-apps/api/core';
 import { emitTo, listen } from '@tauri-apps/api/event';
-import { BITRATE, IDLE, pickMime, recName, reduce, verticalSize, type Format, type Fps, type Quality, type RecEvent } from '../lib/recorder';
+import { BITRATE, IDLE, outputSize, pickMime, recName, reduce, type Format, type Fps, type Quality, type RecEvent, type Size } from '../lib/recorder';
 
 export const rec = $state({ s: IDLE, quality: 'MEDIA' as Quality, fps: 30 as Fps, format: 'TELAO' as Format, zoom: 1, offset: 0 });
 let say: (m: string) => void = () => {};
@@ -30,18 +30,23 @@ export function initRec(status: (m: string) => void) {
   }, 1000);
 }
 
-/** Gravar: precisa do telão aberto (grava o que ele mostra). `p95` = frametime do telão agora, para o aviso. */
-export async function startRec(outputOpen: boolean, p95: number) {
+/** Gravar: precisa do telão aberto (grava o que ele mostra). `p95` = frametime do telão agora, para o aviso;
+ *  `src` = tamanho do canvas do telão (monitor × resolução de render), `size` = Tamanho escolhido (D-15a). */
+export async function startRec(outputOpen: boolean, p95: number, src: { w: number; h: number }, size: Size) {
   if (rec.s.phase !== 'idle') return;
   if (!outputOpen) return say('Abra o telão (Projetar ou F) para gravar: a gravação é o que ele mostra.');
   const pick = typeof MediaRecorder !== 'undefined' ? pickMime(rec.fps, (m) => MediaRecorder.isTypeSupported(m), noMp4) : null;
   if (!pick) return say('Este WebView não tem codificador de vídeo para gravar.');
   const vertical = rec.format === 'VERTICAL';
   const id = recName(new Date(), pick.ext, vertical);
+  const out = outputSize(src.w, src.h, rec.format, size, rec.quality);
   send({ t: 'start', id, mime: pick.mime, at: performance.now(), p95, vertical });
+  if (out.warn) say(out.warn);
   try {
+    // `vertical` no telão = "copiar um recorte para um canvas w×h"; no 16:9 o aspecto é o do telão e o zoom 1, então
+    // o recorte é o quadro inteiro (escalado). Nativo: sem o campo, grava o canvas direto (sem cópia).
     await emitTo('output', 'rec-start', { id, mime: pick.mime, fps: rec.fps, bitrate: BITRATE[rec.quality],
-      ...(vertical ? { vertical: { ...verticalSize(rec.quality), zoom: rec.zoom, offset: rec.offset } } : {}) });
+      ...(out.copy ? { vertical: { w: out.w, h: out.h, ...(vertical ? { zoom: rec.zoom, offset: rec.offset } : { zoom: 1, offset: 0 }) } } : {}) });
   } catch (e) {
     send({ t: 'error', message: String(e) });
   }
