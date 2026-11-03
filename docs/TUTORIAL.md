@@ -509,11 +509,17 @@ Leve; se algo der errado (disco cheio, telão fechado), a gravação para com um
 telão continua normal**. A gravação para sozinha em 4 GB ou se o disco ficar com menos de 1 GB
 livre. Apague as gravações antigas de vez em quando: o app não apaga nada sozinho.
 
+**Tamanho:** **Telão (nativo)** grava no tamanho em que o telão está (sem custo extra); **1080p**
+ou **720p** gravam nesse tamanho mesmo que o telão seja outro (um pouco mais de custo, porque o app
+redimensiona cada quadro). A linha "Grava em W×H" mostra o resultado antes de começar, e avisa
+quando o telão tem menos detalhe e a imagem vai ser ampliada.
+
 **Vertical (9:16) para Reels/TikTok:** em **Formato**, escolha **Vertical**. Um retângulo ciano
 aparece por cima do PREVIEW mostrando o pedaço do telão que vai ser gravado; ajuste o **Zoom do
-recorte** e a **Posição horizontal** (dá para mexer gravando). O arquivo sai em 1080×1920
-(720×1280 na qualidade Leve) com `V9x16` no nome. O vertical pesa mais no notebook: prefira
-Leve ou 30 fps.
+recorte** e a **Posição horizontal** (dá para mexer gravando). Em **Tamanho**, escolha 1080×1920
+(o que Reels e TikTok pedem) ou 720×1280; em **Pela qualidade**, o app escolhe sozinho e cai para
+720×1280 quando o telão é pequeno demais para 1080. O arquivo sai com `V9x16` no nome. O vertical
+pesa mais no notebook: prefira Leve ou 30 fps.
 
 ![Gravação vertical: o retângulo ciano no PREVIEW mostra o recorte 9:16](img/gravacao-vertical.png)
 
@@ -812,6 +818,11 @@ Control, Arturia BeatStep…).
 4. **Mexa no knob ou aperte o pad** do controlador. Aparece um selo, como **CC16** ou **N41**,
    no controle da tela.
 5. Repita para os outros controles. No fim, clique em **Concluir** (ou **Esc**).
+
+O app guarda de qual controlador veio cada controle aprendido. Assim o **Testar tudo** (aba
+Saída) avisa exatamente "o controlador X está ocupado (ou desconectado) e tem N controles
+mapeados". Controles aprendidos antes da versão 0.3.10 não sabem de qual controlador vieram:
+aprenda de novo para o teste ficar preciso.
 
 ![MIDI learn: o knob Pulso armado e outros já mapeados](img/midi-learn.png)
 
