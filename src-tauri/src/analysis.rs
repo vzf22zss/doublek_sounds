@@ -51,6 +51,7 @@ pub struct Frame {
     pub peak: f32,
     pub rms: f32,
     pub bands: [f32; 5], // sub, bass, mid, click, air — 0..1 (normalizado pelo pico recente)
+    pub levels: [f32; 5], // as mesmas bandas ÷ pico da própria banda no último ~1 min; 0 abaixo do gate (pausa)
     pub kick: f32,       // força do kick desde o último frame (0 = nenhum)
     pub bpm: f32,
     pub locked: bool,
@@ -254,6 +255,8 @@ pub struct Analyzer {
     last_kick: f64,
     env: [f32; 5],
     env_peak: [f32; 5],
+    lvl_peak: [f32; 5], // pico de cada banda, decai em ~1 min (régua dos `levels`)
+    levels: [f32; 5],
     peak: f32,
     rms: f32,
     flux: f32,
@@ -306,6 +309,8 @@ impl Analyzer {
             last_kick: -1.0,
             env: [0.0; 5],
             env_peak: [1e-4; 5],
+            lvl_peak: [1e-4; 5],
+            levels: [0.0; 5],
             peak: 0.0,
             rms: 0.0,
             flux: 0.0,
@@ -380,6 +385,9 @@ impl Analyzer {
             let tau = if r > self.env[i] { 0.005 } else { 0.12 };
             self.env[i] += (r - self.env[i]) * (1.0 - (-dt / tau).exp());
             self.env_peak[i] = r.max(self.env_peak[i] * (-dt / 4.0).exp()).max(1e-4);
+            // régua de ~1 min, como o `low_ref`: com a de 4 s o chiado de uma pausa vira ~100 % em poucos segundos
+            self.lvl_peak[i] = r.max(self.lvl_peak[i] * (-dt / 60.0).exp()).max(1e-4);
+            self.levels[i] = if self.rms < p.gate { 0.0 } else { (self.env[i] / self.lvl_peak[i]).min(1.0) };
         }
 
         // tem grave? comparado com o grave do último minuto, não dos últimos 4 s (senão o breakdown vira "drop")
@@ -560,6 +568,7 @@ impl Analyzer {
             peak: self.peak,
             rms: self.rms,
             bands: std::array::from_fn(|i| (self.env[i] / self.env_peak[i]).min(1.0)),
+            levels: self.levels,
             kick: 0.0,
             bpm,
             locked: self.beat.locked,
@@ -872,6 +881,28 @@ mod tests {
             assert!(recall >= 0.9, "ruído {noisy}: recall {recall:.2}");
             assert!(relock.is_some_and(|r| r <= 4.0), "ruído {noisy}: re-trava {relock:?}");
         }
+    }
+
+    /// Onda 10: pausa com chiado baixo depois da música. `bands` (régua de 4 s) volta a ~1 em poucos segundos e a logo
+    /// voltava a dar zoom; `levels` (régua de ~1 min) fica baixo depois de 10 s. Silêncio digital: `levels` = 0.
+    #[test]
+    fn levels_na_pausa() {
+        let mut x = Synth { bpm: 148.0, secs: 20.0, hats: 0.3, ..Default::default() }.render().0;
+        x.extend(Synth { bpm: 148.0, secs: 15.0, start: 99.0, noise: 0.008, seed: 3, ..Default::default() }.render().0);
+        x.extend(vec![0.0; 2 * 48000]);
+        let f = frames(&x, 135.0, 150.0);
+        let max = |a: f64, b: f64, g: fn(&Frame) -> [f32; 5]| {
+            f.iter().filter(|(t, _)| (a..b).contains(t)).map(|(_, f)| g(f).into_iter().fold(0.0, f32::max)).fold(0.0, f32::max)
+        };
+        let (musica, chiado, regua4s, zero) =
+            (max(15.0, 20.0, |f| f.levels), max(30.0, 35.0, |f| f.levels), max(30.0, 35.0, |f| f.bands), max(35.5, 37.0, |f| f.levels));
+        println!("levels: música {musica:.2}, chiado depois de 10 s {chiado:.3} (bands: {regua4s:.2}), silêncio {zero}");
+        assert!(musica > 0.8, "música: levels {musica}");
+        assert!(chiado < 0.2, "chiado subiu para {chiado}");
+        assert!(regua4s > 0.8, "a régua de 4 s também ficaria baixa: o teste não mede nada");
+        assert_eq!(zero, 0.0, "silêncio digital");
+        // contrato com src/lib/types.ts
+        assert!(serde_json::to_value(&f[0].1).unwrap().get("levels").is_some_and(|l| l.as_array().is_some_and(|a| a.len() == 5)));
     }
 
     /// DK-112: com MIDI Clock o andamento é o dele (o áudio toca a 148, o clock manda 140) e o

@@ -12,7 +12,7 @@
   import { saveRoteiros } from '../lib/roteiro';
   import { midi, keyOf, bindArmed, clearArmed, keyLabel, learnable, type MidiMsg } from './midi.svelte';
   import { Renderer } from '../render/renderer';
-  import { VISUAL, loadVisual, saveVisual } from '../lib/settings';
+  import { PAUSES, VISUAL, loadVisual, saveVisual } from '../lib/settings';
   import { SAFE_LOOK, strobeRate } from '../lib/safety';
   import { createMusicState, type StateName } from '../lib/show-engine/state';
   import { plan, quantizeDelay } from '../lib/show-engine/rules';
@@ -956,6 +956,16 @@
         <p class="keys">O seletor ao lado de cada efeito escolhe o que no som o move: Auto (kick, ou a onda sem kick), Kick, Sub, Bass, Mid, Hats, Beat, Compasso ou LFO.</p>
         <Slider label="Duração do pulso" bind:value={vs.rel} learn="rel" min={0.03} max={0.5} step={0.01} def={VISUAL.rel} fmt={(v) => v.toFixed(2) + ' s'} />
         <Slider label="Seguir a música sem kick" bind:value={vs.wave} learn="wave" min={0} max={1} step={0.01} def={VISUAL.wave} fmt={f2} />
+        <div class="files">
+          <span>Na pausa</span>
+          <select bind:value={vs.pause} aria-label="Na pausa">
+            {#each Object.entries(PAUSES) as [k, name]}<option value={k}>{name}</option>{/each}
+          </select>
+        </div>
+        {#if vs.pause !== 'beat'}
+          <Slider label="Sensibilidade do silêncio" bind:value={vs.pauseThr} learn="pauseThr" min={0} max={0.3} step={0.01} def={VISUAL.pauseThr} fmt={pct} />
+        {/if}
+        <p class="keys">Pausa = sem kick e com o som abaixo da sensibilidade. Parar: a logo fica parada. Respirar: a logo respira devagar, sem pulso nem anéis. Seguir o beat: continua pulsando no beat previsto, como antes. Sem kick mas com música (breakdown), a logo segue a onda.</p>
 
       {:else if tab === 'Fundo'}
         <div class="files">

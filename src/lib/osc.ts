@@ -18,7 +18,7 @@ const OSC_MACROS: readonly MacroId[] = ['BUILD_UP', 'DROP', 'CHAOS', 'RESET'];
  */
 export const OSC_PARAMS: Record<string, [number, number, number]> = {
   ...Object.fromEntries(Object.entries(KNOBS).map(([k, [, lo, hi]]) => [k, [lo, hi, 0.001]])),
-  rel: [0.03, 0.5, 0.01], wave: [0, 1, 0.01], dropFade: [0.25, 8, 0.25], bgAngle: [0, 360, 1], bgBlur: [0, 40, 1],
+  rel: [0.03, 0.5, 0.01], wave: [0, 1, 0.01], pauseThr: [0, 0.3, 0.01], dropFade: [0.25, 8, 0.25], bgAngle: [0, 360, 1], bgBlur: [0, 40, 1],
   kaleido: [0, 1, 0.01], kaleidoN: [3, 12, 1], kaleidoSpin: [-1, 1, 0.01], kaleidoZoom: [0.5, 2, 0.01],
   tunnel: [0, 1, 0.01], tunnelSpeed: [0, 2, 0.01], tunnelDensity: [0, 1, 0.01],
   mandala: [0, 1, 0.01], mandalaPetals: [4, 16, 2],

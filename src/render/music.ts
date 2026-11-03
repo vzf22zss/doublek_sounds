@@ -12,6 +12,8 @@ export type MusicState = {
   rxAt: number; lastT: number; lastKickRx: number; strength: number;
   kickEnv: number; waveEnv: number; presence: number; black: number; dropEnv: number;
   prevPh: number; lastTrig: number; absBeat: number;
+  paused: boolean; // sem kick há PAUSE_BEATS (fora do modo 'beat'): nada de disparo previsto
+  sil: number;     // 0–1: silêncio (pausa + nível abaixo de pauseThr), já suavizado
   rings: Ring[];
   spec: Float32Array;
 };
@@ -40,13 +42,17 @@ export type MusicUniforms = {
 export const musicState = (): MusicState => ({
   frame: null, rxAt: 0, lastT: 0, lastKickRx: -1e9, strength: 0.8,
   kickEnv: 0, waveEnv: 0, presence: 0, black: 0, dropEnv: 1,
-  prevPh: 0, lastTrig: -1e9, absBeat: 0, rings: [], spec: new Float32Array(64),
+  prevPh: 0, lastTrig: -1e9, absBeat: 0, paused: false, sil: 0, rings: [], spec: new Float32Array(64),
 });
 
-/** Com o andamento travado, o pulso sai da fase prevista (adiantada pelo offset), não do kick detectado. */
+/** Pausa (Onda 10): nenhum kick há este tanto de beats. 2,5 e não 1,6 para um kick que faltou (2 beats) não cortar o pulso. */
+export const PAUSE_BEATS = 2.5;
+
+/** Com o andamento travado, o pulso sai da fase prevista (adiantada pelo offset), não do kick detectado. Na pausa, não:
+ *  a grade fixa da música tocada pelo app nunca solta (`holding`) e o pulso seguia o silêncio inteiro. */
 export function predicting(st: MusicState, v: Visual) {
   const f = st.frame;
-  return !!f && v.predict && f.locked && !f.holding && f.bpm > 0;
+  return !!f && v.predict && f.locked && !f.holding && f.bpm > 0 && !st.paused;
 }
 
 function trigger(st: MusicState, now: number, s: number) {
@@ -61,9 +67,11 @@ export function musicFrame(st: MusicState, f: Frame, v: Visual, now: number) {
   st.frame = f;
   st.rxAt = now;
   if (f.kick > 0) {
+    const back = st.paused; // o kick voltou: dispara na hora, sem esperar o próximo beat previsto
+    st.paused = false;
     st.lastKickRx = now;
     st.strength = f.kick;
-    if (!predicting(st, v) && v.react !== false) trigger(st, now, f.kick);
+    if ((back || !predicting(st, v)) && v.react !== false) trigger(st, now, f.kick);
   }
 }
 
@@ -101,6 +109,7 @@ export function music(st: MusicState, v: Visual, now: number): MusicUniforms {
   const f = st.frame;
   const stale = !f || now - st.rxAt > 3000;
   const period = f?.bpm ? 60000 / f.bpm : 420;
+  st.paused = v.pause !== 'beat' && now - st.lastKickRx > period * PAUSE_BEATS;
 
   const live = v.react !== false; // "só roteiro": ignora o som (o relógio do beat continua)
   // fase do beat extrapolada, já com o offset visual (negativo = adiantado)
@@ -117,18 +126,26 @@ export function music(st: MusicState, v: Visual, now: number): MusicUniforms {
   // envelopes (independem da taxa de quadros)
   st.kickEnv *= Math.exp(-dt / Math.max(0.01, v.rel));
   const b = !stale && f && live ? f.bands : [0, 0, 0, 0, 0];
-  const w = Math.max(b[0], b[1]) * 0.6 + b[2] * 0.4;
+  // fontes e onda na régua de ~1 min (`levels`): na de 4 s (`bands`) o chiado de uma pausa vira ~100 %. Frame antigo: bands
+  const lv = !stale && f && live ? f.levels ?? b : b;
+  const w = Math.max(lv[0], lv[1]) * 0.6 + lv[2] * 0.4;
   st.waveEnv += (w - st.waveEnv) * (1 - Math.exp(-dt / (w > st.waveEnv ? 0.012 : Math.max(0.02, v.rel * 0.8))));
   const target = predicting(st, v) || now - st.lastKickRx < period * 1.6 ? 1 : 0;
   st.presence += (target - st.presence) * (1 - Math.exp(-dt / (target > st.presence ? 0.04 : 0.3)));
   const kick = st.presence * st.kickEnv;
   let p = live ? kick + (1 - st.presence) * st.waveEnv * v.wave : 0;
-  if (stale) p = 0.12 * (0.5 + 0.5 * Math.sin(now / 1000 * 1.6)); // sem sinal: respira devagar
+  const breathe = 0.12 * (0.5 + 0.5 * Math.sin(now / 1000 * 1.6)); // devagar e baixo
+  // silêncio = pausa + nível abaixo de pauseThr. Breakdown com pad não é silêncio: segue a onda pelos levels
+  const quiet = live && st.paused && Math.max(...lv) < v.pauseThr;
+  st.sil += ((quiet ? 1 : 0) - st.sil) * (1 - Math.exp(-dt / (quiet ? 0.3 : 0.04)));
+  p += ((v.pause === 'breathe' ? breathe : 0) - p) * st.sil;
+  if (stale) p = breathe; // sem sinal
 
   // matriz de modulação: cada efeito escolhe a fonte do movimento
   const S: Record<Source, number> = {
-    auto: p, kick, sub: b[0], bass: b[1], mid: b[2], hats: b[3],
-    beat: f?.bpm ? (1 - ph) ** 2 : 0, bar: f?.bpm ? 1 - bar : 0, lfo: 0.5 + 0.5 * Math.sin(2 * Math.PI * bar),
+    auto: p, kick, sub: lv[0], bass: lv[1], mid: lv[2], hats: lv[3],
+    beat: f?.bpm ? (1 - ph) ** 2 * (1 - st.sil) : 0, bar: f?.bpm ? (1 - bar) * (1 - st.sil) : 0,
+    lfo: 0.5 + 0.5 * Math.sin(2 * Math.PI * bar),
   };
   const fx = v.logoOnly ? 0 : 1; // L = só a logo, sem efeitos
   // "só no drop": some no breakdown sem grave e entra quando o grave volta, em dropFade beats

@@ -108,4 +108,13 @@ assert.equal(sanitizeRoteiro({ cues: 'x' }), null);
   assert.equal(cueLabel(r.cues[1], names, []), 'Drop');
 }
 
+// Onda 10: modo da pausa só com valor conhecido (nada herdado do protótipo), sensibilidade na faixa, fora das cenas
+{
+  for (const pause of ['toString', 'xx', 3]) assert.equal(validVisual({ pause }).pause, 'breathe', String(pause));
+  assert.equal(validVisual({ pause: 'stop' }).pause, 'stop');
+  assert.deepEqual([validVisual({ pauseThr: 5 }).pauseThr, validVisual({ pauseThr: -1 }).pauseThr], [0.3, 0]);
+  const look = lookOf({ ...VISUAL, pause: 'stop' }) as Record<string, unknown>;
+  assert.ok(!('pause' in look) && !('pauseThr' in look), 'pausa fora das cenas');
+}
+
 console.log('settings: ok');
