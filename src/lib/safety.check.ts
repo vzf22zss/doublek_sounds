@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { strobeEvery, strobeAllowed, strobeRate, MAX_FLASH_HZ, SAFE_LOOK } from './safety.ts';
 import { lookOf, VISUAL } from './settings.ts';
+import { NAMES } from '../render/budget.ts';
 
 assert.equal(strobeEvery(140, 1), 1);   // 2,33 Hz: passa inteiro
 assert.equal(strobeEvery(180, 1), 1);   // 3,00 Hz: no limite, passa
@@ -18,5 +19,8 @@ assert.ok(strobeRate(220, 4, false) > 14); // sem o limite, é isso que o strobe
 assert.deepEqual([0, 1, 2, 3, 4, 5].map((n) => strobeAllowed(n, 3)), [true, false, false, true, false, false]);
 assert.equal(strobeAllowed(-3, 3), true); // beat negativo antes do 1º kick
 assert.ok(Object.keys(SAFE_LOOK).every((k) => k in lookOf(VISUAL)), 'SAFE_LOOK só com chaves de cena');
+// PÂNICO e Reset acalmam o Psy Engine inteiro: todo módulo (lista do orçamento do renderer) vai a 0
+for (const m of Object.keys(NAMES)) assert.equal((SAFE_LOOK as Record<string, number>)[m], 0, `SAFE_LOOK zera o módulo ${m}`);
+assert.equal(Object.keys(NAMES).length, 6);
 
 console.log('safety: ok');

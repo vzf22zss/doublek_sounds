@@ -250,6 +250,12 @@ const reason = (r: { ok: boolean; reason?: string }) => (r.ok ? '' : (r as any).
   assert.deepEqual(routePad(pad, true), { type: 'SCENE_PREVIEW', index: 4 });
   assert.deepEqual(routePad({ type: 'BLACKOUT' }, true), { type: 'BLACKOUT' });
   assert.deepEqual(routePad({ type: 'SCENE_RECALL', index: 1, fade: 0, now: true }, false), { type: 'SCENE_RECALL', index: 1, fade: 0, now: true });
+  // teclado passa pelo mesmo roteamento (o App faz routePad(keyCommand(e), previewMode)): 1–8 preparam no modo preview
+  const kb = (code: string, shiftKey: boolean, pm: boolean) => routePad(keyCommand({ code, key: '', shiftKey })!, pm);
+  assert.deepEqual(kb('Digit3', false, true), { type: 'SCENE_PREVIEW', index: 2 }, 'modo preview: tecla 3 prepara');
+  assert.deepEqual(kb('Digit3', false, false), { type: 'SCENE_RECALL', index: 2 }, 'sem modo preview: tecla 3 chama');
+  assert.deepEqual(kb('Digit3', true, false), { type: 'SCENE_PREVIEW', index: 2 }, 'Shift+3 prepara sempre');
+  assert.deepEqual(kb('KeyB', false, true), { type: 'BLACKOUT' }, 'o resto não muda');
 
   const k = (code: string, shiftKey = false, key = '') => keyCommand({ code, key, shiftKey });
   assert.deepEqual(k('Digit3'), { type: 'SCENE_RECALL', index: 2 });
