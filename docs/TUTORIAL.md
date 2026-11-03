@@ -527,8 +527,9 @@ quando o telão tem menos detalhe e a imagem vai ser ampliada.
 aparece por cima do PREVIEW mostrando o pedaço do telão que vai ser gravado; ajuste o **Zoom do
 recorte** e a **Posição horizontal** (dá para mexer gravando). Em **Tamanho**, escolha 1080×1920
 (o que Reels e TikTok pedem) ou 720×1280; em **Pela qualidade**, o app escolhe sozinho e cai para
-720×1280 quando o telão é pequeno demais para 1080. O arquivo sai com `V9x16` no nome. O vertical
-pesa mais no notebook: prefira Leve ou 30 fps.
+720×1280 quando o telão é pequeno demais para 1080. O arquivo sai com `V9x16` no nome. O app
+recorta o quadro pela placa de vídeo (WebCodecs) e o vertical custa o mesmo que o 16:9; num
+Windows sem esse recurso ele copia cada quadro e pesa mais — aí prefira Leve ou 30 fps.
 
 ![Gravação vertical: o retângulo ciano no PREVIEW mostra o recorte 9:16](img/gravacao-vertical.png)
 
@@ -915,7 +916,7 @@ trava por 1 minuto.
 |---|---|
 
 A tela do celular mostra o BPM, o estado da música e o DROP, e tem: os bancos e os 8 pads com os
-nomes das cenas (o pad aceso é a cena no telão), **BLACKOUT** e **SÓ LOGO**, as 4 macros, **TAP**
+nomes das cenas (o pad aceso é a cena no telão), **BLACKOUT** e **Só logo**, as 4 macros, **TAP**
 e ajuste de fase (◀ ▶), quatro sliders (pulso, glow, flash, rastro) e o **PÂNICO**, grande e
 separado. Se o celular perder o app (Wi-Fi caiu, app fechado), aparece uma faixa "sem conexão" e
 os botões ficam desligados até voltar; o show no notebook continua normal.

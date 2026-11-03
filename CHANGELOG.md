@@ -16,6 +16,13 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 - Vídeo: a cena preparada no Preview já deixa o vídeo dela carregado, e o TAKE entra sem engasgo (o roteiro tocando tem prioridade).
 - **Relatar problema** no menu da pílula de saúde: salva o diagnóstico, copia um resumo sem dados pessoais e abre a página do relato no GitHub (nada é enviado sozinho).
 
+### Corrigido
+
+- A janela de controle travava um pouco a cada ajuste (slider, knob MIDI, OSC ou celular): o PREVIEW era refeito do zero toda vez (11 programas da placa de vídeo, ~0,3 s). Agora é criado uma vez só.
+- **PÂNICO** e **Reset** passam a acalmar também Partículas e Orgânico (antes só caleidoscópio, túnel, mandala e glitch).
+- Teclas **1–8** com o modo Preview ligado preparam a cena, como os pads (antes mandavam direto para o telão).
+- Celular: "Caos" e "Só logo" com o mesmo nome do controle.
+
 ## [0.3.9] - 2026-10-31
 
 ### Adicionado
