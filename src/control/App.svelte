@@ -767,7 +767,7 @@
       const x = f.beatPhase + ((performance.now() - frameAt) / 1000) * (f.bpm / 60);
       beatNow = { idx: (((f.beat + Math.floor(x)) % 4) + 4) % 4, phase: x - Math.floor(x) };
     };
-    loop();
+    untrack(loop); // o 1º quadro lê frame/fps/…: rastreado, o efeito recriava o laço a cada quadro de áudio
     return () => cancelAnimationFrame(raf);
   });
 
