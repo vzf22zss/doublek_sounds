@@ -6,6 +6,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Não lançado]
 
+## [0.3.12] - 2026-11-03
+
 ### Corrigido
 
 - Música de psy tocada pelo app (roteiro): a grade do beat podia travar na última nota do baixo rolante, ~¼ de beat antes do kick, e a logo pulsava sempre adiantada (numa faixa real a 145 BPM, 2 % dos kicks com pulso; agora 73–84 %, e quase nenhum pulso fora do kick). A análise da faixa acha a fase do kick pela subida do grave e desloca o mapa inteiro.
@@ -244,7 +246,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 - Crossfade de cena, barra do topo em 1280px e selo MIDI nos pads.
 
-[Não lançado]: https://github.com/vzf22zss/doublek_sounds/compare/8e9ebc4...main
+[Não lançado]: https://github.com/vzf22zss/doublek_sounds/compare/HASH0312...main
+[0.3.12]: https://github.com/vzf22zss/doublek_sounds/compare/8e9ebc4...HASH0312
 [0.3.11]: https://github.com/vzf22zss/doublek_sounds/compare/cc2cf94...8e9ebc4
 [0.3.10]: https://github.com/vzf22zss/doublek_sounds/compare/7f1252a...cc2cf94
 [0.3.9]: https://github.com/vzf22zss/doublek_sounds/compare/078fe13...7f1252a
