@@ -6,6 +6,11 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Não lançado]
 
+### Corrigido
+
+- Sub, Bass, Mid, Hats, a onda e a pílula DROP presos em 0 com o kick sendo detectado: o **Corte de ruído** é calibrado pelo pico do som, mas esses níveis o comparavam com o volume médio (3 a 4 vezes menor). Agora todos comparam o pico. A música tocada pelo app (roteiro) não usa mais o corte, que é da entrada.
+- **Calibrar ruído** com som tocando subia o corte até o teto (0,2) sem avisar. Agora o app recusa (pico acima de −26 dB não é ruído) e avisa; com o corte já alto, a aba Áudio mostra um aviso e o duplo clique volta ao padrão.
+
 ## [0.3.12] - 2026-11-03
 
 ### Corrigido

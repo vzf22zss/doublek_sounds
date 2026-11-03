@@ -6,7 +6,7 @@ export type Color = 'verde' | 'amarelo' | 'vermelho';
 export type Item = { id: string; label: string; color: Color; msg: string };
 
 export type PreshowInput = {
-  rms: number[];               // uma amostra a cada 100 ms por 10 s; 0 quando não chegou quadro novo
+  peak: number[];              // pico (como o corte): uma amostra a cada 100 ms por 10 s; 0 quando não chegou quadro novo
   gate: number;
   lockedAtS: number | null;    // segundos até o BPM travar (0 = já estava travado); null = não travou
   output: { open: boolean; fullscreen: boolean | null; monitorOk: boolean | null; p95: number[]; lost: boolean };
@@ -43,9 +43,9 @@ const it = (id: string, label: string, color: Color, msg: string): Item => ({ id
 export function evaluate(i: PreshowInput): Item[] {
   const out: Item[] = [];
 
-  const above = i.rms.filter((r) => r > i.gate).length;
-  out.push(i.rms.length && above / i.rms.length >= 0.5
-    ? it('audio', 'Áudio', 'verde', `Som entrando (${Math.round((above / i.rms.length) * 100)}% do tempo acima do corte).`)
+  const above = i.peak.filter((r) => r > i.gate).length;
+  out.push(i.peak.length && above / i.peak.length >= 0.5
+    ? it('audio', 'Áudio', 'verde', `Som entrando (${Math.round((above / i.peak.length) * 100)}% do tempo acima do corte).`)
     : it('audio', 'Áudio', 'vermelho', 'Pouco som entrando: aumente o ganho ou confira o cabo do REC/BOOTH.'));
 
   out.push(i.lockedAtS !== null && i.lockedAtS <= 10
@@ -124,3 +124,14 @@ export function evaluate(i: PreshowInput): Item[] {
 /** Pior cor da lista (resumo do botão). */
 export const worst = (items: Item[]): Color =>
   items.some((x) => x.color === 'vermelho') ? 'vermelho' : items.some((x) => x.color === 'amarelo') ? 'amarelo' : 'verde';
+
+/** Corte de ruído acima disto (−26 dB de pico) é som, não ruído: a calibração rodou com música, e os níveis, o drop
+ *  e o kick ficavam presos no 0 (0.3.12: corte salvo em 0,2, o teto). */
+export const GATE_HIGH = 0.05;
+
+/** Calibração: o corte fica 30 % acima do pico do ruído. Pico alto demais = tinha som tocando: recusa. */
+export function noiseGate(peak: number): { gate: number } | { error: string } {
+  const gate = +(peak * 1.3).toFixed(4);
+  if (gate > GATE_HIGH) return { error: `Tinha som durante a calibração (pico ${(20 * Math.log10(peak)).toFixed(0)} dB): o corte não mudou. Pare a música, silencie a entrada e calibre de novo.` };
+  return { gate };
+}

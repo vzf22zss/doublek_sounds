@@ -169,7 +169,11 @@ O número ao lado é o fps do telão. **Clicar nas bolinhas** abre um menu:
 4. Ajuste o **Ganho** até o medidor ficar entre **−12 dB e −3 dB** nos trechos fortes,
    **sem** chegar no CLIP.
 5. Com a música **parada**, clique em **Calibrar ruído (2 s de silêncio)**. O app mede o
-   chiado da linha e define o **Corte de ruído**. Abaixo desse nível, ele ignora o som.
+   chiado da linha e define o **Corte de ruído**. Abaixo desse nível, ele ignora o som. Se
+   tiver som durante a calibração, o app avisa e não muda o corte. Com o corte alto (acima de
+   0,050) aparece um aviso: ele corta a própria música, e Sub, Bass, Mid, Hats e a pílula DROP
+   ficam em 0. **Duplo clique** no fader volta ao padrão (0,003). A música tocada pelo próprio
+   app (roteiro) não usa esse corte.
 
 > O app lembra a entrada escolhida. Da próxima vez, ele já começa a ouvir sozinho.
 > Se a interface for desplugada, ele tenta reconectar a cada segundo.
@@ -1107,6 +1111,7 @@ modo de automação, clique no chip de estado).
 | Telão travando, fps baixo | Abaixe a **Resolução de render**. Feche outros programas. Deixe o notebook na tomada. |
 | O telão abriu no monitor errado | Feche (**F**), escolha o outro monitor na aba **Saída** e projete de novo. |
 | Efeito "só no drop" não aparece com o grave tocando | A pílula **DROP** está apagada: baixe o **Limiar do grave** (aba Áudio). |
+| Pulso no **Sub** (ou Bass, Mid, Hats) parado no 0, com o kick piscando no analisador | O **Corte de ruído** está alto (aviso na aba Áudio): duplo clique nele volta ao padrão (0,003), e calibre de novo com a música parada. |
 | Roteiro no modo DJ escorregando | O BPM ao vivo não estava firme no GO. Espere firmar (ou dê TAP), e corrija com **‹ ›** / **« »**. |
 | Roteiro: pontos adiantados ou atrasados em relação à música | Alinhe a grade com **−5ms / +5ms**; se for um beat inteiro, **1º tempo − / +**. |
 | "A saída está em … Hz" ao tocar o roteiro | A saída de áudio mudou: escolha a saída de novo na aba Roteiro (a música é preparada de novo). |
