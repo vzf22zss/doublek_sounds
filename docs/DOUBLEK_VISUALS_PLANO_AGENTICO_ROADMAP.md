@@ -935,10 +935,38 @@ Cada lote de integração (`integ/onda-N`) vira uma versão; publica-se quando o
 | 0.3.7 | onda 6 | tela do celular (DK-082) + fix do toggle, Intelligent Show v2 + mapa (DK-035), presets compartilháveis (DK-132), gravação do telão (DK-071/072), P8 | **publicada 2026-10-31 01:49 UTC** (`prod` @ `d74eedc`, CI 41156688563, release 41156934789) |
 | 0.3.8 | onda 7 | vídeo completo (DK-061/062) + fix do loop, MIDI Clock (DK-111/112), testes de rede + slowloris (DK-083), gravação vertical (DK-073), editor de shaders (DK-121/122), notas de release e SHA-256 (DK-004), fixes da regressão | **publicada 2026-10-31 03:19 UTC** (`prod` @ `decce4d`, CI 41163345148, release 41163629051 — 1ª com notas do CHANGELOG e `SHA256SUMS.txt`) |
 | 0.3.9 | onda 8 | saída Spout (DK-102), efeitos da comunidade no telão + modo seguro (DK-123) com `mod` e MIDI (D-21), vídeo como camada (DK-063), diário de análise (DK-144), capturas e GIFs do tutorial (DK-007), polimento de UI, verificação pré-show (DK-145), stop do OSC/celular instantâneo | **publicada 2026-11-03 00:09 UTC** (`prod` @ `0dc0189`, CI 41549571868, release 41550245945: MSI + .sig + latest.json + SHA256SUMS) |
-| 0.3.10 | onda 9 | Song Position Pointer (D-17), pré-carga do vídeo da cena no Preview (D-19a), resolução de gravação (D-15a), MIDI com controlador de origem (D-23), recorte vertical sem cópia 2D (D-18, se medir melhor), conclusão da D-22 | em integração (`integ/onda-9`) |
+| 0.3.10 | onda 9 | SPP (D-17), pré-carga do Preview (D-19a), tamanho da gravação (D-15a), vertical por WebCodecs (D-18), MIDI com origem (D-23), resumo do diário, Relatar problema, auditoria do tutorial/README, correções: PREVIEW recriado a cada ajuste, laços rAF, Parar no início da gravação, PÂNICO no Psy inteiro, teclas no Preview | smoke e2e no exe 48/0/1 + 23/0/0 (sessão c4); `main` @ `92230ce`, publicação em andamento |
 | 0.4.0 | fechamento M0 | depois de D-01 e DK-141 | bloqueada (D-09) |
 
 ---
+
+### 8.7. Pauta do mantenedor (o que só você decide ou testa)
+
+O software das fases M0–M5 e do pós-M5 está feito, menos o Ableton Link (bloqueado pela licença). O que falta está aqui, em ordem de impacto, cada item com a recomendação do coordenador. Responder a esta lista destrava a 0.4.0.
+
+**Decidir (cada um é uma frase):**
+
+| # | Decisão | Recomendação do coordenador | O que destrava |
+|---|---|---|---|
+| 1 | **Licença** (DEC-01/D-01) | Se a ideia é o código ficar aberto e aceitar ajuda: **GPLv3** (libera o Ableton Link via `rusty_link`, D-20; obriga quem distribuir modificado a abrir o código). Se quer poder vender/fechar depois: **todos os direitos reservados** (o padrão de hoje) ou MIT, e o Link fica de fora. | 0.4.0, Link, fixtures de terceiros, contribuições |
+| 2 | **Música dentro do Show Pack** (DEC-09/D-03) | Manter **fora** por padrão e oferecer uma caixa "incluir as músicas (só para uso pessoal)" desligada; o arquivo avisa o tamanho. | Show Pack completo para trocar de notebook |
+| 3 | **O que é "do show" × "da máquina"** (D-05, D-14) | Mapa de automação e presets importados **vão** no Show Pack (são escolhas artísticas); mapeamento MIDI continua perguntando (depende do controlador). | Show Pack completo |
+| 4 | **Comando de rede conta como "mão"?** (D-06) | **Sim** para o celular (é o operador), **não** para OSC (costuma ser outro programa automatizando). | Intelligent Show com celular |
+| 5 | **Lembrar o modo de automação** (D-13) | Continuar abrindo em **Manual** (segurança de palco). | — |
+| 6 | **Cena repetida reinicia o vídeo?** (D-19) | Não reiniciar (fica contínuo); quem quiser reinício usa "reiniciar no compasso" ao trocar de vídeo. | — |
+| 7 | **Limites do Show Pack** (DEC-03/D-04) | Confirmar os atuais (50 arquivos, 2 GiB). | — |
+| 8 | **Contato de segurança** (D-08) | Um e-mail para o `SECURITY.md`. | Canal privado de reporte |
+
+**Guardar:** uma cópia offline de `%USERPROFILE%\.tauri\doublek.key` (D-07). Sem ela, quem já instalou não recebe mais atualizações.
+
+**Testar com o equipamento (1 tarde resolve quase tudo; roteiros nos docs):**
+
+1. Instalar o MSI mais novo das Releases num notebook limpo (D-10) e abrir offline.
+2. Set real com a interface de áudio: **Gravar análise** com **M** nos drops (`docs/quality/CALIBRACAO.md`) — o resumo no app já diz o que ajustar; mande o `.jsonl` para calibrar D-02/D-12/D-16 e fechar o DK-141 (`docs/quality/DK-141-plano-de-teste.md`).
+3. Projetor real: **Testar tudo** com a música tocando; conferir offset e fps.
+4. Controladora MIDI física (MIDI learn, "ocupado") e MIDI Clock/SPP do Traktor/Rekordbox/CDJ (`docs/MIDI-CLOCK.md`).
+5. Celular no Wi-Fi (`docs/REMOTO.md`) e, se usar, TouchOSC (`docs/OSC.md`) e Resolume via Spout (`docs/quality/SPOUT.md` §5).
+6. Mostrar para 2 ou 3 DJs e anotar o que confundiu (feedback beta, DK-007): o botão **Relatar problema** já abre o relato pronto.
 
 ## 9. ORDEM DE EXECUÇÃO E DEPENDÊNCIAS
 
