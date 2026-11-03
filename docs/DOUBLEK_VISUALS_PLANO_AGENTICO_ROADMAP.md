@@ -950,6 +950,7 @@ Cada lote de integração (`integ/onda-N`) vira uma versão; publica-se quando o
 | 0.3.10 | onda 9 | SPP (D-17), pré-carga do Preview (D-19a), tamanho da gravação (D-15a), vertical por WebCodecs (D-18), MIDI com origem (D-23), resumo do diário, Relatar problema, auditoria do tutorial/README, correções: PREVIEW recriado a cada ajuste, laços rAF, Parar no início da gravação, PÂNICO no Psy inteiro, teclas no Preview | **publicada 2026-11-03 02:02 UTC** (`prod` @ `92230ce`, CI 41562940203, release 41563277309: MSI + .sig + latest.json + SHA256SUMS); smoke e2e no exe 48/0/1 + 23/0/0 |
 | 0.3.11 | onda 10 | "Logo orgânica": pausa/silêncio + `levels` (30), régua por efeito e na logo (06), mapa de andamento + UX do BPM (c4), revisão (40 + coordenador) | **publicada** 2026-11-03 19:34 UTC (`prod` @ `c246aec`; MSI, .sig, latest.json, SHA256SUMS); smoke e2e 49/0/1 |
 | 0.3.12 | onda 11 | Logo calibrada com faixa real de psy (fase do kick no mapa, tercina/meio tempo, pulso no padrão do kick, volume do kick, sem pausa com grave) | **publicada** 2026-11-03 23:04 UTC (`prod` @ `6ba6581`; MSI, .sig, latest.json, SHA256SUMS); smoke e2e 47/1/2 (falha = D-29, preexistente) |
+| 0.3.13 | onda 12 | Corte de ruído em pico (níveis, drop e trend), roteiro sem corte, calibração que recusa som, aviso de corte alto | **publicada** 2026-11-03 23:57 UTC (`prod` @ `f9f5cc2`; MSI, .sig, latest.json, SHA256SUMS); smoke e2e 38/2/2 (celular instável = D-30) |
 | 0.4.0 | fechamento M0 | depois de D-01 e DK-141 | bloqueada (D-09) |
 
 ---
