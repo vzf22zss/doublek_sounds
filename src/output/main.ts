@@ -57,7 +57,9 @@ const blackout = () => document.body.classList.toggle('black', !!v.blackout);
 blackout();
 listen<Visual>('visual', (e) => { v = e.payload; blackout(); r?.setVisual(v); sync?.(v); fx.onVisual(v); });
 listen('assets', () => sync?.(v, true));
-listen<string[]>('preload', (e) => preloadVideo(e.payload[0] ?? '')); // próximo vídeo do roteiro: troca instantânea
+// próximo vídeo (roteiro ou cena no PREVIEW): troca instantânea. Com o ouvinte pronto, avisa o controle, que reenvia a
+// pré-carga atual — o telão aberto depois de preparar a cena também a recebe (D-19a)
+listen<string[]>('preload', (e) => preloadVideo(e.payload[0] ?? '')).then(() => emitTo('control', 'output-ready'));
 
 const ch = new Channel<Msg>();
 ch.onmessage = (m) => { if (m.t === 'frame') { lastFrame = m.v; r?.setFrame(m.v); } };

@@ -146,6 +146,7 @@
     preloadVideo(id);
     emitTo('output', 'preload', [id]);
   });
+  onEvent('output-ready', () => { if (lastPre) emitTo('output', 'preload', [lastPre]); }); // telão (re)aberto: a vaga de agora
   $effect(() => {
     const v = $state.snapshot(vs), st = staged;
     const pv = st ? { ...v, ...($state.snapshot(st.look) as object) } as typeof v : v;
