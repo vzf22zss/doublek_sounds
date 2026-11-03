@@ -124,7 +124,9 @@ pub fn play(
         while let Ok(c) = cmds.try_recv() {
             an.command(c);
         }
-        let p = *params.lock().unwrap();
+        // o "Corte de ruído" é da entrada (microfone, placa): o arquivo não tem esse ruído, e um corte calibrado com som
+        // tocando (até 0,2) zerava os níveis e o drop da música do roteiro
+        let p = Params { gate: Params::default().gate, ..*params.lock().unwrap() };
         if let Some(k) = an.process(&mono, &p) {
             kick = kick.max(k);
         }

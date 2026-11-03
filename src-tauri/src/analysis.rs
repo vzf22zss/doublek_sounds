@@ -259,6 +259,7 @@ pub struct Analyzer {
     env_peak: [f32; 5],
     lvl_peak: [f32; 5], // pico de cada banda, decai em ~1 min (régua dos `levels`)
     levels: [f32; 5],
+    over_gate: f64, // último hop com pico acima do "Corte de ruído" (calibrado em pico): aberto por ½ s depois dele
     peak: f32,
     rms: f32,
     flux: f32,
@@ -314,6 +315,7 @@ impl Analyzer {
             env_peak: [1e-4; 5],
             lvl_peak: [1e-4; 5],
             levels: [0.0; 5],
+            over_gate: -1.0,
             peak: 0.0,
             rms: 0.0,
             flux: 0.0,
@@ -382,6 +384,14 @@ impl Analyzer {
         self.peak = pk;
         self.rms = (sq / n).sqrt();
 
+        // o corte é calibrado em pico (`f.peak` × 1,3): comparar com o rms (3–4× menor) zerava os níveis e o drop de
+        // uma música que passava no corte do kick. Fica aberto ½ s depois do último pico: não pisca entre um kick e
+        // outro, e o silêncio fecha em ½ s
+        if pk >= p.gate {
+            self.over_gate = self.t;
+        }
+        let open = self.t - self.over_gate < 0.5;
+
         // envelopes por banda: ataque 5 ms, release 120 ms, normalizados pelo pico dos últimos ~4 s
         for i in 0..5 {
             let r = ms[i].sqrt();
@@ -390,7 +400,7 @@ impl Analyzer {
             self.env_peak[i] = r.max(self.env_peak[i] * (-dt / 4.0).exp()).max(1e-4);
             // régua de ~1 min, como o `low_ref`: com a de 4 s o chiado de uma pausa vira ~100 % em poucos segundos
             self.lvl_peak[i] = r.max(self.lvl_peak[i] * (-dt / 60.0).exp()).max(1e-4);
-            self.levels[i] = if self.rms < p.gate { 0.0 } else { (self.env[i] / self.lvl_peak[i]).min(1.0) };
+            self.levels[i] = if !open { 0.0 } else { (self.env[i] / self.lvl_peak[i]).min(1.0) };
         }
 
         // tem grave? comparado com o grave do último minuto, não dos últimos 4 s (senão o breakdown vira "drop")
@@ -400,7 +410,7 @@ impl Analyzer {
         let ratio = self.low_lvl / self.low_ref;
         let had_low = self.last_low; // antes deste hop: o grave do kick atual ainda não subiu
         let was_low = self.low_on;
-        self.low_on = self.rms >= p.gate && ratio > if self.low_on { 0.7 * p.drop_thr } else { p.drop_thr };
+        self.low_on = open && ratio > if self.low_on { 0.7 * p.drop_thr } else { p.drop_thr };
         if self.low_on != was_low {
             self.events.push(if self.low_on { "drop_on" } else { "drop_off" });
         }
@@ -409,7 +419,7 @@ impl Analyzer {
         }
 
         let e = (self.rms + ms[2].sqrt() + ms[4].sqrt()) / 3.0;
-        self.trend.step(t, dt, e, self.rms < p.gate, &self.beat);
+        self.trend.step(t, dt, e, !open, &self.beat);
 
         let k = (2.6 - 0.7 * p.sens).max(0.3);
         let (dc, tc) = self.on_click.step(ms[3], k);
@@ -920,6 +930,35 @@ mod tests {
             assert!(recall >= 0.9, "ruído {noisy}: recall {recall:.2}");
             assert!(relock.is_some_and(|r| r <= 4.0), "ruído {noisy}: re-trava {relock:?}");
         }
+    }
+
+    /// Corte de ruído calibrado (em pico, `f.peak` × 1,3) abaixo do pico da música mas acima do rms dela: os níveis e o
+    /// drop comparavam o rms e ficavam em 0 o tempo todo (vídeo do mantenedor: Pulso no Sub parado no 0, DROP apagado,
+    /// com o kick sendo aceito). Agora o corte compara o pico, como a calibração e o detector de kick.
+    #[test]
+    fn corte_de_ruido_em_pico() {
+        let x = Synth { bpm: 145.0, secs: 20.0, ..Default::default() }.render().0;
+        let base = frames(&x, 135.0, 150.0);
+        let late = |f: &[(f64, Frame)]| f.iter().filter(|(t, _)| *t > 8.0).map(|(_, f)| f.clone()).collect::<Vec<_>>();
+        let pk = late(&base).iter().map(|f| f.peak).fold(0.0, f32::max);
+        let rms = late(&base).iter().map(|f| f.rms).sum::<f32>() / late(&base).len() as f32;
+        let gate = 0.3 * pk;
+        assert!(rms < gate, "o caso não existe: rms {rms} ≥ corte {gate}");
+        let mut an = Analyzer::new(48000.0);
+        let p = Params { bpm_min: 135.0, bpm_max: 150.0, gate, ..Default::default() };
+        let (mut sub, mut low, mut n) = (0f32, 0, 0);
+        for (i, c) in x.chunks_exact(HOP).enumerate() {
+            an.process(c, &p);
+            if (i + 1) as f32 * HOP as f32 / 48000.0 > 8.0 {
+                let f = an.snapshot();
+                sub = sub.max(f.levels[0]);
+                low += (f.low > 0.5) as usize;
+                n += 1;
+            }
+        }
+        println!("pico {pk:.3}, rms médio {rms:.3}, corte {gate:.3}: sub {sub:.2}, drop {low}/{n}");
+        assert!(sub > 0.8, "sub zerado pelo corte: {sub}");
+        assert!(low * 10 > n * 9, "drop apagado pelo corte: {low}/{n}");
     }
 
     /// Onda 10: pausa com chiado baixo depois da música. `bands` (régua de 4 s) volta a ~1 em poucos segundos e a logo
