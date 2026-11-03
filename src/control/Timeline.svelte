@@ -2,6 +2,7 @@
   // Timeline do roteiro: forma de onda (rosa = grave), grade de compassos, pontos e cursor.
   // Clique = posiciona · duplo clique = novo ponto (no beat; Shift = no compasso) · arrastar ponto = move
   // · arrastar o fundo = rola · roda = zoom · Delete = apaga o ponto selecionado.
+  import { untrack } from 'svelte';
   import { rt, current, addCue, deleteCue, seek, play, pause, stop, nudge, setMode } from './roteiro.svelte';
   import { barLabel, beatAt, cueLabel, snap, timeAt, type Cue } from '../lib/roteiro';
   import { listVideos } from '../lib/assets';
@@ -29,7 +30,7 @@
     const ctx = canvas.getContext('2d')!;
     let raf = 0;
     const loop = () => { raf = requestAnimationFrame(loop); draw(ctx); };
-    loop();
+    untrack(loop); // desenhar lê o estado todo: rastreado, o efeito recriava o laço a cada mudança
     return () => cancelAnimationFrame(raf);
   });
 

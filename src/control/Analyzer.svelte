@@ -1,6 +1,7 @@
 <script lang="ts">
   // Espectro ao vivo + nível por banda + histórico da subida do sub contra o limiar.
   // É aqui que se regula a sensibilidade: cada linha rosa embaixo é um kick aceito.
+  import { untrack } from 'svelte';
   import type { Frame } from '../lib/types';
 
   let { frame, kickAt }: { frame: Frame | null; kickAt: number } = $props();
@@ -24,7 +25,7 @@
     const col = { accent: css.getPropertyValue('--accent'), kick: css.getPropertyValue('--kick'), muted: css.getPropertyValue('--muted') };
     let raf = 0;
     const loop = () => { raf = requestAnimationFrame(loop); paint(ctx, col); };
-    loop();
+    untrack(loop); // desenhar lê o estado todo: rastreado, o efeito recriava o laço a cada mudança
     return () => cancelAnimationFrame(raf);
   });
 
