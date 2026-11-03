@@ -20,6 +20,7 @@ node scripts/e2e/smoke.mjs --exe=..\outro-worktree\src-tauri\target\release\doub
 
 - Blocos: `resposta`, `spout`, `diario`, `fx`, `video`, `gravacao`, `osc`, `celular`. Em cada bloco, o console do controle e do telão (CSP) é conferido, e o telão é fechado no fim.
 - Saída: a tabela no terminal, `smoke-table.md`, `smoke-result.json` e as capturas, em `--out` (padrão `%TEMP%\doublek-e2e-out`). O código de saída é 0 se nada falhou.
+- `SHOTS=1` também salva em `--out` as capturas do celular para a documentação (`celular-retrato.png` e `celular-paisagem.png`, com a cena 2 acesa).
 - `node scripts/e2e/media.mjs` só gera a mídia de teste (cache em `%TEMP%\doublek-e2e-media`). O smoke também a gera sozinho quando falta.
 
 ## Segurança: o app instalado nunca é alvo

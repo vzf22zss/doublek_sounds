@@ -313,6 +313,17 @@ async function session(current, M) {
       R.ok('celular', 'código certo → tela de controle', !!(await until(() => vis('ctl'), 5000)));
       const pads = await until(async () => { const p = await ph.$$eval('#pads button', (bs) => bs.map((b) => b.textContent)); return p.length === 8 && p[0] !== 'Cena 1' ? p : null; }, 5000);
       R.ok('celular', '8 pads com os nomes das cenas do app', !!pads, (pads ?? []).join(' | '));
+      if (process.env.SHOTS) { // capturas para docs/img (retrato e paisagem, com a cena 2 acesa)
+        await ph.tap('#pads button:nth-child(2)');
+        await until(() => ph.$eval('#pads button:nth-child(2)', (x) => x.classList.contains('on')), 5000);
+        await wait(600);
+        await ph.screenshot({ path: path.join(OUT, 'celular-retrato.png') });
+        await ph.setViewport({ width: 844, height: 390, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+        await wait(800);
+        await ph.screenshot({ path: path.join(OUT, 'celular-paisagem.png') });
+        await ph.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+        await wait(500);
+      }
       const bo = await blackout();
       await ph.tap('#blackout');
       R.ok('celular', 'BLACKOUT pelo celular', !!(await until(async () => (await blackout()) === !bo, 3000, 100)));
