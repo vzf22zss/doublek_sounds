@@ -239,7 +239,7 @@ fn start_input(engine: State<Engine>, device: Option<String>, channel: usize) {
 /// `<app_data>/analysis/<data>T<hora>Z.jsonl`. Reiniciar abre um arquivo novo.
 #[tauri::command]
 fn analysis_log_start(app: AppHandle, engine: State<Engine>) -> Result<diary::Status, String> {
-    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?.join("analysis");
+    let dir = analysis_dir(&app)?;
     let mut slot = engine.diary.lock().unwrap();
     if let Some(old) = slot.take() {
         old.stop();
@@ -253,6 +253,24 @@ fn analysis_log_start(app: AppHandle, engine: State<Engine>) -> Result<diary::St
 #[tauri::command]
 fn analysis_log_stop(engine: State<Engine>) -> diary::Status {
     engine.diary.lock().unwrap().take().map(|d| d.stop()).unwrap_or_default()
+}
+
+fn analysis_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(app.path().app_data_dir().map_err(|e| e.to_string())?.join("analysis"))
+}
+
+/// Resumo de um diário (o cartão da aba Áudio). Só arquivos direto em `<app_data>/analysis`.
+#[tauri::command]
+async fn analysis_summary(app: AppHandle, path: String) -> Result<diary::Summary, String> {
+    diary::summary_in(&analysis_dir(&app)?, std::path::Path::new(&path))
+}
+
+/// Abre o Explorer na pasta das análises (só ela).
+#[tauri::command]
+fn analysis_open_dir(app: AppHandle) -> Result<(), String> {
+    let dir = analysis_dir(&app)?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    std::process::Command::new("explorer").arg(&dir).spawn().map(|_| ()).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -574,6 +592,8 @@ fn main() {
             analysis_log_start,
             analysis_log_stop,
             analysis_log_status,
+            analysis_summary,
+            analysis_open_dir,
             analysis_mark
         ])
         .run(tauri::generate_context!())

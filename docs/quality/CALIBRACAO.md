@@ -24,6 +24,26 @@ A detecção de kick, BPM e drop foi afinada com faixas sintéticas (`docs/quali
 
 ## Como ler
 
+**No app:** ao clicar em **Parar gravação**, a aba **Áudio** mostra um cartão com o resumo (duração, % travado, quedas de trava, drops marcados × detectados: acertos com atraso médio, perdidos e sem marca), uma orientação e o botão **Abrir pasta das análises**. O resumo é o mesmo do `replay` (`diary::summarize`) e o comando só lê arquivos que estão direto na pasta das análises.
+
+### Resumo no app: regras da orientação
+
+Só regras óbvias, na ordem (`src/lib/diario.ts`, testes em `diario.check.ts`):
+
+| Situação | Orientação |
+|---|---|
+| Menos de 2 min gravados | Grave pelo menos uns 10 min |
+| BPM travado < 70% do tempo | Confira o ganho e a faixa de BPM |
+| Nenhuma marca M | Aperte M em cada drop para comparar |
+| Perdidos ≥ 25% das marcas, e na maioria o grave **nunca saiu** nos 8 s antes da marca | O app não viu o breakdown: **suba** o Limiar do grave |
+| Perdidos ≥ 25% das marcas (o grave saiu e não voltou a tempo) | **Baixe** o Limiar do grave |
+| ≥ 3 drops sem marca e mais que o dobro das marcas | Se não eram drops, suba o Limiar do grave |
+| Nada disso | Detecção em dia |
+
+O limiar decide quando o grave "está tocando" (`grave atual / referência > limiar`). Um drop perdido tem duas causas opostas: limiar alto (o grave volta e não passa) ou limiar baixo (o grave nunca sai no breakdown, então não há "entrada" para detectar). O resumo conta os perdidos do segundo tipo (`missedNoBreakdown`) para a orientação apontar o lado certo. Atraso médio alto não vira orientação: não há ajuste na interface para ele.
+
+**No terminal** (detalhe por minuto, para quem desenvolve):
+
 ```powershell
 cd src-tauri
 cargo run --release --example replay -- C:\caminho\do\arquivo.jsonl
