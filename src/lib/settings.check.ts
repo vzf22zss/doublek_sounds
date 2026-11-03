@@ -1,6 +1,6 @@
 // npm run check — crossfade de cenas, saneamento de presets, cores e roteiro.
 import assert from 'node:assert/strict';
-import { blend, lookOf, sanitizeLook, VISUAL, type Visual } from './settings.ts';
+import { blend, lookOf, sanitizeLook, validVisual, VISUAL, type Visual } from './settings.ts';
 import { pickColors } from './assets.ts';
 import { barLabel, beatAt, cueLabel, due, newCue, rampAt, sanitizeRoteiro, snap, stateAt, timeAt, type Roteiro } from './roteiro.ts';
 
@@ -85,6 +85,15 @@ assert.equal(sanitizeRoteiro({ cues: 'x' }), null);
   const names = [{ name: 'Azul' }, null, { name: 'Drop' }];
   assert.equal(cueLabel(r.cues[0], names, []), 'B2·Drop');
   assert.equal(cueLabel(r.cues[1], names, []), 'Drop');
+}
+
+// Onda 10: modo da pausa só com valor conhecido (nada herdado do protótipo), sensibilidade na faixa, fora das cenas
+{
+  for (const pause of ['toString', 'xx', 3]) assert.equal(validVisual({ pause }).pause, 'breathe', String(pause));
+  assert.equal(validVisual({ pause: 'stop' }).pause, 'stop');
+  assert.deepEqual([validVisual({ pauseThr: 5 }).pauseThr, validVisual({ pauseThr: -1 }).pauseThr], [0.3, 0]);
+  const look = lookOf({ ...VISUAL, pause: 'stop' }) as Record<string, unknown>;
+  assert.ok(!('pause' in look) && !('pauseThr' in look), 'pausa fora das cenas');
 }
 
 console.log('settings: ok');

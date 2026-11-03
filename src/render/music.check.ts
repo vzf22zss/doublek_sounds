@@ -92,9 +92,9 @@ for (const dropFade of [1, 4]) {
 // strobe: com safeFlash nunca passa de 3 flashes/s (220 BPM, 1/1 = 3,67 Hz); sem ele, passa
 for (const safeFlash of [true, false]) {
   const st = musicState(), v = V({ strobe: 1, strobeDiv: 1, safeFlash }), bpm = 220;
-  let flashes = 0, prev = 0, peak = 0;
+  let flashes = 0, prev = 0, peak = 0, beat = -1;
   for (let t = 0; t <= 10000; t++) {
-    if (t % 10 === 0) musicFrame(st, at(t, bpm), v, t);
+    if (t % 10 === 0) { const f = at(t, bpm); musicFrame(st, { ...f, kick: f.beat > beat ? 0.9 : 0 }, v, t); beat = f.beat; } // kick em cada beat (Onda 10: sem kick é pausa)
     const s = music(st, v, t).strobe;
     if (s > 0 && prev === 0) flashes++;
     prev = s; peak = Math.max(peak, s);
@@ -117,7 +117,8 @@ for (const safeFlash of [true, false]) {
 
 // andamento travado + predict: o pulso sai do wrap da fase (com offset), não do kick detectado
 {
-  const st = musicState(), v = V({ predict: true, offset: -40 }), bpm = 120;
+  // 'beat' = o comportamento de antes da Onda 10 (no padrão, o 1º kick depois da pausa dispara na hora: ver abaixo)
+  const st = musicState(), v = V({ predict: true, offset: -40, pause: 'beat' }), bpm = 120;
   music(st, v, 1000);
   musicFrame(st, F({ bpm, locked: true, beatPhase: 0.5, kick: 0.9 }), v, 1000);
   assert.equal(st.rings.length, 0, 'kick detectado não dispara');
@@ -128,6 +129,80 @@ for (const safeFlash of [true, false]) {
   const nop = musicState(), vn = V({ predict: false });
   musicFrame(nop, F({ bpm, locked: true, kick: 0.9 }), vn, 1000);
   assert.equal(nop.rings.length, 1, 'sem predict: dispara no kick');
+}
+
+// Onda 10 — pausa na música tocada pelo app: a grade é fixa (nunca `holding`) e os kicks somem. Antes, o pulso e os
+// anéis seguiam cada beat previsto com a força do último kick durante o silêncio inteiro.
+for (const pause of ['beat', 'breathe', 'stop'] as const) {
+  const st = musicState(), v = V({ predict: true, pause }), bpm = 148;
+  const lvMusic = [0.9, 0.9, 0.6, 0.5, 0.4], lvQuiet = [0.01, 0.01, 0.02, 0.01, 0.01];
+  let t = 1000, beat = -1, u = music(st, v, t);
+  const run = (end: number, kicks: boolean, levels: number[]) => {
+    for (; t < end; t += 16) {
+      const f = at(t, bpm, { pos: 30, levels, bands: [1, 1, 1, 1, 1] }); // bands: régua de 4 s já "acostumada" ao chiado
+      musicFrame(st, { ...f, kick: kicks && f.beat > beat ? 0.9 : 0 }, v, t);
+      beat = f.beat;
+      u = music(st, v, t);
+    }
+  };
+  run(5000, true, lvMusic);
+  const t0 = t, ringsAt = st.rings.length;
+  let rings = 0, maxP = 0, minP = 1, lastRing = st.rings.at(-1)?.t ?? 0;
+  for (const end = t + 5000; t < end;) {
+    run(t + 16, false, lvQuiet);
+    if (st.rings.length && st.rings.at(-1)!.t > lastRing) { rings++; lastRing = st.rings.at(-1)!.t; }
+    if (t - t0 > 1500) { maxP = Math.max(maxP, u.p); minP = Math.min(minP, u.p); }
+  }
+  if (pause === 'beat') assert.ok(rings >= 10, `beat: segue disparando na pausa (${rings} anéis)`);
+  else {
+    assert.ok(rings <= 2, `${pause}: ${rings} anéis na pausa`); // só os 2 beats previstos antes de 2,5 beats sem kick
+    assert.ok(ringsAt >= 0 && st.rings.length === 0, `${pause}: anel vivo na pausa`);
+    if (pause === 'breathe') assert.ok(maxP <= 0.121 && maxP - minP > 0.05, `respira devagar e baixo: ${minP.toFixed(3)}–${maxP.toFixed(3)}`);
+    else assert.ok(maxP < 0.01, `stop: pulso ${maxP}`);
+    assert.ok(u.S.beat < 0.01 && u.S.kick < 0.01, `${pause}: fontes do beat paradas`);
+  }
+  // o kick volta: dispara na hora (não espera o próximo beat previsto). Em 'beat', como antes: no beat previsto
+  if (pause === 'beat') continue;
+  const f = at(t, bpm, { pos: 30, levels: lvMusic, kick: 0.9 });
+  musicFrame(st, f, v, t);
+  assert.equal(st.rings.at(-1)?.t, t, `${pause}: o kick que volta dispara na hora`);
+  let back = 0; // a subida passa pelo ataque de 40 ms do `presence`, como na volta do kick ao vivo
+  for (let d = 16; d <= 100; d += 16) back = Math.max(back, music(st, v, t + d).p);
+  assert.ok(back > 0.35, `${pause}: o pulso volta na hora (${back.toFixed(2)})`);
+}
+
+// Breakdown sem kick mas com música (pad) não é silêncio: nada de disparo previsto, a logo segue a onda pelos levels
+{
+  const st = musicState(), v = V({ predict: true, pause: 'breathe', wave: 0.8 }), bpm = 148;
+  let t = 1000, beat = -1, u = music(st, v, t);
+  for (; t < 4000; t += 16) {
+    const f = at(t, bpm);
+    musicFrame(st, { ...f, kick: f.beat > beat ? 0.9 : 0 }, v, t);
+    beat = f.beat; u = music(st, v, t);
+  }
+  const n = st.rings.length, pad = [0.1, 0.1, 0.7, 0.2, 0.1];
+  for (const end = t + 4000; t < end; t += 16) { musicFrame(st, at(t, bpm, { levels: pad }), v, t); u = music(st, v, t); }
+  assert.ok(st.rings.length === 0 && n > 0, 'breakdown: sem anéis');
+  close(u.p, (0.1 * 0.6 + 0.7 * 0.4) * 0.8, 'breakdown: a logo segue a onda dos levels', 0.02);
+  close(u.S.mid, 0.7, 'fonte Mid = levels');
+}
+
+// Entrada ao vivo sem kick: `bands` (régua de 4 s) sobe com o chiado; com `levels` a logo respira, não dá zoom
+for (const pause of ['breathe', 'stop'] as const) {
+  const st = musicState(), v = V({ pause, wave: 0.8 });
+  let t = 1000, u = music(st, v, t);
+  for (; t < 6000; t += 16) { musicFrame(st, F({ bands: [1, 1, 1, 1, 1], levels: [0.02, 0.02, 0.02, 0.02, 0.02] }), v, t); u = music(st, v, t); }
+  assert.ok(u.p <= 0.121, `ao vivo, ${pause}: pulso ${u.p.toFixed(2)} no chiado`);
+  assert.ok(u.S.sub < 0.05 && u.S.hats < 0.05, 'fontes no chiado ficam baixas');
+}
+
+// Frame antigo (sem levels): fontes e onda caem em `bands`
+{
+  const st = musicState(), v = V();
+  const { levels: _, ...old } = F({ bands: [0.3, 0.4, 0.5, 0.6, 0.7] });
+  musicFrame(st, old as Frame, v, 1000);
+  const u = music(st, v, 1000);
+  assert.equal(u.S.sub, 0.3); assert.equal(u.S.hats, 0.6);
 }
 
 // glitch: nunca mais de 3 rajadas em qualquer janela de 1 s, cada uma ≤ 120 ms; sem safeFlash, até o dobro

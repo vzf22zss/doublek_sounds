@@ -8,6 +8,8 @@ export const SOURCES = {
   beat: 'Beat', bar: 'Compasso', lfo: 'LFO',
 } as const;
 export type Source = keyof typeof SOURCES;
+export const PAUSES = { stop: 'parar', breathe: 'respirar', beat: 'seguir o beat' } as const;
+export type Pause = keyof typeof PAUSES;
 export type ModTarget = 'amount' | 'glow' | 'chroma' | 'bgPulse' | 'bgFlash' | 'fxFlash' | 'fxShake' | 'trailZoom' | 'kaleido' | 'tunnel' | 'mandala' | 'particles' | 'organic' | 'glitch';
 // Efeitos que podem ficar "só no drop": somem no breakdown sem grave e entram quando o grave volta.
 export type DropTarget = 'fxFlash' | 'fxRings' | 'fxBars' | 'fxRadial' | 'trail' | 'strobe' | 'chroma' | 'fxShake' | 'bgPulse' | 'bgFlash' | 'bgMedia' | 'kaleido' | 'tunnel' | 'mandala' | 'particles' | 'organic' | 'glitch';
@@ -17,6 +19,8 @@ export const VISUAL = {
   size: 40, amount: 0.45, chroma: 0, glow: 0.6, color: '#7c5cff', rmWhite: false, white: 230,
   // reação
   rel: 0.12, wave: 0.8, predict: true, offset: -40,
+  // na pausa (sem kick, nível abaixo de pauseThr): parar, respirar ou seguir o beat como antes da Onda 10. Fora das cenas
+  pause: 'breathe' as Pause, pauseThr: 0.08,
   mod: {
     amount: 'auto', glow: 'auto', chroma: 'auto', bgPulse: 'auto',
     bgFlash: 'auto', fxFlash: 'auto', fxShake: 'kick', trailZoom: 'auto',
@@ -65,6 +69,8 @@ export function validVisual(raw: unknown): Visual {
   for (const k of Object.keys(v.mod) as ModTarget[]) if (!(v.mod[k] in SOURCES)) v.mod[k] = VISUAL.mod[k];
   if (v.bgFit !== 'cover' && v.bgFit !== 'contain') v.bgFit = VISUAL.bgFit;
   if (![1, 2, 4].includes(v.strobeDiv)) v.strobeDiv = VISUAL.strobeDiv;
+  if (!Object.hasOwn(PAUSES, v.pause)) v.pause = VISUAL.pause; // `in` aceitaria 'toString'
+  v.pauseThr = Math.min(0.3, Math.max(0, v.pauseThr));
   v.layers = sanitizeLayers(v.layers); // dado salvo passa pelo mesmo crivo que o renderer e a UI
   return { ...v, blackout: false, logoOnly: false, react: true };
 }
@@ -79,7 +85,7 @@ export function saveVisual(v: Visual) {
 
 // ---------- cenas ----------
 // Uma cena é o "visual" sem os ajustes de operação (sincronia, desempenho, blackout, recorte da logo).
-const NOT_IN_SCENE = ['renderScale', 'psyQuality', 'psyAuto', 'psyBudgetMs', 'psySafe', 'layerSolo', 'fxSafe', 'offset', 'predict', 'blackout', 'logoOnly', 'rmWhite', 'white', 'react', 'safeFlash'] as const;
+const NOT_IN_SCENE = ['renderScale', 'psyQuality', 'psyAuto', 'psyBudgetMs', 'psySafe', 'layerSolo', 'fxSafe', 'offset', 'predict', 'pause', 'pauseThr', 'blackout', 'logoOnly', 'rmWhite', 'white', 'react', 'safeFlash'] as const;
 export type Look = Omit<Visual, (typeof NOT_IN_SCENE)[number]>;
 export type Scene = { name: string; look: Look } | null;
 
