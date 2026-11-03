@@ -2,7 +2,7 @@
   // Aba Roteiro: escolher/criar roteiro, grade (BPM, 1º tempo), quem toca, modo e o ponto selecionado.
   import { invoke } from '@tauri-apps/api/core';
   import { rt, current, selectedCue, create, open, remove, load, replaceTrack, exportFile, importFile, addCue, deleteCue, setMode } from './roteiro.svelte';
-  import { barLabel, FX_NAMES, KIND_NAMES, KNOBS, newCue, type CueKind } from '../lib/roteiro';
+  import { barLabel, bpmLabel, FX_NAMES, KIND_NAMES, KNOBS, newCue, nudgeGrid, type CueKind } from '../lib/roteiro';
   import { listVideos } from '../lib/assets';
 
   let { sceneNames, bankNames }: { sceneNames: (bank?: number) => string[]; bankNames: () => string[] } = $props();
@@ -39,7 +39,7 @@
 
     <h2>Grade</h2>
     <div class="grid2">
-      <label>BPM <input type="number" step="0.01" min="60" max="240" bind:value={r.bpm} /></label>
+      <label title={r.tempo ? 'Digitar um BPM troca o mapa da análise por este BPM fixo' : undefined}>BPM <input type="number" step="0.01" min="60" max="240" bind:value={r.bpm} oninput={() => delete r.tempo} /></label>
       <div class="pair" title="Em qual beat começa o compasso (o 1 da contagem)">
         <span>1º tempo</span>
         <button onclick={() => (r.barShift = (r.barShift + 3) % 4)}>−</button>
@@ -47,11 +47,12 @@
       </div>
       <div class="pair" title="Arrasta a grade inteira 5 ms para alinhar com o kick">
         <span>Alinhar</span>
-        <button onclick={() => (r.anchor -= 0.005)}>−5ms</button>
-        <button onclick={() => (r.anchor += 0.005)}>+5ms</button>
+        <button onclick={() => nudgeGrid(r, -0.005)}>−5ms</button>
+        <button onclick={() => nudgeGrid(r, 0.005)}>+5ms</button>
       </div>
       <button onclick={() => { r.bpm = 0; load(r); }} title="Refaz a análise do BPM com a faixa de andamento da aba Áudio">Analisar de novo</button>
     </div>
+    {#if r.tempo}<p class="keys" title="A análise achou trechos com andamentos diferentes; a timeline e o app seguem cada um">Andamento muda na música: {bpmLabel(r)} ({r.tempo.length} trechos)</p>{/if}
 
     <h2>Quem toca a música</h2>
     <div class="seg">
