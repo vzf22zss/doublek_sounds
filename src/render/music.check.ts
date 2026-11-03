@@ -10,6 +10,8 @@ const F = (o: Partial<Frame> = {}): Frame => ({
   peak: 0, rms: 0, bands: [0.5, 0.6, 0.4, 0.3, 0.2], levels: [0.5, 0.6, 0.4, 0.3, 0.2], kick: 0, bpm: 0, locked: false, holding: false,
   beatPhase: 0, beat: 0, flux: 0, thr: 0, spectrum: Array(64).fill(0.5), low: 1, pos: -1, ...o,
 });
+/** Frame de antes da Onda 10 (sem `levels`): o pulso tem a força da detecção, sem o volume do kick. */
+const OLD = (o: Partial<Frame> = {}): Frame => ({ ...F(o), levels: undefined as unknown as number[] });
 const close = (a: number, b: number, msg: string, eps = 1e-9) => assert.ok(Math.abs(a - b) <= eps, `${msg}: ${a} ≠ ${b}`);
 /** Frame de um andamento fixo, coerente com o instante `t`. */
 const at = (t: number, bpm: number, o: Partial<Frame> = {}) => {
@@ -31,14 +33,14 @@ const at = (t: number, bpm: number, o: Partial<Frame> = {}) => {
 {
   const st = musicState(), v = V({ rel: 0.12 });
   music(st, v, 1000);
-  musicFrame(st, F({ kick: 0.9 }), v, 1000);
+  musicFrame(st, OLD({ kick: 0.9 }), v, 1000);
   assert.equal(st.kickEnv, 0.9);
   assert.equal(st.rings.length, 1);
   let t = 1000;
   while (t < 1600) music(st, v, (t += 16));
   close(st.kickEnv, 0.9 * Math.exp(-(t - 1000) / 1000 / 0.12), 'decai com rel');
   const slow = musicState(), vs = V({ rel: 0.4 });
-  music(slow, vs, 1000); musicFrame(slow, F({ kick: 0.9 }), vs, 1000); music(slow, vs, 1300);
+  music(slow, vs, 1000); musicFrame(slow, OLD({ kick: 0.9 }), vs, 1000); music(slow, vs, 1300);
   music(st, v, 1950);
   assert.equal(st.rings.length, 0, 'anel some depois de 900 ms');
   assert.ok(slow.kickEnv > 0.9 * Math.exp(-0.3 / 0.12), 'rel maior decai mais devagar');
@@ -120,12 +122,14 @@ for (const safeFlash of [true, false]) {
   // 'beat' = o comportamento de antes da Onda 10 (no padrão, o 1º kick depois da pausa dispara na hora: ver abaixo)
   const st = musicState(), v = V({ predict: true, offset: -40, pause: 'beat' }), bpm = 120;
   music(st, v, 1000);
-  musicFrame(st, F({ bpm, locked: true, beatPhase: 0.5, kick: 0.9 }), v, 1000);
-  assert.equal(st.rings.length, 0, 'kick detectado não dispara');
+  musicFrame(st, OLD({ bpm, locked: true, beatPhase: 0.5, kick: 0.9 }), v, 1000);
+  assert.equal(st.rings.length, 1, 'kick sem pulso recente (contratempo) dispara mesmo com o previsto');
   for (let t = 1001; t <= 1300; t++) music(st, v, t);
-  assert.equal(st.rings.length, 1, 'um disparo no wrap');
-  assert.equal(st.rings[0].t, 1210, 'wrap: 0,5 beat a 120 BPM = 250 ms, adiantado 40 ms');
-  assert.equal(st.rings[0].s, 0.9, 'com a força do último kick');
+  assert.equal(st.rings.length, 2, 'um disparo no wrap');
+  assert.equal(st.rings[1].t, 1210, 'wrap: 0,5 beat a 120 BPM = 250 ms, adiantado 40 ms');
+  assert.equal(st.rings[1].s, 0.9, 'com a força do último kick');
+  musicFrame(st, OLD({ bpm, locked: true, beatPhase: 0.1, kick: 0.9 }), v, 1300);
+  assert.equal(st.rings.length, 2, 'o kick que chega logo depois do pulso previsto não dispara de novo');
   const nop = musicState(), vn = V({ predict: false });
   musicFrame(nop, F({ bpm, locked: true, kick: 0.9 }), vn, 1000);
   assert.equal(nop.rings.length, 1, 'sem predict: dispara no kick');
@@ -139,7 +143,8 @@ for (const pause of ['beat', 'breathe', 'stop'] as const) {
   let t = 1000, beat = -1, u = music(st, v, t);
   const run = (end: number, kicks: boolean, levels: number[]) => {
     for (; t < end; t += 16) {
-      const f = at(t, bpm, { pos: 30, levels, bands: [1, 1, 1, 1, 1] }); // bands: régua de 4 s já "acostumada" ao chiado
+      // bands: régua de 4 s já "acostumada" ao chiado; no silêncio o grave some (`low` 0), como no motor
+      const f = at(t, bpm, { pos: 30, levels, low: levels === lvQuiet ? 0 : 1, bands: [1, 1, 1, 1, 1] });
       musicFrame(st, { ...f, kick: kicks && f.beat > beat ? 0.9 : 0 }, v, t);
       beat = f.beat;
       u = music(st, v, t);
@@ -177,7 +182,7 @@ for (const loud of [true, false]) {
   const levels = loud ? [0.8, 0.8, 0.8, 0.8, 0.8] : [0.01, 0.01, 0.01, 0.01, 0.01];
   let t = 1000, max = 0;
   for (; t < 5000; t += 16) {
-    musicFrame(st, at(t, bpm, { pos: 30, levels }), v, t);
+    musicFrame(st, at(t, bpm, { pos: 30, levels, low: 0 }), v, t); // build-up: riser sem kick nem grave
     const u = music(st, v, t);
     if (t > 3000) max = Math.max(max, u.strobe);
   }
@@ -190,7 +195,7 @@ for (const range of [[0.2, 1], [0, 0.1]] as [number, number][]) {
   const st = musicState(), v = V({ pause: 'breathe', range: { amount: range } }), bpm = 148;
   let t = 1000, max = 0, min = 1;
   for (; t < 7000; t += 16) {
-    musicFrame(st, at(t, bpm, { pos: 30, levels: [0.01, 0.01, 0.01, 0.01, 0.01] }), v, t);
+    musicFrame(st, at(t, bpm, { pos: 30, levels: [0.01, 0.01, 0.01, 0.01, 0.01], low: 0 }), v, t);
     const u = music(st, v, t);
     if (t > 4000) { const a = mod(u, v, 'amount'); max = Math.max(max, a); min = Math.min(min, a); }
   }
@@ -207,7 +212,7 @@ for (const range of [[0.2, 1], [0, 0.1]] as [number, number][]) {
     beat = f.beat; u = music(st, v, t);
   }
   const n = st.rings.length, pad = [0.1, 0.1, 0.7, 0.2, 0.1];
-  for (const end = t + 4000; t < end; t += 16) { musicFrame(st, at(t, bpm, { levels: pad }), v, t); u = music(st, v, t); }
+  for (const end = t + 4000; t < end; t += 16) { musicFrame(st, at(t, bpm, { levels: pad, low: 0 }), v, t); u = music(st, v, t); } // pad: sem grave
   assert.ok(st.rings.length === 0 && n > 0, 'breakdown: sem anéis');
   close(u.p, (0.1 * 0.6 + 0.7 * 0.4) * 0.8, 'breakdown: a logo segue a onda dos levels', 0.02);
   close(u.S.mid, 0.7, 'fonte Mid = levels');
@@ -271,3 +276,41 @@ for (const safe of [true, false]) {
 }
 
 console.log('music: ok');
+
+// Calibração com chapati.mp3 (psy a 145): o pulso previsto segue o padrão do kick, não toda a grade
+{
+  const bpm = 145, P = 60000 / bpm;
+  /** Toca `secs` de grade travada; `kick(n)` diz se o beat n tem kick detectado; devolve os beats que dispararam. */
+  const play = (v: Visual, kick: (n: number) => boolean, low = 1, secs = 12, sub = 0.9) => {
+    const st = musicState(); const fired = new Set<number>(); let t = 1000, last = -1, lt = st.lastTrig, u = music(st, v, t);
+    for (; t < 1000 + secs * 1000; t += 16) {
+      const f = at(t, bpm, { levels: [sub, 0.6, 0.5, 0.4, 0.3], low });
+      musicFrame(st, { ...f, kick: f.beat > last && kick(f.beat) ? 0.6 : 0 }, v, t);
+      last = f.beat;
+      u = music(st, v, t);
+      if (st.lastTrig !== lt) { lt = st.lastTrig; fired.add(Math.round((t + 60) / P)); }
+    }
+    return { fired: [...fired].filter((n) => n > (1000 + 6000) / P), u, st };
+  };
+  // kick a cada 2 beats: antes pulsava em todo beat (metade sem kick)
+  const half = play(V(), (n) => n % 2 === 0).fired;
+  assert.ok(half.length > 5 && half.every((n) => n % 2 === 0), `meio tempo: pulsos ${half}`);
+  // 'seguir o beat': todo beat, como antes
+  const all = play(V({ pause: 'beat' }), (n) => n % 2 === 0).fired;
+  assert.ok(all.some((n) => n % 2 === 1), 'seguir o beat pulsa em todo beat');
+  // o detector perde 5 kicks seguidos (2 s) com o grave tocando, como em 64,7–66,7 s do chapati: não é pausa
+  const gap = (n: number) => n >= 20 && n < 25;
+  const lossy = play(V(), (n) => !gap(n)).fired;
+  assert.ok([20, 21, 22, 23, 24].every((n) => lossy.includes(n)), `kicks perdidos sob o grave: pulsos ${lossy}`);
+  // ... e sem grave é pausa de verdade (Onda 10): não segue a grade
+  assert.ok(play(V(), (n) => n < 10, 0).fired.length === 0, 'sem kick nem grave: pausa');
+  // a altura do pulso é o volume do kick (sub), não a certeza da detecção
+  const loud = play(V(), () => true, 1, 12, 0.9).st, soft = play(V(), () => true, 1, 12, 0.3).st;
+  assert.ok(loud.kickLvl > 0.85 && soft.kickLvl < 0.35, `volume do kick: ${loud.kickLvl} × ${soft.kickLvl}`);
+  // régua no Kick: kick fraco abaixo do mínimo não mexe; forte mexe
+  const v = V({ mod: { ...VISUAL.mod, amount: 'kick' }, range: { amount: [0.5, 1] } });
+  const peak = (sub: number) => { const st = musicState(); let t = 1000, mx = 0, last = -1;
+    for (; t < 8000; t += 16) { const f = at(t, bpm, { levels: [sub, 0.6, 0.5, 0.4, 0.3] }); musicFrame(st, { ...f, kick: f.beat > last ? 0.6 : 0 }, v, t); last = f.beat; const u = music(st, v, t); if (t > 4000) mx = Math.max(mx, mod(u, v, 'amount')); }
+    return mx; };
+  assert.ok(peak(0.3) < 0.01 && peak(0.95) > 0.8, `régua no Kick: fraco ${peak(0.3)}, forte ${peak(0.95)}`);
+}

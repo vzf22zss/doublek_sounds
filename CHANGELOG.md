@@ -4,7 +4,18 @@ Todas as mudanças relevantes do DoubleK Visuals ficam registradas aqui.
 
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o projeto usa [Versionamento Semântico](https://semver.org/lang/pt-BR/). As entradas vêm do histórico do git; a data de cada versão é a do commit que subiu o número em `package.json`.
 
-## [Não lançado]
+## [Não lançado]
+
+### Corrigido
+
+- Música de psy tocada pelo app (roteiro): a grade do beat podia travar na última nota do baixo rolante, ~¼ de beat antes do kick, e a logo pulsava sempre adiantada (numa faixa real a 145 BPM, 2 % dos kicks com pulso; agora 73–84 %, e quase nenhum pulso fora do kick). A análise da faixa acha a fase do kick pela subida do grave e desloca o mapa inteiro.
+- Faixa com intro em tercina ou meio tempo: o mapa de andamento lia esse trecho como outro BPM (ex.: 217 em vez de 145) e a logo pulsava 3 vezes por kick. Trechos a 3/2, 2/3, 2× ou ½ do andamento principal ficam no andamento principal.
+- Com o grave tocando, um kick que o detector deixou de ouvir por 1 a 3 s não vira mais "pausa" (o pulso não some no meio do drop).
+
+### Mudou
+
+- A logo pulsa nos tempos em que a música tem kick (kick a cada 2 tempos = pulso a cada 2 tempos) e também no kick fora do tempo; **Na pausa: seguir o beat** continua pulsando em todo beat.
+- O pulso do kick tem o tamanho do volume do kick (o grave dele, em relação ao último minuto), não da certeza da detecção. A régua com a fonte **Kick** passa a falar de volume: em 50–100, kick fraco não mexe e kick forte bate cheio.
 
 ## [0.3.11] - 2026-11-03
 
