@@ -39,7 +39,7 @@
 {#if rec.format === 'VERTICAL'}
   <Slider label="Zoom do recorte" bind:value={rec.zoom} min={ZOOM_MIN} max={ZOOM_MAX} step={0.05} def={1} fmt={(v) => v.toFixed(2) + '×'} />
   <Slider label="Posição horizontal" bind:value={rec.offset} min={-1} max={1} step={0.05} def={0} fmt={(v) => (v === 0 ? 'centro' : v < 0 ? `${(-v * 100).toFixed(0)}% esq.` : `${(v * 100).toFixed(0)}% dir.`)} />
-  <p class="keys">Vertical para Reels/TikTok: o retângulo no PREVIEW mostra o recorte (o telão não muda). Dá para ajustar gravando. O vertical copia cada quadro e pesa mais no telão: prefira Leve ou 30 fps.</p>
+  <p class="keys">Vertical para Reels/TikTok: o retângulo no PREVIEW mostra o recorte (o telão não muda). Dá para ajustar gravando. Com WebCodecs o recorte não pesa mais que o 16:9; num WebView sem ele, o vertical copia cada quadro: aí prefira Leve ou 30 fps.</p>
 {/if}
 <p class="keys" class:warnTxt={out.warn}>Grava em {out.w}×{out.h}{out.copy ? '' : ' (o tamanho do telão, sem cópia)'}.{out.warn ? ' ⚠ ' + out.warn : ''}</p>
 <div class="files">

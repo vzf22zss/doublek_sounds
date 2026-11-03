@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { invoke, Channel } from '@tauri-apps/api/core';
   import { emitTo, listen as onEvent } from '@tauri-apps/api/event';
   import Analyzer from './Analyzer.svelte';
@@ -87,7 +88,7 @@
   let preview: Renderer | null = null;
   let sync: ReturnType<typeof assetSync> | null = null;
   let perf: ReturnType<typeof Performance> = $state(null as any); // $state: o canvas de preview lê perf.getStaged()
-  let previewMode = $state(false); // DK-043: pads e MIDI c:<i> preparam no preview em vez de chamar
+  let previewMode = $state(false); // DK-043: pads, teclas 1–8 e MIDI c:<i> preparam no preview em vez de chamar
   let midiLit = $state(false);
 
   // ---------- atualização (Releases do GitHub) ----------
@@ -156,11 +157,14 @@
     sync?.(pv);
   });
 
-  // preview: o mesmo renderer do telão, a 30 fps e meia resolução
+  // preview: o mesmo renderer do telão, a 30 fps e meia resolução. Criado uma vez por canvas: o visual inicial é lido
+  // com untrack (sem isso o efeito dependia do `vs` inteiro e recriava o renderer — 11 programas WebGL — a cada ajuste;
+  // achado pelo smoke e2e da 0.3.10). Os ajustes seguintes chegam pelo efeito de cima (setVisual + sync).
   $effect(() => {
-    preview = new Renderer(previewCanvas, { ...$state.snapshot(vs), renderScale: 0.5 });
+    const v0 = untrack(() => $state.snapshot(vs));
+    preview = new Renderer(previewCanvas, { ...v0, renderScale: 0.5 });
     sync = assetSync(preview, { beat: () => frame }); // a falha de vídeo quem avisa é o telão
-    sync($state.snapshot(vs), true);
+    sync(v0, true);
     let raf = 0, odd = false;
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
@@ -247,7 +251,7 @@
       roteiroStop();
       perf.clearPreview();
       Object.assign(vs, SAFE_LOOK, { blackout: false, logoOnly: false, react: true, safeFlash: true });
-      status = 'PÂNICO: roteiro parado, strobe/flash/tremor/aberração/rastro zerados.';
+      status = 'PÂNICO: roteiro parado, strobe/flash/tremor/aberração/rastro e Psy Engine zerados.';
       log('warn', status);
     },
     SCENE_RECALL: (c) => {
@@ -269,7 +273,7 @@
     PREVIEW_CLEAR: () => { perf.clearPreview(); status = 'Preview limpo.'; },
     PREVIEW_MODE: (c) => {
       previewMode = c.on ?? !previewMode;
-      status = previewMode ? 'Modo preview: tocar um pad prepara a cena; T ou TAKE manda para o telão.' : 'Modo preview desligado: pads chamam a cena direto.';
+      status = previewMode ? 'Modo preview: pad ou tecla 1–8 prepara a cena; T ou TAKE manda para o telão.' : 'Modo preview desligado: pads e teclas 1–8 chamam a cena direto.';
     },
     BANK_STEP: (c) => perf.stepBankBy(c.delta), // DK-041: os pads c:0..7 agem no banco ativo
     BANK_SET: (c) => perf.setBank(c.index),
@@ -363,7 +367,7 @@
     if (id === 'RESET') { // = PÂNICO sem parar o roteiro: também desfaz os efeitos/rampas do roteiro em andamento
       cancelRunning();
       Object.assign(vs, SAFE_LOOK, { blackout: false, logoOnly: false, safeFlash: true });
-      status = 'RESET: strobe/flash/tremor/aberração/rastro zerados; o roteiro continua.';
+      status = 'RESET: strobe/flash/tremor/aberração/rastro e Psy Engine zerados; o roteiro continua.';
       return;
     }
     stopMacro();
@@ -775,7 +779,7 @@
     if (e.code === 'KeyM' && diario?.running && !e.ctrlKey && !e.metaKey && !e.repeat) { invoke('analysis_mark', { label: 'drop' }); status = 'Marca "drop" gravada na análise.'; return; } // marca do diário, não comando de show
     if (e.code === 'Space' || e.code === 'ArrowLeft' || e.code === 'ArrowRight') e.preventDefault();
     const c = keyCommand(e);
-    if (c) dispatch(c, 'keyboard');
+    if (c) dispatch(routePad(c, previewMode), 'keyboard'); // 1–8 no modo preview preparam, como o pad e o MIDI
   }
 
   function beatInfo() {
