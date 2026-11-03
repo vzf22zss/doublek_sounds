@@ -545,7 +545,7 @@
       invoke('remote_set_state', { state: remoteState() });
       if (pairCode && Date.now() > pairCode.until) pairCode = null;
     };
-    tick();
+    untrack(tick); // o 1º tick lê frame/vs/cenas: sem untrack o efeito dependia deles e reiniciava a cada quadro de áudio
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   });
