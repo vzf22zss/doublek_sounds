@@ -14,6 +14,7 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 - MIDI Clock: **Song Position Pointer** — o Continue do equipamento retoma na posição certa do compasso.
 - MIDI learn guarda de qual controlador veio cada controle; o **Testar tudo** avisa qual controlador ocupado ou desconectado tem controles mapeados.
 - Vídeo: a cena preparada no Preview já deixa o vídeo dela carregado, e o TAKE entra sem engasgo (o roteiro tocando tem prioridade).
+- **Relatar problema** no menu da pílula de saúde: salva o diagnóstico, copia um resumo sem dados pessoais e abre a página do relato no GitHub (nada é enviado sozinho).
 
 ## [0.3.9] - 2026-10-31
 

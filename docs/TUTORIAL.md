@@ -118,7 +118,7 @@ Funciona no improviso: pode ser o microfone do notebook ou um microfone USB pert
 | 2 | **Medidor** | Nível do sinal. Verde é bom; **CLIP** vermelho quer dizer que está alto demais. |
 | 3 | **BPM** + bolinhas | O andamento detectado e o estado (*procurando / ajustando / travado / segurando*). As 4 bolinhas andam no compasso; a pílula **DROP** acende quando há grave (seção 12). |
 | 4 | **TAP ½ ×2 ◀ ▶** | Ajuste manual do andamento (seção 7). |
-| 5 | **MIDI**, **PÂNICO** e **BLACKOUT** | Liga o modo de mapear o controlador (seção 17); PÂNICO para o roteiro e zera os efeitos agressivos; BLACKOUT apaga o telão na hora. Ao lado ficam as **4 bolinhas de saúde** (áudio · BPM · MIDI · telão) e o fps do telão; clicar nelas salva um **diagnóstico**. |
+| 5 | **MIDI**, **PÂNICO** e **BLACKOUT** | Liga o modo de mapear o controlador (seção 17); PÂNICO para o roteiro e zera os efeitos agressivos; BLACKOUT apaga o telão na hora. Ao lado ficam as **4 bolinhas de saúde** (áudio · BPM · MIDI · telão) e o fps do telão; clicar nelas abre o menu **Salvar diagnóstico** / **Relatar problema**. |
 | 6 | **Preview** | O mesmo visual que está no telão, em tamanho pequeno. |
 | 7 | **Analisador** | Mostra o que o app está ouvindo e cada kick que ele aceitou (seção 6). |
 | 8 | **Abas de ajuste** | Áudio, Logo, Fundo, Efeitos, Saída e **Roteiro** (seção 16). |
@@ -134,9 +134,14 @@ Funciona no improviso: pode ser o microfone do notebook ou um microfone USB pert
 | **MIDI** | controlador conectado | — | — |
 | **Telão** | aberto e fluido | aberto, mas engasgando (p95 acima de 25 ms) | perdeu a placa de vídeo (ele se recupera sozinho quando ela volta) |
 
-O número ao lado é o fps do telão. **Clicar nas bolinhas salva um diagnóstico**: um arquivo `.json`
-com versão, ajustes, estatísticas do telão e os últimos 200 eventos, **sem nenhum áudio**. É o que
-mandar quando algo der errado.
+O número ao lado é o fps do telão. **Clicar nas bolinhas** abre um menu:
+
+- **Salvar diagnóstico** grava um arquivo `.json` com versão, ajustes, estatísticas do telão e os
+  últimos 200 eventos, **sem nenhum áudio**.
+- **Relatar problema** salva o diagnóstico, copia um resumo curto para a área de transferência e
+  abre no navegador a página para criar o relato no GitHub. Lá, cole (**Ctrl+V**) o resumo e
+  arraste o arquivo `.json`. O resumo não leva seu nome de usuário do Windows nem nomes de
+  músicas ou arquivos, e nada é enviado sozinho: só vai o que você colar.
 
 ![A janela de controle funcionando](img/controle.gif)
 
@@ -1001,7 +1006,7 @@ modo de automação, clique no chip de estado).
 | Roteiro: pontos adiantados ou atrasados em relação à música | Alinhe a grade com **−5ms / +5ms**; se for um beat inteiro, **1º tempo − / +**. |
 | "A saída está em … Hz" ao tocar o roteiro | A saída de áudio mudou: escolha a saída de novo na aba Roteiro (a música é preparada de novo). |
 | Telão ficou preto e a bolinha do telão está vermelha | A placa de vídeo "sumiu" por um instante (driver, monitor trocado). O app recria o telão sozinho quando ela volta; se não voltar em alguns segundos, **F** duas vezes (fecha e reabre). |
-| Quer relatar um problema | Clique nas **4 bolinhas** no topo: salva um `.json` de diagnóstico sem áudio. Mande esse arquivo junto com o que aconteceu. |
+| Quer relatar um problema | Clique nas **4 bolinhas** no topo → **Relatar problema**: salva o diagnóstico (sem áudio), copia um resumo e abre a página do relato no GitHub. Cole o resumo, arraste o `.json` e conte o que aconteceu. |
 | "Não aceitei …: tipo não aceito / grande demais" | Limites do app: **imagem** até 25 MB (png, jpg, webp, gif, bmp, svg); **vídeo** até 600 MB (mp4, m4v, webm, mov); **música** até 300 MB e 20 min (mp3, wav, flac, m4a, aac, ogg); **preset ou roteiro** até 2 MB. Converta ou corte o arquivo. |
 | Controlador aparece como "(ocupado)" | Outro programa está com ele (Rekordbox, Serato…). Use outro controlador ou feche o programa. |
 | O controlador não aparece | Desplugue e plugue de novo. O app reconecta em até 2 s. |
