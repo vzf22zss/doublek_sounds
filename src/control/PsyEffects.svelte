@@ -76,7 +76,7 @@
 </button>
 {#if vs.psySafe}<p class="keys">Os valores abaixo ficam guardados; voltam a valer quando você religar.</p>{/if}
 
-<Slider label="Caleidoscópio" bind:value={vs.kaleido} learn="kaleido" bind:mod={vs.mod.kaleido} bind:drop={vs.drop.kaleido} min={0} max={1} step={0.01} def={0} fmt={f2} />
+<Slider label="Caleidoscópio" bind:value={vs.kaleido} learn="kaleido" bind:mod={vs.mod.kaleido} bind:range={vs.range.kaleido} bind:drop={vs.drop.kaleido} min={0} max={1} step={0.01} def={0} fmt={f2} />
 {#if vs.kaleido > 0}
   {#if ms('kaleido')}<small class="cost">{ms('kaleido')}</small>{/if}
   <Slider label="Fatias" bind:value={vs.kaleidoN} learn="kaleidoN" min={3} max={12} step={1} def={VISUAL.kaleidoN} fmt={int} />
@@ -89,7 +89,7 @@
   <p class="keys">O caleidoscópio dobra o quadro inteiro, com a logo junto. A fonte escolhida empurra o giro.</p>
 {/if}
 
-<Slider label="Túnel fractal" bind:value={vs.tunnel} learn="tunnel" bind:mod={vs.mod.tunnel} bind:drop={vs.drop.tunnel} min={0} max={1} step={0.01} def={0} fmt={f2} />
+<Slider label="Túnel fractal" bind:value={vs.tunnel} learn="tunnel" bind:mod={vs.mod.tunnel} bind:range={vs.range.tunnel} bind:drop={vs.drop.tunnel} min={0} max={1} step={0.01} def={0} fmt={f2} />
 {#if vs.tunnel > 0}
   {#if ms('tunnel')}<small class="cost">{ms('tunnel')}</small>{/if}
   <Slider label="Velocidade" bind:value={vs.tunnelSpeed} learn="tunnelSpeed" min={0} max={2} step={0.01} def={VISUAL.tunnelSpeed} fmt={f2} />
@@ -97,14 +97,14 @@
   <p class="keys">Passa por baixo da logo e dos anéis. A fonte escolhida acelera o túnel.</p>
 {/if}
 
-<Slider label="Mandala" bind:value={vs.mandala} learn="mandala" bind:mod={vs.mod.mandala} bind:drop={vs.drop.mandala} min={0} max={1} step={0.01} def={0} fmt={f2} />
+<Slider label="Mandala" bind:value={vs.mandala} learn="mandala" bind:mod={vs.mod.mandala} bind:range={vs.range.mandala} bind:drop={vs.drop.mandala} min={0} max={1} step={0.01} def={0} fmt={f2} />
 {#if vs.mandala > 0}
   {#if ms('mandala')}<small class="cost">{ms('mandala')}</small>{/if}
   <Slider label="Pétalas" bind:value={vs.mandalaPetals} learn="mandalaPetals" min={4} max={16} step={2} def={VISUAL.mandalaPetals} fmt={int} />
   <p class="keys">Anéis em volta da logo que abrem a cada compasso. A fonte escolhida acende o brilho.</p>
 {/if}
 
-<Slider label="Partículas" bind:value={vs.particles} learn="particles" bind:mod={vs.mod.particles} bind:drop={vs.drop.particles} min={0} max={1} step={0.01} def={0} fmt={f2} />
+<Slider label="Partículas" bind:value={vs.particles} learn="particles" bind:mod={vs.mod.particles} bind:range={vs.range.particles} bind:drop={vs.drop.particles} min={0} max={1} step={0.01} def={0} fmt={f2} />
 {#if vs.particles > 0}
   {#if ms('particles')}<small class="cost">{ms('particles')}</small>{/if}
   <Slider label="Quantidade" bind:value={vs.particlesDensity} learn="particlesDensity" min={0} max={1} step={0.01} def={VISUAL.particlesDensity} fmt={f2} />
@@ -113,14 +113,14 @@
   <p class="keys">Passam por baixo da logo. A fonte escolhida dá o empurrão e o brilho. 90° = sobem.</p>
 {/if}
 
-<Slider label="Orgânico" bind:value={vs.organic} learn="organic" bind:mod={vs.mod.organic} bind:drop={vs.drop.organic} min={0} max={1} step={0.01} def={0} fmt={f2} />
+<Slider label="Orgânico" bind:value={vs.organic} learn="organic" bind:mod={vs.mod.organic} bind:range={vs.range.organic} bind:drop={vs.drop.organic} min={0} max={1} step={0.01} def={0} fmt={f2} />
 {#if vs.organic > 0}
   {#if ms('organic')}<small class="cost">{ms('organic')}</small>{/if}
   <Slider label="Escala" bind:value={vs.organicScale} learn="organicScale" min={0.3} max={3} step={0.01} def={VISUAL.organicScale} fmt={f2} />
   <p class="keys">Textura viva com as cores do fundo; gira com a Matiz do fundo. A fonte escolhida acende a cor.</p>
 {/if}
 
-<Slider label="Glitch" bind:value={vs.glitch} learn="glitch" bind:mod={vs.mod.glitch} bind:drop={vs.drop.glitch} min={0} max={1} step={0.01} def={0} fmt={f2} />
+<Slider label="Glitch" bind:value={vs.glitch} learn="glitch" bind:mod={vs.mod.glitch} bind:range={vs.range.glitch} bind:drop={vs.drop.glitch} min={0} max={1} step={0.01} def={0} fmt={f2} />
 {#if vs.glitch > 0}
   {#if ms('glitch')}<small class="cost">{ms('glitch')}</small>{/if}
   <p class="keys">Rajadas de 120 ms quando a fonte bate: no máximo {vs.safeFlash ? 3 : 6} por segundo{vs.safeFlash ? '' : ' (limite de flashes desligado)'}.</p>

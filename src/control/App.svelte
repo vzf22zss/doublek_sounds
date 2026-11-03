@@ -3,7 +3,7 @@
   import { invoke, Channel } from '@tauri-apps/api/core';
   import { emitTo, listen as onEvent } from '@tauri-apps/api/event';
   import Analyzer from './Analyzer.svelte';
-  import Slider from './Slider.svelte';
+  import Slider, { live } from './Slider.svelte';
   import PsyEffects from './PsyEffects.svelte';
   import Performance from './Performance.svelte';
   import Timeline from './Timeline.svelte';
@@ -168,7 +168,7 @@
     let raf = 0, odd = false;
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
-      if ((odd = !odd)) preview!.render(now);
+      if ((odd = !odd)) { preview!.render(now); if (live.open) live.S = preview!.lastS; } // régua aberta: nível ao vivo
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
@@ -942,9 +942,9 @@
           <label class="color">Cor do brilho <input type="color" bind:value={vs.color} /></label>
         </div>
         <Slider label="Tamanho" bind:value={vs.size} learn="size" min={10} max={150} step={1} def={VISUAL.size} fmt={(v) => v + '%'} />
-        <Slider label="Pulso" bind:value={vs.amount} learn="amount" bind:mod={vs.mod.amount} min={0} max={1.5} step={0.01} def={VISUAL.amount} fmt={f2} />
-        <Slider label="Brilho (glow)" bind:value={vs.glow} learn="glow" bind:mod={vs.mod.glow} min={0} max={1} step={0.01} def={VISUAL.glow} fmt={f2} />
-        <Slider label="Aberração cromática" bind:value={vs.chroma} learn="chroma" bind:mod={vs.mod.chroma} bind:drop={vs.drop.chroma} min={0} max={40} step={0.5} def={VISUAL.chroma} fmt={(v) => v + ' px'} />
+        <Slider label="Pulso" bind:value={vs.amount} learn="amount" bind:mod={vs.mod.amount} bind:range={vs.range.amount} min={0} max={1.5} step={0.01} def={VISUAL.amount} fmt={f2} />
+        <Slider label="Brilho (glow)" bind:value={vs.glow} learn="glow" bind:mod={vs.mod.glow} bind:range={vs.range.glow} min={0} max={1} step={0.01} def={VISUAL.glow} fmt={f2} />
+        <Slider label="Aberração cromática" bind:value={vs.chroma} learn="chroma" bind:mod={vs.mod.chroma} bind:range={vs.range.chroma} bind:drop={vs.drop.chroma} min={0} max={40} step={0.5} def={VISUAL.chroma} fmt={(v) => v + ' px'} />
         <label class="check">
           <input type="checkbox" bind:checked={vs.rmWhite} />
           <span>Remover fundo branco da logo</span>
@@ -1012,20 +1012,20 @@
         <Slider label="Desfoque da foto/vídeo" bind:value={vs.bgBlur} learn="bgBlur" min={0} max={40} step={1} def={0} fmt={(v) => v + ' px'} />
         <Slider label="Brilho da foto/vídeo" bind:value={vs.bgDim} learn="bgDim" min={0} max={150} step={1} def={100} fmt={(v) => v + '%'} />
         <Slider label="Girar matiz" bind:value={vs.bgHue} learn="bgHue" min={-180} max={180} step={1} def={0} fmt={(v) => v + '°/s'} />
-        <Slider label="Zoom do fundo" bind:value={vs.bgPulse} learn="bgPulse" bind:mod={vs.mod.bgPulse} bind:drop={vs.drop.bgPulse} min={0} max={0.4} step={0.01} def={VISUAL.bgPulse} fmt={f2} />
-        <Slider label="Brilho do fundo" bind:value={vs.bgFlash} learn="bgFlash" bind:mod={vs.mod.bgFlash} bind:drop={vs.drop.bgFlash} min={0} max={1} step={0.01} def={VISUAL.bgFlash} fmt={f2} />
+        <Slider label="Zoom do fundo" bind:value={vs.bgPulse} learn="bgPulse" bind:mod={vs.mod.bgPulse} bind:range={vs.range.bgPulse} bind:drop={vs.drop.bgPulse} min={0} max={0.4} step={0.01} def={VISUAL.bgPulse} fmt={f2} />
+        <Slider label="Brilho do fundo" bind:value={vs.bgFlash} learn="bgFlash" bind:mod={vs.mod.bgFlash} bind:range={vs.range.bgFlash} bind:drop={vs.drop.bgFlash} min={0} max={1} step={0.01} def={VISUAL.bgFlash} fmt={f2} />
 
       {:else if tab === 'Efeitos'}
         <AutomationPanel bind:cfg={rulesCfg} bankNames={() => perf?.bankNames() ?? []} sceneNames={(b: number) => perf?.sceneNames(b) ?? []} />
         <FxEditor getFrame={() => frame} onstatus={(m) => (status = m)} safe={vs.fxSafe} onsafe={(on, open) => { vs.fxSafe = on; if (open) project(); }} />
         <PsyEffects bind:vs />
-        <Slider label="Flash" bind:value={vs.fxFlash} learn="fxFlash" bind:mod={vs.mod.fxFlash} bind:drop={vs.drop.fxFlash} min={0} max={1} step={0.01} def={VISUAL.fxFlash} fmt={f2} />
+        <Slider label="Flash" bind:value={vs.fxFlash} learn="fxFlash" bind:mod={vs.mod.fxFlash} bind:range={vs.range.fxFlash} bind:drop={vs.drop.fxFlash} min={0} max={1} step={0.01} def={VISUAL.fxFlash} fmt={f2} />
         <Slider label="Anéis a cada kick" bind:value={vs.fxRings} learn="fxRings" bind:drop={vs.drop.fxRings} min={0} max={1} step={0.01} def={VISUAL.fxRings} fmt={f2} />
         <Slider label="Espectro em barras" bind:value={vs.fxBars} learn="fxBars" bind:drop={vs.drop.fxBars} min={0} max={1} step={0.01} def={0} fmt={f2} />
         <Slider label="Espectro radial na logo" bind:value={vs.fxRadial} learn="fxRadial" bind:drop={vs.drop.fxRadial} min={0} max={1} step={0.01} def={0} fmt={f2} />
         <h2>Rastro / túnel</h2>
         <Slider label="Rastro" bind:value={vs.trail} learn="trail" bind:drop={vs.drop.trail} min={0} max={1} step={0.01} def={0} fmt={f2} />
-        <Slider label="Zoom do rastro" bind:value={vs.trailZoom} learn="trailZoom" bind:mod={vs.mod.trailZoom} min={-1} max={1} step={0.01} def={VISUAL.trailZoom} fmt={f2} />
+        <Slider label="Zoom do rastro" bind:value={vs.trailZoom} learn="trailZoom" bind:mod={vs.mod.trailZoom} bind:range={vs.range.trailZoom} min={-1} max={1} step={0.01} def={VISUAL.trailZoom} fmt={f2} />
         <Slider label="Giro do rastro" bind:value={vs.trailRot} learn="trailRot" min={-1} max={1} step={0.01} def={0} fmt={f2} />
         <h2>Strobe</h2>
         {#if vs.safeFlash}
@@ -1043,7 +1043,7 @@
         <Slider label="Vinheta" bind:value={vs.fxVig} learn="fxVig" min={0} max={1} step={0.01} def={VISUAL.fxVig} fmt={f2} />
         <Slider label="Linhas de TV" bind:value={vs.fxScan} learn="fxScan" min={0} max={1} step={0.01} def={0} fmt={f2} />
         <Slider label="Granulado" bind:value={vs.fxGrain} learn="fxGrain" min={0} max={1} step={0.01} def={0} fmt={f2} />
-        <Slider label="Tremor" bind:value={vs.fxShake} learn="fxShake" bind:mod={vs.mod.fxShake} bind:drop={vs.drop.fxShake} min={0} max={30} step={1} def={0} fmt={(v) => v + ' px'} />
+        <Slider label="Tremor" bind:value={vs.fxShake} learn="fxShake" bind:mod={vs.mod.fxShake} bind:range={vs.range.fxShake} bind:drop={vs.drop.fxShake} min={0} max={30} step={1} def={0} fmt={(v) => v + ' px'} />
 
       {:else if tab === 'Roteiro'}
         <RoteiroPanel sceneNames={(bank?: number) => perf?.sceneNames(bank) ?? []} bankNames={() => perf?.bankNames() ?? []} />
