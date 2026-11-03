@@ -78,20 +78,24 @@ function fit(srcW: number, srcH: number, boxW: number, boxH: number) {
 /**
  * Tamanho do vídeo para um telão srcW×srcH (canvas real: monitor × resolução de render). `copy` = passa pelo canvas
  * 2D (recorte → w×h); sem cópia só o 16:9 nativo. 16:9: 1080p/720p cabem em 1920×1080/1280×720 (deitado) ou
- * 1080×1920/720×1280 (em pé) com o aspecto do telão, ampliando se preciso. Vertical: se o recorte 9:16 do telão tiver
- * menos linhas que a saída, cai para 720×1280 e avisa (ampliar não traz detalhe).
+ * 1080×1920/720×1280 (em pé) com o aspecto do telão. Tamanho escolhido ganha sempre (Reels/TikTok pedem 1080 de
+ * largura): se o telão tiver menos detalhe, amplia e avisa. Só "Pela qualidade" (vertical automático) cai para
+ * 720×1280 quando o recorte 9:16 do telão tem menos linhas que 1080×1920.
  */
 export function outputSize(srcW: number, srcH: number, format: Format, size: Size, q: Quality): { w: number; h: number; copy: boolean; warn: string } {
   srcW = Math.max(2, Math.round(srcW) || 2); srcH = Math.max(2, Math.round(srcH) || 2);
+  const zoomed = (o: { w: number; h: number }, lines: number) =>
+    ({ ...o, copy: true, warn: o.h > lines ? `O telão tem menos detalhe que ${o.w}×${o.h}: a imagem vai ser ampliada.` : '' });
   if (format === 'VERTICAL') {
-    const want = size === '1080' ? { w: 1080, h: 1920 } : size === '720' ? { w: 720, h: 1280 } : verticalSize(q);
-    if (want.h > 1280 && cropRect(srcW, srcH, 9, 16, { zoom: 1, offset: 0 }).sh < want.h)
-      return { w: 720, h: 1280, copy: true, warn: `O telão é pequeno para 1080p vertical: gravando em 720×1280.` };
+    const lines = cropRect(srcW, srcH, 9, 16, { zoom: 1, offset: 0 }).sh;
+    if (size === '1080' || size === '720') return zoomed(size === '1080' ? { w: 1080, h: 1920 } : { w: 720, h: 1280 }, lines);
+    const want = verticalSize(q);
+    if (want.h > 1280 && lines < want.h) return { w: 720, h: 1280, copy: true, warn: `O telão é pequeno para 1080p vertical: gravando em 720×1280.` };
     return { ...want, copy: true, warn: '' };
   }
   if (size !== '1080' && size !== '720') return { w: srcW, h: srcH, copy: false, warn: '' };
   const t = +size, long = Math.round((t * 16) / 9);
-  return { ...(srcW >= srcH ? fit(srcW, srcH, long, t) : fit(srcW, srcH, t, long)), copy: true, warn: '' };
+  return zoomed(srcW >= srcH ? fit(srcW, srcH, long, t) : fit(srcW, srcH, t, long), srcH);
 }
 
 export type Phase = 'idle' | 'starting' | 'recording' | 'stopping';

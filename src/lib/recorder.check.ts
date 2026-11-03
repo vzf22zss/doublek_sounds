@@ -94,16 +94,17 @@ assert.equal(run([{ t: 'start', id: n, mime: 'video/mp4', at: 0, p95: 0 }, { t: 
 
 assert.match(run([{ t: 'start', id: 'x.mp4', mime: 'video/mp4', at: 0, p95: 0, vertical: true }, { t: 'started', at: 0 }]).message, /\(MP4, vertical 9:16, sem áudio\)/);
 
-// tamanho do vídeo (D-15a): 16:9 em 1080p/720p com o aspecto do telão; vertical limitado pelas linhas do recorte
+// tamanho do vídeo (D-15a): 16:9 em 1080p/720p com o aspecto do telão; escolha explícita ganha (amplia e avisa);
+// só o vertical "Pela qualidade" é limitado pelas linhas do recorte. " !" = aviso.
 {
   const sz = (w: number, h: number, f: Format, s: Size, q: Quality = 'MEDIA') => { const o = outputSize(w, h, f, s, q); return `${o.w}x${o.h}${o.copy ? '' : ' nativo'}${o.warn ? ' !' : ''}`; };
   const T: [number, number, string, string, string][] = [ // telão, nativo, 1080p, 720p
-    [1280, 720, '1280x720 nativo', '1920x1080', '1280x720'],
+    [1280, 720, '1280x720 nativo', '1920x1080 !', '1280x720'], // 1080p escolhido: amplia e avisa
     [1920, 1080, '1920x1080 nativo', '1920x1080', '1280x720'],
     [2560, 1440, '2560x1440 nativo', '1920x1080', '1280x720'],
     [3440, 1440, '3440x1440 nativo', '1892x792', '1204x504'], // ultra-wide 43:18: largura cabe em 1920/1280
     [1080, 1920, '1080x1920 nativo', '1080x1920', '720x1280'], // telão em pé
-    [800, 600, '800x600 nativo', '1440x1080', '960x720'],
+    [800, 600, '800x600 nativo', '1440x1080 !', '960x720 !'],
   ];
   for (const [w, h, nat, p1080, p720] of T) {
     assert.equal(sz(w, h, 'TELAO', 'NATIVO'), nat);
@@ -115,15 +116,26 @@ assert.match(run([{ t: 'start', id: 'x.mp4', mime: 'video/mp4', at: 0, p95: 0, v
       assert.equal(o.w * h, o.h * w, `${w}x${h} ${s}: aspecto exato`);
     }
   }
-  // vertical: 1080×1920 só com ≥ 1920 linhas no recorte; senão 720×1280 com aviso
-  const V: [number, number, string][] = [[1280, 720, '720x1280 !'], [1920, 1080, '720x1280 !'], [2560, 1440, '720x1280 !'], [3440, 1440, '720x1280 !'], [1080, 1920, '1080x1920'], [800, 600, '720x1280 !'], [3840, 2160, '1080x1920']];
-  for (const [w, h, v1080] of V) {
-    assert.equal(sz(w, h, 'VERTICAL', '1080'), v1080, `${w}x${h} vertical 1080`);
-    assert.equal(sz(w, h, 'VERTICAL', '720'), '720x1280', 'o menor não cai mais');
-    assert.equal(sz(w, h, 'VERTICAL', 'NATIVO', 'LEVE'), '720x1280', 'pela qualidade: Leve = 720');
-    assert.equal(sz(w, h, 'VERTICAL', 'NATIVO', 'ALTA'), v1080, 'pela qualidade: senão 1080, com o mesmo limite');
+  // vertical: telão, 1080×1920 escolhido, 720×1280 escolhido, "Pela qualidade" (Média/Alta)
+  const V: [number, number, string, string, string][] = [
+    [1280, 720, '1080x1920 !', '720x1280 !', '720x1280 !'], // recorte de 720 linhas
+    [1920, 1080, '1080x1920 !', '720x1280 !', '720x1280 !'], // 1080 linhas: até o 720×1280 é ampliado
+    [2560, 1440, '1080x1920 !', '720x1280', '720x1280 !'],
+    [3440, 1440, '1080x1920 !', '720x1280', '720x1280 !'],
+    [1080, 1920, '1080x1920', '720x1280', '1080x1920'],
+    [800, 600, '1080x1920 !', '720x1280 !', '720x1280 !'],
+    [3840, 2160, '1080x1920', '720x1280', '1080x1920'],
+  ];
+  for (const [w, h, v1080, v720, auto] of V) {
+    assert.equal(sz(w, h, 'VERTICAL', '1080'), v1080, `${w}x${h} vertical 1080 escolhido`);
+    assert.equal(sz(w, h, 'VERTICAL', '720'), v720, `${w}x${h} vertical 720 escolhido`);
+    assert.equal(sz(w, h, 'VERTICAL', 'NATIVO', 'ALTA'), auto, `${w}x${h} pela qualidade`);
+    assert.equal(sz(w, h, 'VERTICAL', 'NATIVO', 'MEDIA'), auto);
+    assert.equal(sz(w, h, 'VERTICAL', 'NATIVO', 'LEVE'), '720x1280', 'pela qualidade: Leve = 720, sem aviso');
   }
-  assert.equal(outputSize(1280, 720, 'VERTICAL', '1080', 'MEDIA').warn, 'O telão é pequeno para 1080p vertical: gravando em 720×1280.');
+  assert.equal(outputSize(1920, 1080, 'VERTICAL', '1080', 'MEDIA').warn, 'O telão tem menos detalhe que 1080×1920: a imagem vai ser ampliada.');
+  assert.equal(outputSize(2560, 1440, 'VERTICAL', 'NATIVO', 'ALTA').warn, 'O telão é pequeno para 1080p vertical: gravando em 720×1280.');
+  assert.equal(outputSize(1280, 720, 'TELAO', '1080', 'MEDIA').warn, 'O telão tem menos detalhe que 1920×1080: a imagem vai ser ampliada.');
   // qualquer telão: sempre pares, dentro da caixa e aspecto com erro < 1 px; valor salvo estranho = nativo
   for (const [w, h] of [[1366, 768], [1600, 900], [1920, 1200], [1024, 768], [2560, 1080], [1081, 1921], [5120, 1440], [640, 480]])
     for (const s of ['1080', '720'] as const) {
