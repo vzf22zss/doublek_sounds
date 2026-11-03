@@ -68,7 +68,8 @@ Copiada da seção 0.4 do roadmap. Uma tarefa só fica **DONE** se satisfizer to
 - **Não use mídia de terceiros** (música, logos, vídeos, fotos) sem autorização, nem em testes, nem na documentação.
 - **Não remova nem migre de forma destrutiva** configurações, presets, cenas e assets salvos. Toda mudança de formato tem migração e fallback.
 - **Não quebre o show:** falha em efeito, asset, vídeo ou rede não pode parar o motor de áudio nem bloquear o BLACKOUT.
-- **Não abra porta de rede nem envie dados** sem decisão explícita do mantenedor. O app funciona offline; o único acesso externo é a consulta de atualização às Releases do GitHub.
+- **Não abra porta de rede nem envie dados por conta própria.** O app funciona offline; o único acesso externo automático é a consulta de atualização às Releases do GitHub. OSC e celular abrem porta **só quando o operador liga** (desligados por padrão, `127.0.0.1` a menos que ele escolha a rede local); "Relatar problema" só abre o navegador, nada é enviado sozinho.
+- **Não chame a 1ª iteração de um laço dentro de um `$effect`** (`tick()`, `loop()`, `render()`): o efeito passa a depender de tudo o que essa iteração lê (o `frame` do áudio muda ~94×/s) e se recria sem parar. Comece com `requestAnimationFrame`/`setInterval` ou envolva com `untrack`. O mesmo vale para ler um objeto de estado inteiro (`$state.snapshot`) num efeito que cria renderer, contexto ou listener.
 
 ## Relatar problemas
 

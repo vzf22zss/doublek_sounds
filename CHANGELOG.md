@@ -6,6 +6,30 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Não lançado]
 
+## [0.3.10] - 2026-11-03
+
+### Adicionado
+
+- Gravação: escolha do **tamanho** (Telão, 1080p, 720p; no vertical 1080×1920, 720×1280 ou pela qualidade), com aviso quando a imagem vai ser ampliada.
+- Gravação vertical pela placa de vídeo (WebCodecs): custa o mesmo que gravar em 16:9, sem a cópia por quadro; volta sozinha para o caminho antigo se o computador não suportar.
+- Resumo da análise dentro do app ao parar a gravação da análise, com orientação de ajuste e botão para abrir a pasta.
+- MIDI Clock: **Song Position Pointer** — o Continue do equipamento retoma na posição certa do compasso.
+- MIDI learn guarda de qual controlador veio cada controle; o **Testar tudo** avisa qual controlador ocupado ou desconectado tem controles mapeados.
+- Vídeo: a cena preparada no Preview já deixa o vídeo dela carregado, e o TAKE entra sem engasgo (o roteiro tocando tem prioridade).
+- **Relatar problema** no menu da pílula de saúde: salva o diagnóstico, copia um resumo sem dados pessoais e abre a página do relato no GitHub (nada é enviado sozinho).
+
+### Corrigido
+
+- A janela de controle travava um pouco a cada ajuste (slider, knob MIDI, OSC ou celular): o PREVIEW era refeito do zero toda vez (11 programas da placa de vídeo, ~0,3 s). Agora é criado uma vez só.
+- Os desenhos do analisador, da timeline e do PREVIEW eram reiniciados a cada quadro de áudio, e o status do celular a cada quadro também (230 vezes em 3 s parado); agora rodam uma vez e seguem.
+- Parar logo depois de Gravar (enquanto o telão preparava a gravação) não se perde mais: antes a gravação ficava presa em "Finalizando…" e crescia até 4 GB.
+- **PÂNICO** e **Reset** passam a acalmar também Partículas e Orgânico (antes só caleidoscópio, túnel, mandala e glitch).
+- Teclas **1–8** com o modo Preview ligado preparam a cena, como os pads (antes mandavam direto para o telão).
+- Celular: "Caos" e "Só logo" com o mesmo nome do controle.
+- Um erro de disco numa gravação vertical não desliga mais a gravação pela placa de vídeo nas seguintes; falhas ao preparar a gravação não deixam a captura do telão ligada.
+- O resumo da análise não falha mais quando a última linha do arquivo ficou cortada (disco cheio, app fechado).
+- Controladores MIDI com o nome numerado pelo Windows ("2- nanoKONTROL2") são reconhecidos no Testar tudo; um controlador mapeado noutro computador aparece em amarelo, não em vermelho.
+
 ## [0.3.9] - 2026-10-31
 
 ### Adicionado

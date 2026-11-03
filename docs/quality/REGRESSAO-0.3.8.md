@@ -43,6 +43,8 @@
 
 **Leitura do heap (coordenador):** a série não é monotônica — sobe e desce junto com os blocos de 10 min em que o editor de FX fica aberto (picos nos minutos 31, 61 e 91) e volta a ~9,7–10,0 MB fora deles. A diferença entre o começo e o fim é de ~0,4 MB em 2 h (~200 KB/h): num show de 8 h, menos de 2 MB. Não bloqueia; fica como observação (dívida D-22) para medir de novo com mais horas e sem o editor de FX, que é ferramenta de bancada, não de palco.
 
+**Atualização 2026-11-02 (D-22, sessão 40):** o crescimento **não é do app**. Duas causas no ambiente de teste: (1) o mock `inject.js` não tinha `__TAURI_EVENT_PLUGIN_INTERNALS__.unregisterListener`, que o `unlisten()` do `@tauri-apps/api` chama antes do invoke; cada montagem da aba Efeitos (o PsyEffects faz 2 `listen`) deixava os handlers presos — com o mock corrigido, 200 trocas de aba deram +0,5 MB (ruído) contra +7,2 MB antes; (2) `heapC` e `heapO` medem o **mesmo** isolate V8 (o telão é popup do controle, mesma origem): 40 MB alocados só no telão aparecem nas duas leituras. Os testes isolados (200 aberturas do editor de FX, 40 gravações liga/desliga, 320 roteiros GO/STOP) não acharam retenção. O `soak.mjs` agora documenta isso, tem `SOAK_NO_FX=1` e contadores do mock; o critério correto é um heap só, pelo piso de cada ciclo de 30 min, sem os 10 min de aquecimento.
+
 Estados do Intelligent Show contados no soak (amostras): GROOVE 3558 · BREAK 1202 · BUILD 594 · DROP 879 · — 436 · GRADE? 526. "GRADE?" aparece nas fases de pausa + faixa defasada, como esperado (guarda P8).
 
 ## 2. Plano de regressão (§10 do roadmap)

@@ -57,7 +57,7 @@ projetar no telão e operar ao vivo (inclusive com controlador MIDI).
 
 ## 2. Instalar
 
-1. Pegue o arquivo **`DoubleK Visuals_0.1.0_x64_pt-BR.msi`**.
+1. Pegue o instalador mais novo na página de **Releases** do projeto no GitHub: **`DoubleK Visuals_<versão>_x64_pt-BR.msi`**.
 2. Dê dois cliques nele e siga o instalador (Avançar → Instalar → Concluir).
 3. Se aparecer **"O Windows protegeu o computador"**, clique em **Mais informações** →
    **Executar assim mesmo**. O aviso aparece porque o instalador não tem assinatura digital
@@ -96,7 +96,7 @@ mais fácil de detectar.
 
 Funciona no improviso: pode ser o microfone do notebook ou um microfone USB perto da caixa.
 
-- Na aba **Áudio**, **desligue** "Exigir o click do kick" (seção 6), porque o microfone
+- Na aba **Áudio**, **desligue** Exigir o "click" do kick (seção 6), porque o microfone
   longe da caixa perde os agudos do kick.
 - Use **Calibrar ruído** antes de começar (seção 5).
 
@@ -118,7 +118,7 @@ Funciona no improviso: pode ser o microfone do notebook ou um microfone USB pert
 | 2 | **Medidor** | Nível do sinal. Verde é bom; **CLIP** vermelho quer dizer que está alto demais. |
 | 3 | **BPM** + bolinhas | O andamento detectado e o estado (*procurando / ajustando / travado / segurando*). As 4 bolinhas andam no compasso; a pílula **DROP** acende quando há grave (seção 12). |
 | 4 | **TAP ½ ×2 ◀ ▶** | Ajuste manual do andamento (seção 7). |
-| 5 | **MIDI**, **PÂNICO** e **BLACKOUT** | Liga o modo de mapear o controlador (seção 17); PÂNICO para o roteiro e zera os efeitos agressivos; BLACKOUT apaga o telão na hora. Ao lado ficam as **4 bolinhas de saúde** (áudio · BPM · MIDI · telão) e o fps do telão; clicar nelas salva um **diagnóstico**. |
+| 5 | **MIDI**, **PÂNICO** e **BLACKOUT** | Liga o modo de mapear o controlador (seção 17); PÂNICO para o roteiro e zera os efeitos agressivos; BLACKOUT apaga o telão na hora. Ao lado ficam as **4 bolinhas de saúde** (áudio · BPM · MIDI · telão) e o fps do telão; clicar nelas abre o menu **Salvar diagnóstico** / **Relatar problema**. |
 | 6 | **Preview** | O mesmo visual que está no telão, em tamanho pequeno. |
 | 7 | **Analisador** | Mostra o que o app está ouvindo e cada kick que ele aceitou (seção 6). |
 | 8 | **Abas de ajuste** | Áudio, Logo, Fundo, Efeitos, Saída e **Roteiro** (seção 16). |
@@ -129,14 +129,19 @@ Funciona no improviso: pode ser o microfone do notebook ou um microfone USB pert
 
 | Bolinha | Verde | Laranja | Vermelha |
 |---|---|---|---|
-| **Áudio** | som chegando | nada chega há mais de 1,5 s | o app avisou que a entrada ou a saída caiu |
+| **Áudio** | som chegando | — (apagada = nada chega há mais de 1,5 s) | o app avisou que a entrada ou a saída caiu |
 | **BPM** | travado | achou, mas ainda ajustando | — |
 | **MIDI** | controlador conectado | — | — |
 | **Telão** | aberto e fluido | aberto, mas engasgando (p95 acima de 25 ms) | perdeu a placa de vídeo (ele se recupera sozinho quando ela volta) |
 
-O número ao lado é o fps do telão. **Clicar nas bolinhas salva um diagnóstico**: um arquivo `.json`
-com versão, ajustes, estatísticas do telão e os últimos 200 eventos, **sem nenhum áudio**. É o que
-mandar quando algo der errado.
+O número ao lado é o fps do telão. **Clicar nas bolinhas** abre um menu:
+
+- **Salvar diagnóstico** grava um arquivo `.json` com versão, ajustes, estatísticas do telão e os
+  últimos 200 eventos, **sem nenhum áudio**.
+- **Relatar problema** salva o diagnóstico, copia um resumo curto para a área de transferência e
+  abre no navegador a página para criar o relato no GitHub. Lá, cole (**Ctrl+V**) o resumo e
+  arraste o arquivo `.json`. O resumo não leva seu nome de usuário do Windows nem nomes de
+  músicas ou arquivos, e nada é enviado sozinho: só vai o que você colar.
 
 ![A janela de controle funcionando](img/controle.gif)
 
@@ -185,7 +190,7 @@ O analisador é onde você vê se o app está "entendendo" a música:
 |---|---|
 | Faltam kicks (beats sem traço rosa) | Aumente a **Sensibilidade**. |
 | Traços a mais, entre os kicks (o app está pegando o baixo rolante) | Diminua a **Sensibilidade** e confira se **Exigir o "click" do kick** está ligado. |
-| Nada detecta, nem com sensibilidade alta, usando microfone | **Desligue** "Exigir o click" e suba o **Ganho**. |
+| Nada detecta, nem com sensibilidade alta, usando microfone | **Desligue** Exigir o "click" do kick e suba o **Ganho**. |
 
 **Por que existe o "click":** no psytrance, o baixo rolante (K-B-B-B) bate na mesma região
 grave do kick. A diferença é que o kick tem um estalo agudo (o "click") e o baixo não.
@@ -199,7 +204,10 @@ Para deixar a detecção afinada com a **sua** música, grave a análise de um s
 clique em **Gravar análise (sem áudio)**, toque normalmente e aperte **M** no instante de cada
 drop. **Parar** salva um arquivo `.jsonl` com só números (BPM, grave, kicks por compasso, a cada
 50 ms) — **nenhum som é gravado**. Com esse arquivo dá para medir onde o app errou e ajustar os
-limites. Como gravar e mandar o arquivo: [docs/quality/CALIBRACAO.md](quality/CALIBRACAO.md).
+limites. Ao parar, a aba Áudio mostra um **resumo**: quanto tempo o BPM ficou travado, quantos
+drops você marcou, quantos o app pegou (e com que atraso) e quantos perdeu, com uma orientação
+pronta (por exemplo, "o app perdeu 2 de 5 drops: baixe o Limiar do grave"). **Abrir pasta das
+análises** mostra os arquivos. Como gravar e mandar o arquivo: [docs/quality/CALIBRACAO.md](quality/CALIBRACAO.md).
 
 ## 7. BPM e andamento
 
@@ -284,7 +292,7 @@ os kicks. Use quando o BPM estiver certo e você não quiser que ele oscile.
 
 ![Vídeo no fundo, com a logo na frente](img/video-telao.png)
 
-1. Em **Vídeo em loop**, clique em **Adicionar vídeo** (mp4, webm ou mov), ou **arraste o vídeo
+1. Em **Vídeo em loop**, clique em **Adicionar vídeo** (mp4, m4v, webm ou mov), ou **arraste o vídeo
    para cima da janela**. O app testa o arquivo antes de guardar: se este Windows não consegue
    tocar (por exemplo HEVC/H.265, comum em vídeo de iPhone), ele recusa e diz para converter
    para **MP4 H.264** ou **WebM VP9**. Aceito, o vídeo fica guardado na sua biblioteca.
@@ -330,7 +338,7 @@ tocando, então trocar de cena pode trocar o vídeo.
 
 ### Psy Engine
 
-Abaixo dos efeitos clássicos, a aba Efeitos tem a seção **Psy Engine**: seis módulos que
+Acima dos efeitos clássicos (logo depois do **Mapa de automação** e dos **Efeitos da comunidade**), a aba Efeitos tem a seção **Psy Engine**: seis módulos que
 desenham por cima ou por baixo da logo, cada um com o próprio knob (0 = desligado, custo zero),
 fonte de modulação e chip **drop**.
 
@@ -350,7 +358,7 @@ fonte de modulação e chip **drop**.
 - Abaixo de cada knob aparece o **custo medido** (ms de GPU, ou de CPU quando a placa não
   informa).
 - **Psy Engine: ligado/desligado** é um interruptor que pausa os seis módulos sem mexer nos
-  valores das cenas. **PÂNICO** e **Reset** zeram os módulos.
+  valores das cenas. **PÂNICO** e **Reset** zeram os seis módulos.
 - O glitch respeita o limite de flashes: com ele ligado, no máximo 3 rajadas por segundo.
 
 Exemplos de cenas que já vêm prontas:
@@ -477,7 +485,8 @@ limpa, e no drop os efeitos entram.
 2. Aba **Saída** → escolha o monitor do datashow na lista.
 3. Clique em **Projetar** (ou aperte **F**).
    A janela abre em tela cheia no datashow, sem bordas e sem cursor.
-4. No topo do controle aparece **TELÃO 60 fps**. Se cair muito abaixo de 60, abaixe a
+4. No topo do controle, o número ao lado das bolinhas de saúde mostra os quadros por segundo do
+   telão (60 é o ideal; "—" com o telão fechado). Se cair muito abaixo de 60, abaixe a
    **Resolução de render** (ex.: 75%).
 5. Para fechar: **Fechar telão**, **F** no controle, ou **Esc** com o mouse no telão.
 
@@ -491,8 +500,8 @@ limpa, e no drop os efeitos entram.
   da WCAG 2.3.1 para fotossensibilidade. Não é laudo médico: avise na entrada quando usar strobe.
 - **BLACKOUT (B):** apaga o telão na hora, por cima de qualquer efeito, transição ou roteiro.
   Funciona até se a placa de vídeo travar, porque não depende do desenho.
-- **PÂNICO (P):** não apaga; **para o roteiro** e zera na hora strobe, flash, tremor, aberração,
-  rastro, granulado e linhas de TV. Fica só a logo pulsando calma. Use quando algo sair do
+- **PÂNICO (P):** não apaga; **para o roteiro**, zera na hora strobe, tremor, aberração, rastro,
+  granulado, linhas de TV e os módulos do Psy Engine, e baixa o flash. Fica só a logo pulsando calma. Use quando algo sair do
   controle mas você não quer o telão preto.
 
 ---
@@ -509,11 +518,18 @@ Leve; se algo der errado (disco cheio, telão fechado), a gravação para com um
 telão continua normal**. A gravação para sozinha em 4 GB ou se o disco ficar com menos de 1 GB
 livre. Apague as gravações antigas de vez em quando: o app não apaga nada sozinho.
 
+**Tamanho:** **Telão (nativo)** grava no tamanho em que o telão está (sem custo extra); **1080p**
+ou **720p** gravam nesse tamanho mesmo que o telão seja outro (um pouco mais de custo, porque o app
+redimensiona cada quadro). A linha "Grava em W×H" mostra o resultado antes de começar, e avisa
+quando o telão tem menos detalhe e a imagem vai ser ampliada.
+
 **Vertical (9:16) para Reels/TikTok:** em **Formato**, escolha **Vertical**. Um retângulo ciano
 aparece por cima do PREVIEW mostrando o pedaço do telão que vai ser gravado; ajuste o **Zoom do
-recorte** e a **Posição horizontal** (dá para mexer gravando). O arquivo sai em 1080×1920
-(720×1280 na qualidade Leve) com `V9x16` no nome. O vertical pesa mais no notebook: prefira
-Leve ou 30 fps.
+recorte** e a **Posição horizontal** (dá para mexer gravando). Em **Tamanho**, escolha 1080×1920
+(o que Reels e TikTok pedem) ou 720×1280; em **Pela qualidade**, o app escolhe sozinho e cai para
+720×1280 quando o telão é pequeno demais para 1080. O arquivo sai com `V9x16` no nome. O app
+recorta o quadro pela placa de vídeo (WebCodecs) e o vertical custa o mesmo que o 16:9; num
+Windows sem esse recurso ele copia cada quadro e pesa mais — aí prefira Leve ou 30 fps.
 
 ![Gravação vertical: o retângulo ciano no PREVIEW mostra o recorte 9:16](img/gravacao-vertical.png)
 
@@ -553,7 +569,8 @@ Para o ajuste fino durante o set, use **◀ ▶** (ou as setas do teclado). Cada
 
 ![Knobs e cenas](img/cenas.png)
 
-Uma **cena** é uma "foto" de todo o visual: cores, efeitos e fundo. São 8 posições.
+Uma **cena** é uma "foto" de todo o visual: cores, efeitos e fundo. São 8 posições por banco (até
+4 bancos, veja abaixo).
 
 | Ação | Como |
 |---|---|
@@ -570,8 +587,9 @@ calmos.
 
 **BLACKOUT (B):** apaga o telão com um fade curto. Aperte de novo para voltar.
 
-**Exportar / Importar:** salva o visual e as 8 cenas num arquivo `.json`. Serve para fazer
-backup, levar para outro notebook ou ter um arquivo para cada tipo de festa.
+**Exportar / Importar:** salva o visual e as 8 cenas **do banco aberto** num arquivo `.json`
+(Importar troca as cenas desse banco). Para levar tudo de uma vez (bancos, logo, vídeos,
+roteiros, MIDI), use **Salvar show**, logo abaixo.
 
 > O que **não** entra na cena: offset, resolução, recorte da logo, blackout e só logo.
 > São ajustes do lugar e da operação, não do visual.
@@ -663,7 +681,7 @@ seu gosto antes de passar para Automático.
 
 ### Salvar e abrir um show (`.doublekshow`)
 
-Um **show** é um arquivo só com tudo o que você montou: visual, as 8 cenas, transição,
+Um **show** é um arquivo só com tudo o que você montou: visual, todos os bancos de cenas, transição,
 roteiros, logo, foto de fundo, vídeos da biblioteca e, se quiser, o mapeamento MIDI. Serve
 para levar o show do seu PC para o notebook da festa, ou para guardar uma cópia.
 
@@ -679,7 +697,8 @@ DoubleK, ele avisa na linha de baixo e o seu show atual continua intacto. Depois
 
 - **Substituir o show atual** (OK): troca tudo pelo do arquivo.
 - **Importar como novo** (Cancelar e depois OK): soma os vídeos e roteiros do arquivo aos
-  seus; o visual, a transição e as 8 cenas vêm do arquivo. Pergunta se troca a logo e a foto.
+  seus; o visual, a transição e os **bancos de cenas** vêm do arquivo (os atuais vão para o
+  backup). Pergunta se troca a logo e a foto.
 - Se o arquivo tiver MIDI, pergunta se aplica. O controlador de outra máquina pode estar
   mapeado diferente.
 
@@ -700,8 +719,8 @@ beats no build, outro vídeo no breakdown, o rastro subindo devagar até o clím
 
 ### Criar um roteiro
 
-1. Abra a aba **Roteiro** e clique em **Nova música**. Escolha o arquivo (mp3, wav, flac, m4a
-   ou ogg). Ele fica **guardado dentro do app**.
+1. Abra a aba **Roteiro** e clique em **Nova música**. Escolha o arquivo (mp3, wav, flac, m4a,
+   aac ou ogg). Ele fica **guardado dentro do app**.
 2. O app analisa a música, acha o **BPM** e o **1º beat** e desenha a música na timeline (no
    lugar do analisador). Em **rosa** aparece o grave, então dá para ver onde estão os drops e
    os breakdowns.
@@ -813,13 +832,24 @@ Control, Arturia BeatStep…).
    no controle da tela.
 5. Repita para os outros controles. No fim, clique em **Concluir** (ou **Esc**).
 
+O app guarda de qual controlador veio cada controle aprendido. Assim o **Testar tudo** (aba
+Saída) avisa exatamente "o controlador X está ocupado (ou desconectado) e tem N controles
+mapeados". Controles aprendidos antes da versão 0.3.10 não sabem de qual controlador vieram:
+aprenda de novo para o teste ficar preciso.
+
 ![MIDI learn: o knob Pulso armado e outros já mapeados](img/midi-learn.png)
 
 **O que dá para mapear:**
 
 - os 10 knobs de performance e os sliders das abas Logo, Fundo, Efeitos e Saída;
 - as 8 cenas;
-- TAP, ½, ×2, ◀, ▶, BLACKOUT e Só logo.
+- TAP, ½, ×2, ◀, ▶, BLACKOUT, Só logo e PÂNICO;
+- as 4 macros, TAKE, Preview e limpar o Preview, os botões de banco (‹ ›) e o chip do modo de
+  automação;
+- os botões do roteiro (tocar/GO, parar, ±1 beat, ±1 compasso, A/B);
+- liga/desliga e opacidade de cada camada.
+
+Tudo o que está na tabela de atalhos (seção 18) também aprende no MIDI.
 
 **Como cada tipo de controle responde:**
 
@@ -848,7 +878,7 @@ DoubleK. Para o visual, use um **controlador separado** (um pequeno e barato já
 
 Se o mixer, a CDJ ou o software do DJ (Traktor, Rekordbox, Ableton) manda **MIDI Clock** para
 uma porta que o DoubleK está usando, o app passa a seguir o andamento do equipamento em vez de
-adivinhar pelo som, e a bolinha de BPM mostra **MIDI CLK**. Quando o equipamento manda
+adivinhar pelo som, e o texto ao lado do BPM mostra **MIDI CLK**. Quando o equipamento manda
 **Start**, o 1º tempo também vem dele. Se o clock parar de chegar, depois de 2 segundos o app
 volta a ouvir o som sozinho, já no andamento certo. A porta precisa estar livre (veja a nota
 acima sobre "(ocupado)"); um cabo MIDI ou interface USB-MIDI separado resolve. Detalhes e roteiro
@@ -886,7 +916,7 @@ trava por 1 minuto.
 |---|---|
 
 A tela do celular mostra o BPM, o estado da música e o DROP, e tem: os bancos e os 8 pads com os
-nomes das cenas (o pad aceso é a cena no telão), **BLACKOUT** e **SÓ LOGO**, as 4 macros, **TAP**
+nomes das cenas (o pad aceso é a cena no telão), **BLACKOUT** e **Só logo**, as 4 macros, **TAP**
 e ajuste de fase (◀ ▶), quatro sliders (pulso, glow, flash, rastro) e o **PÂNICO**, grande e
 separado. Se o celular perder o app (Wi-Fi caiu, app fechado), aparece uma faixa "sem conexão" e
 os botões ficam desligados até voltar; o show no notebook continua normal.
@@ -902,7 +932,7 @@ segurança em [docs/REMOTO.md](REMOTO.md).
 |---|---|
 | **Espaço** | TAP (bater o tempo) |
 | **← / →** | Adiantar / atrasar a fase 5 ms (segurar repete) |
-| **1 … 8** | Chamar cena (no modo Preview: preparar) |
+| **1 … 8** | Chamar cena (com o modo Preview ligado: preparar, como os pads) |
 | **Shift + 1 … 8** | Preparar a cena no Preview, sem o telão ver |
 | **T** / **Shift + T** | TAKE (manda o Preview para o telão no próximo beat) / limpar o Preview |
 | **V** | Ligar/desligar o modo Preview dos pads |
@@ -919,6 +949,7 @@ segurança em [docs/REMOTO.md](REMOTO.md).
 | **, / .** | Roteiro: −1 / +1 beat |
 | **; / '** | Roteiro: −1 / +1 compasso |
 | **R** | Roteiro: compara com roteiro × só o som (com a música tocando) |
+| **M** | Marcar um drop na gravação da análise (aba Áudio; só com a gravação ligada) |
 | **Esc** | Sair do modo MIDI (no controle) · fechar o telão (no telão) |
 
 Os atalhos só valem sem **Ctrl** (ou Cmd): Ctrl+C, Ctrl+R e afins continuam com o Windows. Segurar
@@ -947,8 +978,8 @@ modo de automação, clique no chip de estado).
 - [ ] Datashow em **Estender** (Windows + P).
 - [ ] Cabo do REC/BOOTH na interface → **Ouvir** → **Ganho** no ponto → **Calibrar ruído**
       com a mesa em silêncio.
-- [ ] Faixa de BPM certa (Psy / Dark / Hi-tech).
-- [ ] **Projetar** → conferir **60 fps**.
+- [ ] Faixa de BPM certa (Psy / Dark/Forest / Hi-tech).
+- [ ] **Projetar** → o número ao lado das bolinhas de saúde marca ~60 (quadros por segundo).
 - [ ] Acertar o **Offset visual** olhando para o telão.
 - [ ] Com a música tocando e o telão projetado: aba **Saída** → **Testar tudo**. Em 10 s o app
       confere áudio entrando, BPM travado, telão no monitor certo e fluido, MIDI, espaço em disco,
@@ -976,8 +1007,8 @@ modo de automação, clique no chip de estado).
 | Roteiro: pontos adiantados ou atrasados em relação à música | Alinhe a grade com **−5ms / +5ms**; se for um beat inteiro, **1º tempo − / +**. |
 | "A saída está em … Hz" ao tocar o roteiro | A saída de áudio mudou: escolha a saída de novo na aba Roteiro (a música é preparada de novo). |
 | Telão ficou preto e a bolinha do telão está vermelha | A placa de vídeo "sumiu" por um instante (driver, monitor trocado). O app recria o telão sozinho quando ela volta; se não voltar em alguns segundos, **F** duas vezes (fecha e reabre). |
-| Quer relatar um problema | Clique nas **4 bolinhas** no topo: salva um `.json` de diagnóstico sem áudio. Mande esse arquivo junto com o que aconteceu. |
-| "Não aceitei …: tipo não aceito / grande demais" | Limites do app: **imagem** até 25 MB (png, jpg, webp, gif, bmp, svg); **vídeo** até 600 MB (mp4, webm, mov); **música** até 300 MB e 20 min (mp3, wav, flac, m4a, aac, ogg); **preset ou roteiro** até 2 MB. Converta ou corte o arquivo. |
+| Quer relatar um problema | Clique nas **4 bolinhas** no topo → **Relatar problema**: salva o diagnóstico (sem áudio), copia um resumo e abre a página do relato no GitHub. Cole o resumo, arraste o `.json` e conte o que aconteceu. |
+| "Não aceitei …: tipo não aceito / grande demais" | Limites do app: **imagem** até 25 MB (png, jpg, webp, gif, bmp, svg); **vídeo** até 600 MB (mp4, m4v, webm, mov); **música** até 300 MB e 20 min (mp3, wav, flac, m4a, aac, ogg); **preset ou roteiro** até 2 MB. Converta ou corte o arquivo. |
 | Controlador aparece como "(ocupado)" | Outro programa está com ele (Rekordbox, Serato…). Use outro controlador ou feche o programa. |
 | O controlador não aparece | Desplugue e plugue de novo. O app reconecta em até 2 s. |
 
