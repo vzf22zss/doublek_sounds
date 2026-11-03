@@ -19,6 +19,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 ### Corrigido
 
 - A janela de controle travava um pouco a cada ajuste (slider, knob MIDI, OSC ou celular): o PREVIEW era refeito do zero toda vez (11 programas da placa de vídeo, ~0,3 s). Agora é criado uma vez só.
+- Os desenhos do analisador, da timeline e do PREVIEW eram reiniciados a cada quadro de áudio, e o status do celular a cada quadro também (230 vezes em 3 s parado); agora rodam uma vez e seguem.
+- Parar logo depois de Gravar (enquanto o telão preparava a gravação) não se perde mais: antes a gravação ficava presa em "Finalizando…" e crescia até 4 GB.
 - **PÂNICO** e **Reset** passam a acalmar também Partículas e Orgânico (antes só caleidoscópio, túnel, mandala e glitch).
 - Teclas **1–8** com o modo Preview ligado preparam a cena, como os pads (antes mandavam direto para o telão).
 - Celular: "Caos" e "Só logo" com o mesmo nome do controle.
