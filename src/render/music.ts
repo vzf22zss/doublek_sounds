@@ -37,6 +37,7 @@ export type MusicUniforms = {
   strobe: number;        // intensidade final do strobe, já com o limite de flashes
   black: number;         // blackout 0–1
   rings: Ring[];         // anéis vivos (< 900 ms)
+  sil?: number;          // 0–1: silêncio (pausa + nível baixo), suavizado
 };
 
 export const musicState = (): MusicState => ({
@@ -80,7 +81,8 @@ export function musicFrame(st: MusicState, f: Frame, v: Visual, now: number) {
 export function mod(u: MusicUniforms, v: Visual, k: ModTarget) {
   if (u.stale) return u.p;
   const x = u.S[v.mod[k]] ?? u.p, r = v.range?.[k];
-  return r ? Math.min(1, Math.max(0, (x - r[0]) / (r[1] - r[0]))) : x;
+  const y = r ? Math.min(1, Math.max(0, (x - r[0]) / (r[1] - r[0]))) : x;
+  return y + (x - y) * (u.sil ?? 0); // no silêncio a régua não vale (como sem sinal): respirar não vira parar nem pulso cheio
 }
 
 /** "Só no drop": multiplica pelo envelope do grave se o efeito estiver marcado. */
@@ -160,7 +162,7 @@ export function music(st: MusicState, v: Visual, now: number): MusicUniforms {
 
   const u: MusicUniforms = {
     now, kick, wave: st.waveEnv, presence: st.presence, p, drop: st.dropEnv, beatPhase: ph, bar, absBeat: st.absBeat,
-    bands: b, spec: st.spec, S, fx, live, stale, strobe: 0, black: st.black, rings: st.rings,
+    bands: b, spec: st.spec, S, fx, live, stale, strobe: 0, black: st.black, rings: st.rings, sil: st.sil,
   };
 
   if (v.strobe > 0 && fx) {

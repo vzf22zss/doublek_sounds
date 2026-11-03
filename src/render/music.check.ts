@@ -185,6 +185,18 @@ for (const loud of [true, false]) {
   else assert.ok(max < 0.01, `silêncio: strobe ${max.toFixed(2)}`);
 }
 
+// Revisão 0.3.11: régua no Pulso não muda o "respirar" do silêncio (nem para, nem bate cheio)
+for (const range of [[0.2, 1], [0, 0.1]] as [number, number][]) {
+  const st = musicState(), v = V({ pause: 'breathe', range: { amount: range } }), bpm = 148;
+  let t = 1000, max = 0, min = 1;
+  for (; t < 7000; t += 16) {
+    musicFrame(st, at(t, bpm, { pos: 30, levels: [0.01, 0.01, 0.01, 0.01, 0.01] }), v, t);
+    const u = music(st, v, t);
+    if (t > 4000) { const a = mod(u, v, 'amount'); max = Math.max(max, a); min = Math.min(min, a); }
+  }
+  assert.ok(max <= 0.125 && max - min > 0.05, `régua ${range}: respira ${min.toFixed(3)}–${max.toFixed(3)}`);
+}
+
 // Breakdown sem kick mas com música (pad) não é silêncio: nada de disparo previsto, a logo segue a onda pelos levels
 {
   const st = musicState(), v = V({ predict: true, pause: 'breathe', wave: 0.8 }), bpm = 148;
