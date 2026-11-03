@@ -246,7 +246,7 @@
       roteiroStop();
       perf.clearPreview();
       Object.assign(vs, SAFE_LOOK, { blackout: false, logoOnly: false, react: true, safeFlash: true });
-      status = 'PÂNICO: roteiro parado, strobe/flash/tremor/aberração/rastro zerados.';
+      status = 'PÂNICO: roteiro parado, strobe/flash/tremor/aberração/rastro e Psy Engine zerados.';
       log('warn', status);
     },
     SCENE_RECALL: (c) => {
@@ -362,7 +362,7 @@
     if (id === 'RESET') { // = PÂNICO sem parar o roteiro: também desfaz os efeitos/rampas do roteiro em andamento
       cancelRunning();
       Object.assign(vs, SAFE_LOOK, { blackout: false, logoOnly: false, safeFlash: true });
-      status = 'RESET: strobe/flash/tremor/aberração/rastro zerados; o roteiro continua.';
+      status = 'RESET: strobe/flash/tremor/aberração/rastro e Psy Engine zerados; o roteiro continua.';
       return;
     }
     stopMacro();
