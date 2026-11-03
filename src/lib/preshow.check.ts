@@ -1,6 +1,7 @@
 // npm run check — "Testar tudo" (DK-145): entradas simuladas → cores e mensagens.
 import assert from 'node:assert/strict';
 import { evaluate, onChosenMonitor, worst, type Mon, type PreshowInput } from './preshow.ts';
+import { mappedByDevice, normDevice } from './midimap.ts';
 
 const OK: PreshowInput = {
   rms: Array(100).fill(0.2), gate: 0.003, lockedAtS: 3.2,
@@ -99,6 +100,20 @@ assert.match(run(mb(['nanoKONTROL2 (ocupado)', 'APC40'], { APC40: 2 }, 3)).midi.
 // todas as frases do item no mesmo molde: nada de "(ocupado)" cru nem "controlador(es)"
 for (const m of [md(['nanoKONTROL2 (ocupado)']), md(['a (ocupado)', 'b']), md(['a (ocupado)'], 0), md(['a', 'b']), mb(['a (ocupado)', 'b'], { b: 2 }), mb(['a (ocupado)', 'b'], { a: 2 })])
   assert.ok(!/\(ocupado\)|\(es\)/.test(run(m).midi.msg), run(m).midi.msg);
+// revisão 0.3.10: nome da porta normalizado dos dois lados (WinMM numera portas repetidas: "2- nanoKONTROL2")
+assert.equal(normDevice('2- nanoKONTROL2'), 'nanoKONTROL2');
+assert.equal(normDevice('10-  nano  KONTROL2  (ocupado)'), 'nano KONTROL2');
+assert.equal(normDevice('MIDI 2- X'), 'MIDI 2- X', 'só o prefixo do começo');
+assert.deepEqual(mappedByDevice({ 'cc:0:1': { id: 'a', label: 'A', device: '2- nanoKONTROL2' }, 'cc:0:2': { id: 'b', label: 'B', device: 'nanoKONTROL2' } }), { nanoKONTROL2: 2 }, 'mapa antigo com o nome cru');
+assert.equal(run(mb(['2- nanoKONTROL2'], { nanoKONTROL2: 3 })).midi.msg, '1 controlador, 3 controles mapeados.', 'porta numerada × nome guardado');
+assert.equal(color(mb(['nanoKONTROL2'], { '2- nanoKONTROL2': 3 }), 'midi'), 'verde', 'nome guardado cru × porta sem número');
+assert.match(run(mb(['2- nanoKONTROL2 (ocupado)', 'APC40'], { nanoKONTROL2: 3 })).midi.msg, /^O controlador nanoKONTROL2 está ocupado e tem 3 controles mapeados/);
+// controlador mapeado que não está aqui: amarelo se outro conectado tem controles mapeados; vermelho se nenhum tem
+assert.equal(color(mb(['APC40'], { APC40: 4, 'nanoKONTROL2 do Zé': 2 }), 'midi'), 'amarelo');
+assert.equal(run(mb(['APC40'], { APC40: 4, 'nanoKONTROL2 do Zé': 2 })).midi.msg, 'Mapeado num controlador que não está aqui: nanoKONTROL2 do Zé (2 controles mapeados). Os outros controles estão em controladores conectados.');
+assert.equal(color(mb(['APC40'], { 'nanoKONTROL2 do Zé': 2 }), 'midi'), 'vermelho', 'nenhum conectado com controles mapeados');
+assert.equal(color(mb([], { APC40: 4 }), 'midi'), 'vermelho', 'nada conectado');
+assert.equal(color(mb(['APC40'], { 'nanoKONTROL2 do Zé': 2 }, 3), 'midi'), 'amarelo', 'controles sem origem podem estar no APC40');
 
 // 5. disco
 assert.equal(color({ diskFree: 1.9e9 }, 'disk'), 'vermelho');

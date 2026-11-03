@@ -2,7 +2,7 @@
 // Mapeamento: "cc:canal:número" ou "note:canal:número" → alvo. Alvos: v:<ajuste visual>, a:<ação>, c:<cena>.
 
 import { load, save as storeSave } from '../lib/store';
-import { validMidiMap, type MidiTarget } from '../lib/midimap';
+import { normDevice, validMidiMap, type MidiTarget } from '../lib/midimap';
 
 export type Target = MidiTarget;
 /** Evento `midi` do Rust; `device` (D-23) = nome da porta de onde veio. */
@@ -33,8 +33,8 @@ export function bindArmed(key: string, device?: string) {
   const t = midi.armed;
   if (!t) return;
   for (const k of Object.keys(midi.map)) if (midi.map[k].id === t.id) delete midi.map[k];
-  const { device: _, ...base } = t;
-  midi.map[key] = device ? { ...base, device } : base;
+  const { device: _, ...base } = t, dev = device ? normDevice(device) : '';
+  midi.map[key] = dev ? { ...base, device: dev } : base;
   midi.armed = null;
   save();
   return t;
