@@ -6,6 +6,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Não lançado]
 
+## [0.3.10] - 2026-11-03
+
 ### Adicionado
 
 - Gravação: escolha do **tamanho** (Telão, 1080p, 720p; no vertical 1080×1920, 720×1280 ou pela qualidade), com aviso quando a imagem vai ser ampliada.
