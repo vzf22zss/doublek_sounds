@@ -247,13 +247,22 @@ fn stamp(now: SystemTime) -> String {
 
 // ---------------- leitura e resumo (examples/replay.rs e o cartão da aba Áudio) ----------------
 
-pub fn read(path: &Path) -> Result<Vec<Line>, String> {
-    let text = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
-    text.lines()
-        .filter(|l| !l.trim().is_empty())
-        .enumerate()
-        .map(|(i, l)| serde_json::from_str(l).map_err(|e| format!("linha {}: {e}", i + 1)))
-        .collect()
+/// Linhas do diário e se a ÚLTIMA estava cortada. Só ela pode estar (meia linha do flush final de um disco cheio ou
+/// do app fechando no meio): é ignorada e avisada. Uma inválida no meio continua erro (revisão 0.3.10). Lido como
+/// bytes: o corte pode cair no meio de um caractere UTF-8.
+pub fn read(path: &Path) -> Result<(Vec<Line>, bool), String> {
+    let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+    let text = String::from_utf8_lossy(&bytes);
+    let rows: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
+    let mut out = Vec::with_capacity(rows.len());
+    for (i, l) in rows.iter().enumerate() {
+        match serde_json::from_str(l) {
+            Ok(x) => out.push(x),
+            Err(_) if i + 1 == rows.len() => return Ok((out, true)),
+            Err(e) => return Err(format!("linha {}: {e}", i + 1)),
+        }
+    }
+    Ok((out, false))
 }
 
 /// Resumo para a calibração. O estado que o show-engine teria escolhido NÃO é refeito aqui: as
@@ -277,6 +286,7 @@ pub struct Summary {
     pub missed_no_breakdown: usize, // perdidos em que o grave nunca saiu nos 8 s antes da marca: o app não viu o breakdown
     pub drop_false: usize,       // drop_on sem marca a ±4 s
     pub drop_delay_mean: f64,    // drop_on − marca (s), média dos acertos
+    pub cut_last: bool,          // a última linha do arquivo estava cortada e foi ignorada (só `summary_in` sabe)
 }
 
 pub const MATCH: f64 = 4.0;
@@ -327,6 +337,7 @@ pub fn summarize(lines: &[Line]) -> Summary {
         missed_no_breakdown: no_breakdown,
         drop_false: used.iter().filter(|u| !**u).count(),
         drop_delay_mean: if delays.is_empty() { f64::NAN } else { delays.iter().sum::<f64>() / delays.len() as f64 },
+        cut_last: false,
     }
 }
 
@@ -339,7 +350,7 @@ pub fn summary_in(dir: &Path, path: &Path) -> Result<Summary, String> {
     if file.parent() != Some(dir.as_path()) || file.extension().is_none_or(|e| e != "jsonl") || !file.is_file() {
         return Err(refuse());
     }
-    read(&file).map(|l| summarize(&l))
+    read(&file).map(|(l, cut)| Summary { cut_last: cut, ..summarize(&l) })
 }
 
 #[cfg(test)]
@@ -375,7 +386,8 @@ mod tests {
         d.mark("drop");
         let st = d.stop();
         assert!(!st.running && st.last_error.is_none() && st.dropped == 0, "{st:?}");
-        let lines = read(Path::new(&st.path)).unwrap();
+        let (lines, cut) = read(Path::new(&st.path)).unwrap();
+        assert!(!cut);
         assert_eq!(lines.len() as u64, st.lines);
         let samples: Vec<&Sample> = lines.iter().filter_map(|l| if let Line::Sample(s) = l { Some(s) } else { None }).collect();
         assert!((590..=610).contains(&samples.len()), "{} amostras em 30 s", samples.len());
@@ -400,7 +412,7 @@ mod tests {
         assert!(st.last_error.as_deref().is_some_and(|e| e.contains("limite")), "{st:?}");
         let size = std::fs::metadata(&st.path).unwrap().len();
         assert!(size <= 20_000 && size == st.bytes, "{size} bytes");
-        assert!(read(Path::new(&st.path)).is_ok(), "arquivo cortado no meio de uma linha");
+        assert!(read(Path::new(&st.path)).is_ok_and(|(_, cut)| !cut), "arquivo cortado no meio de uma linha");
         let _ = std::fs::remove_dir_all(dir);
     }
 
@@ -459,6 +471,29 @@ mod tests {
         let j = serde_json::to_value(&s).unwrap();
         assert_eq!((j["dropMissed"].as_u64(), j["missedNoBreakdown"].as_u64()), (Some(2), Some(1)));
         assert!(j["dropDelayMean"].is_null(), "sem acertos: null, não NaN");
+    }
+
+    /// Revisão 0.3.10: meia linha no fim (disco cheio / app fechado no meio) é ignorada e avisada; no meio é erro.
+    #[test]
+    fn so_a_ultima_linha_cortada_e_ignorada() {
+        let root = tmp("cortada");
+        let dir = root.join("analysis");
+        std::fs::create_dir_all(&dir).unwrap();
+        let ok = "{\"t\":1.0,\"mark\":\"drop\"}\n{\"t\":1.2,\"event\":\"drop_on\"}\n";
+        let f = |name: &str, body: &[u8]| { let p = dir.join(name); std::fs::write(&p, body).unwrap(); p };
+        let fim = f("fim.jsonl", format!("{ok}{{\"t\":2.0,\"ma").as_bytes());
+        let s = summary_in(&dir, &fim).unwrap();
+        assert_eq!((s.marks, s.drop_hits, s.cut_last), (1, 1, true));
+        assert_eq!(serde_json::to_value(&s).unwrap()["cutLast"], serde_json::json!(true));
+        // corte no meio de um caractere UTF-8 (marca "ação" cortada no 2º byte do "ç")
+        let mut b = ok.as_bytes().to_vec();
+        b.extend_from_slice(&"{\"t\":3.0,\"mark\":\"aç".as_bytes()[..19]);
+        assert!(summary_in(&dir, &f("utf8.jsonl", &b)).is_ok_and(|s| s.cut_last && s.marks == 1));
+        let inteiro = f("inteiro.jsonl", ok.as_bytes());
+        assert!(!summary_in(&dir, &inteiro).unwrap().cut_last);
+        let meio = f("meio.jsonl", format!("{{\"t\":0.5,\"ma\n{ok}").as_bytes());
+        assert!(summary_in(&dir, &meio).is_err_and(|e| e.starts_with("linha 1:")), "inválida no meio continua erro");
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

@@ -25,6 +25,7 @@
       <dt>Drops sem marca</dt><dd>{sum.dropFalse}</dd>
     </dl>
     {#each tips as t}<p class="tip">{t}</p>{/each}
+    {#if sum.cutLast}<p class="keys warnTxt">A última linha do arquivo estava cortada (o app fechou ou o disco encheu no meio) e foi ignorada.</p>{/if}
   {:else if err}
     <p class="keys warnTxt">{err}</p>
   {:else}
