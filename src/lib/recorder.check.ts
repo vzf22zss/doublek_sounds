@@ -1,6 +1,6 @@
 // npm run check — gravação (DK-072): codec, nome, máquina de estados e aviso de desempenho.
 import assert from 'node:assert/strict';
-import { BITRATE, cropRect, IDLE, outputSize, pickMime, recLabel, recName, reduce, verticalSize, type Format, type Quality, type RecEvent, type RecState, type Size } from './recorder.ts';
+import { BITRATE, cropRect, evenRect, IDLE, outputSize, pickMime, recLabel, recName, reduce, verticalPath, verticalSize, type Format, type Quality, type RecEvent, type RecState, type Size } from './recorder.ts';
 
 // codec: MP4/H.264 primeiro (nível certo para o fps), depois WebM
 const all = () => true, only = (...ok: string[]) => (m: string) => ok.includes(m);
@@ -145,5 +145,27 @@ assert.match(run([{ t: 'start', id: 'x.mp4', mime: 'video/mp4', at: 0, p95: 0, v
     }
   assert.equal(sz(1920, 1080, 'TELAO', 'xyz' as Size), '1920x1080 nativo');
 }
+// D-18: caminho do vertical — WebCodecs só com as três APIs, MP4/H.264 e sem falha anterior; o resto cai na cópia 2D
+const tem = { processor: true, encoder: true, frame: true };
+const MP4 = 'video/mp4;codecs=avc1.640028';
+assert.equal(verticalPath(tem, MP4, false), 'webcodecs');
+assert.equal(verticalPath(tem, 'video/mp4;codecs=avc1.64002A', false), 'webcodecs', '60 fps');
+assert.equal(verticalPath({ ...tem, processor: false }, MP4, false), '2d', 'WebView sem MediaStreamTrackProcessor');
+assert.equal(verticalPath({ ...tem, encoder: false }, MP4, false), '2d', 'sem VideoEncoder');
+assert.equal(verticalPath({ ...tem, frame: false }, MP4, false), '2d', 'sem VideoFrame');
+assert.equal(verticalPath(tem, 'video/webm;codecs=vp9', false), '2d', 'WebM: o MP4 fragmentado é só H.264');
+assert.equal(verticalPath(tem, MP4, true), '2d', 'falhou nesta sessão: não tenta de novo');
+
+// recorte em pixels pares e sempre dentro do quadro, para todo telão/zoom/posição
+for (const [W, H] of [[1920, 1080], [1280, 720], [1366, 768], [801, 601], [1080, 1920], [3840, 1080], [3, 3]])
+  for (const [w, h] of [[1080, 1920], [720, 1280]])
+    for (let z = 1; z <= 3; z += 0.25)
+      for (let off = -1; off <= 1; off += 0.125) {
+        const c = cropRect(W, H, w, h, { zoom: z, offset: off }), r = evenRect(c, W, H);
+        assert.ok([r.x, r.y, r.width, r.height].every((v) => Number.isInteger(v) && v % 2 === 0), `pares ${W}×${H} z${z} ${off}: ${JSON.stringify(r)}`);
+        assert.ok(r.width >= 2 && r.height >= 2 && r.x + r.width <= W && r.y + r.height <= H, `dentro ${W}×${H} z${z} ${off}: ${JSON.stringify(r)}`);
+        if (W >= 100) assert.ok(Math.abs(r.width - c.sw) <= 2 && Math.abs(r.height - c.sh) <= 2 && Math.abs(r.x - c.sx) <= 2, 'perto do recorte exato');
+      }
+assert.deepEqual(evenRect(cropRect(1280, 720, 1080, 1920, { zoom: 1, offset: 0 }), 1280, 720), { x: 436, y: 0, width: 404, height: 720 });
 
 console.log('recorder: ok');

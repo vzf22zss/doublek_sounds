@@ -78,6 +78,33 @@ O MP4 do Chromium é fragmentado por keyframe: sem pedir keyframe a cada 1 s, um
 | 1 | 19,8 ms | 19,9 ms | 24,5 ms (+24%) |
 | 2 | 30,9 ms | 30,7 ms | 48,1 ms (+56%) |
 
-Gravar o telão direto (16:9) não pesa nada mensurável; o vertical pesa, porque a cópia WebGL → 2D a 1080×1920 acontece a cada quadro (e neste teste o recorte de 405×720 ainda era ampliado 2,7×). O aviso automático (p95 > 1,3×) cobre isso ao vivo; recomendação na interface: **Leve (720×1280) ou 30 fps** para o vertical. Ver "Dívidas" no relatório: caminho sem cópia (recorte de `VideoFrame` por WebCodecs) se o custo pesar em hardware de show.
+Gravar o telão direto (16:9) não pesa nada mensurável; o vertical pesa, porque a cópia WebGL → 2D a 1080×1920 acontece a cada quadro (e neste teste o recorte de 405×720 ainda era ampliado 2,7×). O aviso automático (p95 > 1,3×) cobre isso ao vivo; recomendação na interface: **Leve (720×1280) ou 30 fps** para o vertical. Desde a D-18 o vertical vai **sem essa cópia** quando o WebView tem WebCodecs (seção 7); a cópia 2D fica como queda.
 
 **Testes:** `recorder.check.ts` varre 2142 combinações (7 aspectos de telão, inclusive retrato e ultra-wide; 2 tamanhos de saída; zoom 1–3; posição −1…1): o recorte fica sempre dentro do canvas e com o aspecto 9:16; casos exatos (faixa central, encostar nas bordas, zoom 2 centrado na logo, valores fora da faixa trazidos para dentro); nome `…V9x16.mp4`. Mock: retângulo 9:16 no PREVIEW (188×333 px), 10 s gravando vertical → arquivo **1080×1920**, 9 pedaços, 4,3 MB, toca, e um quadro do meio tem imagem (36,6% dos pixels acesos).
+
+## 7. Vertical sem cópia por quadro (D-18)
+
+**Como funciona.** `src/output/vertical.ts`: `captureStream` do canvas do telão → `MediaStreamTrackProcessor` → `new VideoFrame(quadro, { visibleRect, displayWidth, displayHeight })` (o recorte do `cropRect`, arredondado a pixels pares por `evenRect`; não copia pixels) → **`VideoEncoder` H.264** configurado em 1080×1920 (720×1280 no Leve), que escala o recorte → MP4 fragmentado montado no app (`src/lib/fmp4.ts`: `ftyp`+`moov` com o `avcC` do codificador, depois um `moof`+`mdat` por quadro-chave). Quadro-chave a cada 1 s = um pedaço por segundo para o `rec_chunk`, como o MediaRecorder. Zoom e posição continuam mexendo ao vivo (`rec-frame` muda o recorte do próximo quadro; o codificador sempre sai no mesmo tamanho). Codificador atrasado (fila ≥ 4) pula o quadro; a duração no MP4 vem do timestamp.
+
+**Por que não o MediaRecorder com `MediaStreamTrackGenerator`** (a primeira ideia): medido, ele ignora `displayWidth/Height` e grava no **tamanho do recorte** (336×600 de um telão 800×600, não 1080×1920), e mudar o zoom gravando muda a resolução no meio do arquivo (o Chromium avisa: o `avc1` não pode mudar de descrição). O `VideoEncoder` escala para o tamanho configurado e aguentou zoom 1 → 2 no meio (1088×1920 codificado = 1080 visíveis + alinhamento do H.264).
+
+**Escolha do caminho** (`verticalPath` em `recorder.ts`, coberta no `recorder.check.ts`): WebCodecs só com `MediaStreamTrackProcessor`, `VideoEncoder` e `VideoFrame` presentes, MIME MP4/H.264 e sem falha anterior nesta sessão; WebM ou qualquer API ausente → cópia 2D. Antes de começar, `VideoEncoder.isConfigSupported` e um ensaio no 1º quadro (recorte aceito pelo `VideoFrame`, quadro em até 2 s); se falhar, a **mesma gravação** sai pela cópia 2D e o diário avisa ("Gravação vertical sem WebCodecs (…): usando a cópia 2D"). Falha no meio de uma gravação por WebCodecs: a gravação para como antes (DK-072) e as próximas verticais da sessão usam a cópia 2D.
+
+**Custo medido** (mock, Edge headless com GPU `ANGLE (Intel UHD Graphics, Direct3D11)`, telão 1280×720 em janela própria, 30 fps Média, Ajuste automático do Psy **desligado**; p95 do quadro do telão, mediana dos p95 de 1 s; ordem das condições girando a cada rodada). A máquina estava sob carga de outras sessões (CPU a 100% na 1ª bateria, ~20% na última), por isso as rodadas variam muito; o que vale é a comparação dentro de cada rodada.
+
+*Caminhos do app* (16:9 e vertical pelo botão Gravar; a cópia 2D forçada tirando o `MediaStreamTrackProcessor` da janela), 14 rodadas de 15 s:
+
+| | Sem gravar | Gravando 16:9 | Vertical WebCodecs (novo) | Vertical cópia 2D (antigo) |
+|---|---|---|---|---|
+| p95, mediana das 8 rodadas com a máquina mais quieta | 25,8 ms | 32,9 ms | **32,1 ms** | 44,7 ms |
+| p95, mediana das 14 rodadas | 28,8 ms | 33,5 ms | **35,6 ms** | 41,7 ms |
+| ÷ sem gravar (mediana das 14 razões) | 1,00 | 1,21 | **1,21** | 1,44 |
+| rodadas em que o novo ficou abaixo da cópia 2D | | | **10 de 14** (1 empate) | |
+
+*Protótipo injetado no telão* (antes da implementação; mesmas condições, mais o gerador + MediaRecorder), 9 rodadas: sem gravar 28,7 · 16:9 30,1 · **VideoEncoder 28,5** · gerador + MediaRecorder 25,0 (arquivo no tamanho errado) · cópia 2D 44,7 ms; VideoEncoder abaixo da cópia 2D em 7 de 9.
+
+Resumo: o vertical por WebCodecs custa **o mesmo que gravar o 16:9**; a cópia 2D custava ~1,4× o telão parado. Nada de hardware de show medido (a mesma ressalva da seção 5).
+
+**Testes.** `fmp4.check.ts`: caixas bem formadas, `avcC` dentro do `avc1`, tamanho no `tkhd`/`avc1`, `data_offset` do `trun` apontando para o `mdat`, durações pelos timestamps, um fragmento por quadro-chave, arquivo começando num quadro-chave, sequência dos fragmentos. `recorder.check.ts`: escolha do caminho (7 casos) e `evenRect` par e dentro do quadro em 2142 combinações. Mock (build em `vite preview`, telão em janela própria): vertical por WebCodecs com zoom 1 → 2 e posição 0 → 0,4 **gravando** → arquivo **1080×1920** em todos os quadros, ~6 s, 7 pedaços, toca, com imagem; **mesmo recorte que a cópia 2D** (centroide da logo para posição −0,25 / 0 / +0,25: 0,70 / 0,50 / 0,29 nos dois caminhos); sem `MediaStreamTrackProcessor` → cópia 2D 1080×1920; `VideoFrame` recusando o `visibleRect` → cópia 2D na mesma gravação e na seguinte; 0 pageerror.
+
+**Não verificado:** WebView2 do exe (a mesma versão do Edge 156 deste teste, mas não rodado); GPU dedicada; 60 fps vertical; arquivo do caminho novo aberto fora do navegador (o `<video>` do Chromium toca; players do sistema e upload para Reels/TikTok não testados).

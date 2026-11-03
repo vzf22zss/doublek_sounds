@@ -4,14 +4,17 @@
 // Qualquer falha aqui para só a gravação: o desenho do telão não passa por este arquivo.
 import { invoke } from '@tauri-apps/api/core';
 import { emitTo, listen } from '@tauri-apps/api/event';
-import { cropRect, type Framing } from '../lib/recorder';
+import { cropRect, verticalPath, type Framing } from '../lib/recorder';
+import { webCodecsRecorder, webCodecsSupport, type FrameRec } from './vertical';
 
-/** `vertical`: grava um recorte 9:16 do telão (DK-073) num canvas 2D w×h, com zoom e deslocamento. */
+/** `vertical`: grava um recorte 9:16 do telão (DK-073) em w×h, com zoom e deslocamento: por WebCodecs, sem cópia por
+ *  quadro, quando o WebView tem (D-18, `vertical.ts`); senão por um canvas 2D que copia o recorte. */
 export type RecStart = { id: string; mime: string; fps: number; bitrate: number; vertical?: { w: number; h: number } & Framing };
 type Chunk = { total: number; stop: string | null };
 
 export function initRecording(canvas: HTMLCanvasElement, log: (level: 'warn' | 'error', msg: string) => void) {
-  let mr: MediaRecorder | null = null, id = '', t0 = 0, reason = '', failed = false, bytesSoFar = 0;
+  let mr: FrameRec | null = null, id = '', t0 = 0, reason = '', failed = false, bytesSoFar = 0;
+  let viaWebCodecs = false, noWebCodecs = false; // D-18: vertical por WebCodecs; depois de uma falha, só a cópia 2D
   let chain: Promise<unknown> = Promise.resolve(); // pedaços saem na ordem em que chegaram
   let frame: Framing = { zoom: 1, offset: 0 }, copying = false; // vertical: recorte atual e laço de cópia ligado
 
@@ -28,6 +31,7 @@ export function initRecording(canvas: HTMLCanvasElement, log: (level: 'warn' | '
     try { if (mr?.state === 'recording') mr.stop(); } catch {}
     cleanup();
     if (rid) invoke('rec_abort', { id: rid }).catch(() => {}); // apaga o parcial: arquivo com erro no meio não serve
+    if (viaWebCodecs) noWebCodecs = true; // a próxima gravação vertical usa a cópia 2D
     log('warn', 'Gravação: ' + msg);
     emitTo('control', 'rec-error', msg).catch(() => {});
   };
@@ -41,7 +45,7 @@ export function initRecording(canvas: HTMLCanvasElement, log: (level: 'warn' | '
       id = o.id;
       // keyframe a cada 1 s: sem isso o MP4 do Chromium só entrega o vídeo no fim (tudo na memória) — medido no DK-071
       const opts = { mimeType: o.mime, videoBitsPerSecond: o.bitrate, videoKeyFrameIntervalDuration: 1000 } as MediaRecorderOptions;
-      const rec = new MediaRecorder(source(o).captureStream(o.fps), opts);
+      const rec = (await frameRecorder(o)) ?? (new MediaRecorder(source(o).captureStream(o.fps), opts) as unknown as FrameRec);
       const mp4 = o.mime.startsWith('video/mp4');
       mr = rec;
       rec.ondataavailable = (ev) => {
@@ -76,6 +80,22 @@ export function initRecording(canvas: HTMLCanvasElement, log: (level: 'warn' | '
       fail(err);
     }
   });
+
+  /** Vertical sem cópia por quadro (D-18), quando o WebView tem WebCodecs; `null` = MediaRecorder de sempre. */
+  async function frameRecorder(o: RecStart): Promise<FrameRec | null> {
+    viaWebCodecs = false;
+    if (!o.vertical || verticalPath(webCodecsSupport(), o.mime, noWebCodecs) !== 'webcodecs') return null;
+    frame = { zoom: o.vertical.zoom, offset: o.vertical.offset };
+    try {
+      const r = await webCodecsRecorder(canvas, { mime: o.mime, fps: o.fps, bitrate: o.bitrate, w: o.vertical.w, h: o.vertical.h }, () => frame);
+      viaWebCodecs = true;
+      return r;
+    } catch (err) {
+      noWebCodecs = true;
+      log('warn', 'Gravação vertical sem WebCodecs (' + (err instanceof Error ? err.message : String(err)) + '): usando a cópia 2D.');
+      return null;
+    }
+  }
 
   /** O que gravar: o canvas do telão, ou (vertical) um canvas 2D que copia o recorte do telão a cada quadro. */
   function source(o: RecStart): HTMLCanvasElement {
