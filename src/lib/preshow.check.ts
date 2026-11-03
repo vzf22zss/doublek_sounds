@@ -54,6 +54,21 @@ assert.equal(color(md(['nanoKONTROL2 (ocupado)']), 'midi'), 'vermelho');
 assert.match(run(md(['nanoKONTROL2 (ocupado)'])).midi.msg, /nanoKONTROL2 \(ocupado\): feche/);
 assert.equal(color(md(['nanoKONTROL2 (ocupado)', 'APC40']), 'midi'), 'amarelo');
 assert.equal(color(md(['nanoKONTROL2 (ocupado)'], 0), 'midi'), 'amarelo');
+// D-23: com a origem de cada controle, diz exatamente qual controlador e quantos controles
+const mb = (devices: string[], mappedBy: Record<string, number>, extra = 0) =>
+  ({ midi: { devices, mappedBy, mapped: Object.values(mappedBy).reduce((s, x) => s + x, 0) + extra } });
+assert.equal(color(mb(['nanoKONTROL2 (ocupado)', 'APC40'], { nanoKONTROL2: 3 }), 'midi'), 'vermelho', 'o ocupado é o mapeado (antes: amarelo, "se for o mapeado")');
+assert.match(run(mb(['nanoKONTROL2 (ocupado)', 'APC40'], { nanoKONTROL2: 3 })).midi.msg, /^O controlador nanoKONTROL2 está ocupado e tem 3 controles mapeados: feche/);
+assert.match(run(mb(['nanoKONTROL2 (ocupado)', 'APC40 (ocupado)'], { nanoKONTROL2: 1, APC40: 2 })).midi.msg, /nanoKONTROL2 está ocupado e tem 1 controle mapeado; O controlador APC40 está ocupado e tem 2 controles mapeados/);
+assert.equal(color(mb(['nanoKONTROL2 (ocupado)', 'APC40'], { APC40: 4 }), 'midi'), 'amarelo', 'ocupado, mas nada mapeado nele');
+assert.match(run(mb(['nanoKONTROL2 (ocupado)', 'APC40'], { APC40: 4 })).midi.msg, /nanoKONTROL2 ocupado, mas sem controles mapeados nele; os 4 controles mapeados estão em controladores livres/);
+assert.equal(color(mb(['APC40'], { nanoKONTROL2: 1 }), 'midi'), 'vermelho');
+assert.match(run(mb(['APC40'], { nanoKONTROL2: 1 })).midi.msg, /O controlador nanoKONTROL2 não está conectado e tem 1 controle mapeado: conecte o cabo USB/);
+assert.equal(color(mb(['APC40'], { APC40: 2 }), 'midi'), 'verde');
+assert.equal(run(mb(['APC40'], { APC40: 2 })).midi.msg, '1 controlador(es), 2 controles mapeados.');
+// mapa misto (3 controles aprendidos antes da D-23, sem origem): volta para a regra aproximada
+assert.equal(color(mb(['nanoKONTROL2 (ocupado)', 'APC40'], { APC40: 2 }, 3), 'midi'), 'amarelo');
+assert.match(run(mb(['nanoKONTROL2 (ocupado)', 'APC40'], { APC40: 2 }, 3)).midi.msg, /se for o mapeado/);
 
 // 5. disco
 assert.equal(color({ diskFree: 1.9e9 }, 'disk'), 'vermelho');

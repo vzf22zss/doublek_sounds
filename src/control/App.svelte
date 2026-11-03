@@ -398,7 +398,7 @@
     midi.activity = performance.now();
     if (midi.learning) {
       if (midi.armed && m.val > 0) {
-        const t = bindArmed(key);
+        const t = bindArmed(key, m.device);
         status = `MIDI: ${keyLabel(key)} → ${t?.label}`;
       }
       return;

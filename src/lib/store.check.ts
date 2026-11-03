@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { load, save, useStorage, SCHEMA, shaped, migrate, type Key } from './store.ts';
 import { loadVisual, loadScenes, saveScenes, validVisual, VISUAL } from './settings.ts';
 import { loadRoteiros, saveRoteiros, validRoteiros } from './roteiro.ts';
+import { mappedByDevice, validMidiMap } from './midimap.ts';
 
 const mem = new Map<string, string>();
 useStorage({ getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => void mem.set(k, v), removeItem: (k) => void mem.delete(k) });
@@ -85,6 +86,17 @@ for (const k of Object.keys(SCHEMA) as Key[]) {
 // --- save grava envelope ---
 save('doublek.midi', { 'cc:0:16': { id: 'v:glow', label: 'Glow' } });
 assert.deepEqual(env('doublek.midi'), { v: 1, data: { 'cc:0:16': { id: 'v:glow', label: 'Glow' } } });
+
+// --- D-23: `device` opcional no mapa MIDI, dentro da v1 (sem migração); mapa antigo carrega igual ---
+save('doublek.midi', { 'cc:0:16': { id: 'v:glow', label: 'Glow' }, 'note:9:36': { id: 'a:tap', label: 'TAP', device: 'nanoKONTROL2' },
+  'cc:0:17': { id: 'v:trail', label: 'Rastro', min: 0, max: 1, device: 7 }, 'cc:0:18': { id: 'v:size', label: 'Tamanho', device: 'x'.repeat(201) } });
+const mm = load('doublek.midi', validMidiMap, () => ({} as ReturnType<typeof validMidiMap>));
+assert.equal(env('doublek.midi').v, 1, 'continua na v1');
+assert.deepEqual(mm['cc:0:16'], { id: 'v:glow', label: 'Glow' }, 'controle antigo, sem origem');
+assert.equal(mm['note:9:36'].device, 'nanoKONTROL2');
+assert.deepEqual(mm['cc:0:17'], { id: 'v:trail', label: 'Rastro', min: 0, max: 1 }, 'device que não é texto some');
+assert.equal(mm['cc:0:18'].device, undefined, 'nome absurdo (> 200) some');
+assert.deepEqual(mappedByDevice(mm), { nanoKONTROL2: 1 });
 
 // --- migrate: o mesmo caminho, para envelopes que vêm de um Show Pack (sem tocar no storage) ---
 assert.equal(migrate('doublek.trans', '4'), 4);                         // v0 cru

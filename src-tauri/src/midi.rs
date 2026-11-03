@@ -175,23 +175,29 @@ fn fit(ts: &VecDeque<(f64, i64)>) -> Option<(f64, f64)> {
     (tp > 0.0).then_some((tp, (st - tp * si) / n))
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
 pub struct MidiMsg {
     pub kind: &'static str, // "cc" | "note"
     pub ch: u8,
     pub num: u8,
     pub val: u8, // note off chega como note com val 0
+    pub device: String, // D-23: nome da porta de onde veio (o MIDI learn guarda; a resposta ao vivo não depende dele)
 }
 
 pub fn parse(b: &[u8]) -> Option<MidiMsg> {
     let (&st, d) = b.split_first()?;
     let ch = st & 0x0f;
     match (st & 0xf0, d) {
-        (0xB0, [n, v, ..]) => Some(MidiMsg { kind: "cc", ch, num: *n, val: *v }),
-        (0x90, [n, v, ..]) => Some(MidiMsg { kind: "note", ch, num: *n, val: *v }),
-        (0x80, [n, _, ..]) => Some(MidiMsg { kind: "note", ch, num: *n, val: 0 }),
+        (0xB0, [n, v, ..]) => Some(MidiMsg { kind: "cc", ch, num: *n, val: *v, ..Default::default() }),
+        (0x90, [n, v, ..]) => Some(MidiMsg { kind: "note", ch, num: *n, val: *v, ..Default::default() }),
+        (0x80, [n, _, ..]) => Some(MidiMsg { kind: "note", ch, num: *n, val: 0, ..Default::default() }),
         _ => None,
     }
+}
+
+/// Mensagem de controle de uma porta, já com o nome dela (o que a UI recebe no evento `midi`).
+pub fn tagged(b: &[u8], device: &str) -> Option<MidiMsg> {
+    parse(b).map(|m| MidiMsg { device: device.to_string(), ..m })
 }
 
 fn port_names() -> Vec<String> {
@@ -217,13 +223,13 @@ where
                 let conn = MidiInput::new("doublek").ok().and_then(|mi| {
                     let port = mi.ports().get(i)?.clone();
                     let mut f = on_msg.clone();
-                    let clock = clock.clone();
+                    let (clock, dev) = (clock.clone(), name.clone());
                     mi.connect(&port, "doublek-in", move |_, b, _| {
                         if let Some(0xF8 | 0xFA | 0xFB | 0xFC | 0xF2) = b.first() {
                             if let Ok(mut c) = clock.lock() {
                                 c.message(b, crate::midi::now()); // `now` aqui é a lista de portas
                             }
-                        } else if let Some(m) = parse(b) {
+                        } else if let Some(m) = tagged(b, &dev) {
                             f(m)
                         }
                     }, ())
@@ -245,11 +251,20 @@ mod tests {
 
     #[test]
     fn parses_cc_and_notes() {
-        assert_eq!(parse(&[0xB1, 21, 64]), Some(MidiMsg { kind: "cc", ch: 1, num: 21, val: 64 }));
-        assert_eq!(parse(&[0x90, 36, 100]), Some(MidiMsg { kind: "note", ch: 0, num: 36, val: 100 }));
-        assert_eq!(parse(&[0x80, 36, 64]), Some(MidiMsg { kind: "note", ch: 0, num: 36, val: 0 }));
+        assert_eq!(parse(&[0xB1, 21, 64]), Some(MidiMsg { kind: "cc", ch: 1, num: 21, val: 64, ..Default::default() }));
+        assert_eq!(parse(&[0x90, 36, 100]), Some(MidiMsg { kind: "note", ch: 0, num: 36, val: 100, ..Default::default() }));
+        assert_eq!(parse(&[0x80, 36, 64]), Some(MidiMsg { kind: "note", ch: 0, num: 36, val: 0, ..Default::default() }));
         assert_eq!(parse(&[0xF8]), None); // clock
         assert_eq!(parse(&[0xB0, 21]), None); // mensagem cortada
+    }
+
+    /// D-23: o evento `midi` traz o nome do controlador (aditivo: os campos de antes continuam iguais).
+    #[test]
+    fn evento_traz_o_dispositivo() {
+        let m = tagged(&[0xB0, 20, 127], "nanoKONTROL2").unwrap();
+        assert_eq!((m.kind, m.ch, m.num, m.val, m.device.as_str()), ("cc", 0, 20, 127, "nanoKONTROL2"));
+        assert_eq!(serde_json::to_value(&m).unwrap(), serde_json::json!({ "kind": "cc", "ch": 0, "num": 20, "val": 127, "device": "nanoKONTROL2" }));
+        assert_eq!(tagged(&[0xF8], "x"), None);
     }
 
     /// Pulsos sintéticos: Start em 1 s, 140 BPM por 10 s, depois 175 BPM por 6 s (sem novo

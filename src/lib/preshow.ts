@@ -9,7 +9,7 @@ export type PreshowInput = {
   gate: number;
   lockedAtS: number | null;    // segundos até o BPM travar (0 = já estava travado); null = não travou
   output: { open: boolean; fullscreen: boolean | null; monitorOk: boolean | null; p95: number[]; lost: boolean };
-  midi: { devices: string[]; mapped: number };
+  midi: { devices: string[]; mapped: number; mappedBy?: Record<string, number> }; // mappedBy: controles por controlador (D-23)
   diskFree: number | null;     // bytes livres no disco do app; null = não deu para ler
   recording: boolean;
   safeFlash: boolean;
@@ -45,8 +45,20 @@ export function evaluate(i: PreshowInput): Item[] {
     o.fullscreen === null || o.monitorOk === null ? `p95 ${p95} ms, mas não consegui conferir monitor e tela cheia: olhe o telão.` : `Tela cheia no monitor escolhido, p95 ${p95} ms.`));
 
   const busy = i.midi.devices.filter((d) => d.endsWith('(ocupado)')), free = i.midi.devices.length - busy.length;
-  // ponytail: o mapa MIDI não guarda de qual controlador veio; com mapeamento, "(ocupado)" sem outro livre = vermelho
-  if (!i.midi.mapped) out.push(it('midi', 'MIDI', busy.length ? 'amarelo' : 'verde', busy.length ? `${busy.join(', ')}: feche o outro programa que usa o controlador.` : free ? `${free} controlador(es), nada mapeado.` : 'Sem controlador e nada mapeado.'));
+  // D-23: o mapa sabe de qual controlador veio cada controle → diz exatamente qual está ocupado/sumiu e quantos controles
+  // perde. Controles aprendidos antes da D-23 (sem origem) caem na regra aproximada de antes.
+  const by = i.midi.mappedBy ?? {}, plain = (d: string) => d.replace(/ \(ocupado\)$/, '');
+  const known = Object.values(by).reduce((s, n) => s + n, 0);
+  const ctl = (k: number) => `${k} controle${k === 1 ? '' : 's'} mapeado${k === 1 ? '' : 's'}`;
+  const busyMapped = busy.map(plain).filter((d) => by[d]);
+  const missing = Object.keys(by).filter((d) => by[d] && !i.midi.devices.map(plain).includes(d));
+  if (busyMapped.length) out.push(it('midi', 'MIDI', 'vermelho', `${busyMapped.map((d) => `O controlador ${d} está ocupado e tem ${ctl(by[d])}`).join('; ')}: feche o outro programa que usa o controlador.`));
+  else if (missing.length) out.push(it('midi', 'MIDI', 'vermelho', `${missing.map((d) => `O controlador ${d} não está conectado e tem ${ctl(by[d])}`).join('; ')}: conecte o cabo USB.`));
+  else if (i.midi.mapped && known === i.midi.mapped) out.push(it('midi', 'MIDI', busy.length ? 'amarelo' : 'verde', busy.length
+    ? `${busy.map(plain).join(', ')} ocupado, mas sem controles mapeados nele; os ${ctl(known)} estão em controladores livres.`
+    : `${free} controlador(es), ${ctl(known)}.`));
+  // ponytail: controles sem origem (aprendidos antes da D-23): "(ocupado)" sem outro livre = vermelho; reaprender resolve
+  else if (!i.midi.mapped) out.push(it('midi', 'MIDI', busy.length ? 'amarelo' : 'verde', busy.length ? `${busy.join(', ')}: feche o outro programa que usa o controlador.` : free ? `${free} controlador(es), nada mapeado.` : 'Sem controlador e nada mapeado.'));
   else if (!free) out.push(it('midi', 'MIDI', 'vermelho', busy.length ? `${busy.join(', ')}: feche o outro programa que usa o controlador.` : `${i.midi.mapped} controles mapeados e nenhum controlador: conecte o cabo USB.`));
   else if (busy.length) out.push(it('midi', 'MIDI', 'amarelo', `${busy.join(', ')}: se for o mapeado, feche o outro programa que usa.`));
   else out.push(it('midi', 'MIDI', 'verde', `${free} controlador(es), ${i.midi.mapped} controles mapeados.`));

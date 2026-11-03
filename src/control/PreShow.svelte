@@ -15,6 +15,7 @@
   import type { Frame } from '../lib/types';
   import type { Telemetry } from '../lib/telemetry';
   import { midi } from './midi.svelte';
+  import { mappedByDevice } from '../lib/midimap';
   import { rec } from './rec.svelte';
 
   type Net = { osc: boolean; oscLan: boolean; remote: boolean; remoteLan: boolean; spout: boolean };
@@ -59,7 +60,7 @@
     items = evaluate({
       rms, gate, lockedAtS,
       output: { ...w, p95, lost },
-      midi: { devices: [...midi.devices], mapped: Object.keys(midi.map).length },
+      midi: { devices: [...midi.devices], mapped: Object.keys(midi.map).length, mappedBy: mappedByDevice(midi.map) },
       diskFree: await diskP, recording: rec.s.phase !== 'idle',
       safeFlash, fx: { safe: fxSafe, suspect: fx.filter((x) => x.health.status === 'suspeito').map((x) => x.manifest.name) },
       update, net,

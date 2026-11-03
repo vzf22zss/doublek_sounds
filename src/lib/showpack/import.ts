@@ -12,21 +12,8 @@ import { fromScenes, validBanks, type Banks } from '../banks.ts';
 import { sha256 } from './export.ts';
 import { FILES, validateManifest, type AssetEntry, type Manifest, type ValidateOpts } from './manifest.ts';
 import { readZip } from './zip.ts';
+import { validMidiMap, type MidiTarget } from '../midimap.ts';
 
-export type MidiTarget = { id: string; label: string; min?: number; max?: number; step?: number };
-
-/** Espelho de validMidiMap (src/control/midi.svelte.ts não roda no Node). Manter igual. */
-export function validMidi(raw: unknown): Record<string, MidiTarget> {
-  if (!isObj(raw)) throw new Error('midi: precisa ser objeto');
-  const out: Record<string, MidiTarget> = {};
-  for (const [k, t] of Object.entries(raw)) {
-    if (!/^(cc|note):\d+:\d+$/.test(k) || !isObj(t) || typeof t.id !== 'string' || typeof t.label !== 'string') continue;
-    const o: MidiTarget = { id: t.id, label: t.label };
-    for (const f of ['min', 'max', 'step'] as const) if (typeof t[f] === 'number' && Number.isFinite(t[f])) o[f] = t[f] as number;
-    out[k] = o;
-  }
-  return out;
-}
 
 export type PlanAsset = { entry: AssetEntry; bytes: Uint8Array };
 export type Plan = {
@@ -94,7 +81,7 @@ export async function inspectShowPack(bytes: Uint8Array, opts: ValidateOpts = {}
     const bj = files.get(FILES.banks);
     const banks = bj ? state(FILES.banks, parseJson(FILES.banks, bj), 'doublek.banks', validBanks) : fromScenes(scenes);
     const roteiros = state(FILES.roteiros, rj, 'doublek.roteiros', validRoteiros);
-    const midi = mj ? state(FILES.midi, parseJson(FILES.midi, mj), 'doublek.midi', validMidi) : null;
+    const midi = mj ? state(FILES.midi, parseJson(FILES.midi, mj), 'doublek.midi', validMidiMap) : null;
 
     // 5. referências cruzadas (§5 da spec)
     const vids = new Set(manifest.assets.filter((a) => a.kind === 'video').map((a) => a.refId));
