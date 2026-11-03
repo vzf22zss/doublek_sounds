@@ -7,7 +7,7 @@ import type { Frame } from '../lib/types.ts';
 
 const V = (o: Partial<Visual> = {}): Visual => ({ ...structuredClone(VISUAL), ...o });
 const F = (o: Partial<Frame> = {}): Frame => ({
-  peak: 0, rms: 0, bands: [0.5, 0.6, 0.4, 0.3, 0.2], kick: 0, bpm: 0, locked: false, holding: false,
+  peak: 0, rms: 0, bands: [0.5, 0.6, 0.4, 0.3, 0.2], levels: [0.5, 0.6, 0.4, 0.3, 0.2], kick: 0, bpm: 0, locked: false, holding: false,
   beatPhase: 0, beat: 0, flux: 0, thr: 0, spectrum: Array(64).fill(0.5), low: 1, pos: -1, ...o,
 });
 const close = (a: number, b: number, msg: string, eps = 1e-9) => assert.ok(Math.abs(a - b) <= eps, `${msg}: ${a} ≠ ${b}`);

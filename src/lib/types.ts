@@ -3,6 +3,7 @@ export type Frame = {
   peak: number;
   rms: number;
   bands: [number, number, number, number, number]; // sub, bass, mid, click, air
+  levels: number[]; // as mesmas 5 bandas ÷ pico de ~1 min; 0 abaixo do gate (Onda 10). Frame antigo: ausente
   kick: number;
   bpm: number;
   locked: boolean;
