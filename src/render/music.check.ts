@@ -314,3 +314,21 @@ console.log('music: ok');
     return mx; };
   assert.ok(peak(0.3) < 0.01 && peak(0.95) > 0.8, `régua no Kick: fraco ${peak(0.3)}, forte ${peak(0.95)}`);
 }
+
+// Calibração geral (chapati.mp3): no breakdown sem kick o detector às vezes aceita "kick" no ruído do pad (sub ~0,02). Sem
+// grave não é kick: o pulso não aparece e a logo segue a onda (pausa + presence), em vez de ficar parada em "tem kick"
+{
+  const bpm = 145, v = V(), st = musicState();
+  let t = 1000, last = -1, maxP = 0, u = music(st, v, t);
+  const pad = [0.02, 0.05, 0.6, 0.2, 0.1];
+  for (; t < 9000; t += 16) {
+    const f = at(t, bpm, { levels: pad, low: 0 });
+    musicFrame(st, { ...f, kick: f.beat > last ? 0.7 : 0 }, v, t); // "kick" em todo beat, sem grave
+    last = f.beat;
+    u = music(st, v, t);
+    if (t > 4000) maxP = Math.max(maxP, u.kick);
+  }
+  assert.ok(maxP < 0.06, `kick sem grave pulsou: ${maxP.toFixed(3)}`);
+  assert.ok(u.presence < 0.1, `kick sem grave segurou o "tem kick": presence ${u.presence.toFixed(2)}`);
+  close(u.p, (0.05 * 0.6 + 0.6 * 0.4) * v.wave, 'segue a onda do pad', 0.02);
+}
