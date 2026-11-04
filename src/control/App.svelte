@@ -1185,7 +1185,8 @@
   .brand { font-weight: 800; letter-spacing: 0.12em; font-size: 14px; }
   .group { display: flex; gap: 6px; align-items: center; }
   .group > button { padding: 7px 10px; }
-  .group select:first-child { max-width: 112px; }
+  /* entrada de áudio: 112 px no notebook; com folga no cabeçalho (≥ 1612 px) mostra mais do nome do dispositivo */
+  .group select:first-child { max-width: clamp(112px, 100vw - 1500px, 240px); }
   .black { padding: 7px 9px; }
   .primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink, #fff); font-weight: 600; }
   .black { font-weight: 700; letter-spacing: .06em; }
