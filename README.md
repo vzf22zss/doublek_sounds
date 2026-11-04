@@ -32,6 +32,7 @@ sozinho, nunca com o telão aberto). Passo a passo: [Guia completo §2](docs/TUT
 - **Logo orgânica.** No silêncio a logo respira ou para (**Na pausa**), em vez de seguir
   pulsando; cada efeito tem uma **régua** de mínimo e máximo do nível da fonte, com o nível ao
   vivo, para ele só agir quando o sub, o baixo, os médios ou o chimbal chegam onde você quer.
+  O pulso cai nos tempos em que a música tem kick e tem o tamanho do volume de cada kick.
 - **Duas janelas.** O controle fica no notebook; o telão abre em tela cheia no datashow.
 - **Cenas** com crossfade que começa no próximo beat: 8 por banco, até 4 bancos.
   **Preview/TAKE** prepara a cena sem o público ver e manda no beat.

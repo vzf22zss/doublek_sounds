@@ -63,4 +63,8 @@ O estado que o show-engine teria escolhido não é refeito no replay em Rust: as
 | **D-12** (drop/breakdown com música real) | O `drop_on` chega junto com o drop que o DJ ouve? Quantos drops perdidos e quantos falsos? | Marcas × `drop_on`: atraso médio, perdidos e falsos. Ajustar o limiar do grave (`dropThr`) e a histerese. |
 | **D-16** (recall 0,89 depois de pausa + faixa defasada) | Em trocas de faixa reais, a re-trava acontece e em quanto tempo? | Eventos `jump`/`restart` e `unlock`/`lock` perto das trocas; `kickRate` antes e depois |
 
+| **D-28** (fase ao vivo no psy) | Ao vivo, a grade trava no kick ou na nota do baixo rolante antes dele? | Com a logo no telão: o pulso sai junto do kick ou ~¼ de beat antes? No diário, `kickRate` bem abaixo de 4 num groove 4/4 é sinal de kick perdido no refratário (ver `DETECCAO.md` §4.10) |
+
+Música tocada pelo app (roteiro) pode ser medida sem tocar: ver o método em `DETECCAO.md` §4.10.
+
 Com 3–4 sets de gêneros diferentes (psy, dark, hi-tech), e pelo menos um com microfone, dá para definir limites de regressão reais no lugar dos sintéticos.

@@ -294,6 +294,32 @@ Cenário (tabela "Pausa de 3 s + mesma faixa defasada"): 20 s de groove, 3 s de 
 
 **Risco:** um impacto forte fora do tempo (FX com sub e click) logo depois de breakdown move a grade; os órfãos a trazem de volta em ~1 compasso + 3 kicks. NÃO VERIFICADO com música real.
 
+### 4.10. Primeira faixa real (psy 145, tocada pelo app no roteiro) — **corrigido na 0.3.12 e 0.3.13**
+
+O mantenedor tocou uma faixa de psy a 145 BPM pelo roteiro e relatou a logo "fora do kick" e o Pulso no **Sub** parado.
+A faixa foi medida sem abrir o app: um exemplo Rust temporário imitou `audio::play` (`track::analyze` → `Beat::set_map` →
+`Analyzer::process` por hop, um quadro a cada 2 hops) e gravou os quadros; o `music.ts` rodou a 60 fps sobre eles em
+node. A verdade do kick veio do áudio cru: o perfil médio de um beat, dobrado na grade, em três faixas (grave < 100 Hz,
+100–250 Hz, click > 2 kHz). O kick é o estalo agudo seguido da subida do grave.
+
+| # | Achado | Correção | Onde |
+|---|---|---|---|
+| R1 | A grade travou na **última nota do baixo rolante**, ~0,3 beat antes do kick. O kick real caía no refratário dela (0,6 × 60/220 s) e quase nunca era aceito: o P7 (fase pelo punch) não resolveu, porque esse baixo tem punch de kick (o risco previsto na tabela da seção 7). | Com a faixa inteira à mão, a fase do kick sai da **subida do grave (< 250 Hz) dobrada sobre a grade**; mais de ⅛ de beat fora, o mapa inteiro é deslocado pelo mesmo Δ (os índices dos beats não mudam). Faixas sintéticas não mudam: os testes de grade exata continuam iguais. | `track::rephase`, teste `mapa_volta_para_o_kick` |
+| R2 | Intro com kick em **tercina** (a cada ⅔ de beat) e depois a cada 2 beats: o mapa de andamento fez um trecho de **217 BPM** (3/2 × 145) até os 55 s. Refazer a grade desse trecho no andamento certo pôs o drop ⅓ de beat fora de fase. | Trecho a 3/2, 2/3, 2× ou ½ do andamento mais longo sai do mapa, como um trecho curto, e a grade do vizinho cobre o lugar dele. | `track::tempo_map`, teste `mapa_nao_troca_para_tercina_nem_meio_tempo` (kicks reais dos primeiros 150 s) |
+| R3 | O detector pega **~60–75 % dos kicks** dessa faixa e às vezes perde 1–3 s seguidos com o grave tocando: virava "pausa" e o pulso previsto parava. | No `music.ts`: com o grave tocando (`low`) não é pausa. O beat previsto só pulsa se veio kick naquele tempo em algum dos 4 compassos anteriores (kick a cada 2 tempos = pulso a cada 2 tempos), e o kick detectado sem pulso há 0,35 beat dispara (contratempo). | `music.ts` (`expected`, `GAP`) |
+| R4 | O nível `levels[0]` (sub) cruzando 0,5 **não é o kick** nessa faixa: o sub mais forte vem do baixo, ~0,4 beat depois. A força do kick (`f.kick`) era a certeza da detecção (0,5–1, variando de kick para kick), e por isso a régua no Kick "não funcionava". | A altura do pulso é o pico do sub nos 120 ms depois do disparo (o volume daquele kick). | `music.ts` (`KICK_MS`, `kickLvl`) |
+| R5 | Com o microfone do headset: Pulso no Sub cravado em 0, DROP apagado e kicks aceitos. O **Corte de ruído** salvo era 0,2 (teto): a calibração mede o **pico** (× 1,3), mas `levels`, `low` e o trend comparavam o **rms**, 3–4× menor. | O corte fica aberto 0,5 s depois do último hop com pico acima dele; `play()` usa o corte padrão (o arquivo não tem ruído de entrada); a calibração recusa resultado acima de 0,05 e a aba Áudio avisa corte alto. | `Analyzer::process` (`over_gate`), `audio::play`, `preshow::noiseGate`; teste `corte_de_ruido_em_pico` |
+
+Resultado na mesma faixa (beats dos trechos 4/4 como verdade, pulso = alvo `amount` cruzando 0,3):
+
+| Trecho | Kicks com pulso, 0.3.11 | 0.3.12 | Pulsos fora do kick, 0.3.11 | 0.3.12 |
+|---|---:|---:|---:|---:|
+| 60–180 s | 2 % | 84 % | 267 de 273 | 5 de 249 |
+| 270–370 s | 2 % | 73 % | 224 de 229 | 0 de 176 |
+
+**Não resolvido:** o R1 só existe na análise da faixa inteira; na entrada ao vivo a grade pode travar no baixo do mesmo
+jeito (D-28). O recall do detector nessa faixa (~60–75 %) fica escondido pela memória do padrão, não corrigido.
+
 ## 5. Latência captura → evento (conta analítica)
 
 Não há hardware nesta tarefa. A cadeia e o que se sabe de cada elo:
@@ -328,7 +354,7 @@ Soma do que é conhecido ou estimado por software: **≈ 14–28 ms** entre o ki
 | P3 | 4.3 breakdown | **Feito em DK-009** (seção 8): mantém a trava com janela limpa e mesma grade | se a música mudar **durante** o breakdown para um andamento a ±3 % do anterior, a grade velha segue até o desvio passar de 3,5 % |
 | P4 | 4.4 ½ Auto | **Feito em DK-009** (seção 8): testa p/2 quando cabe na faixa e fica com ela se explicar mais kicks | em Auto, música real a 80–110 BPM com falsos no contratempo poderia dobrar; o teste cobre 90 e 100 BPM limpos |
 | P6 | 4.6 troca de música | **Medido duas vezes, não entrou** (4.6): soltar a trava quando, em 2 s, recusados com click ≥ 4 e > 2× aceitos; re-trava 7,26 → 4,51 s, mas com chimbal + ruído + breakdown 22 quedas e 3× os falsos; ignorando o contratempo, não ajuda mais (7,94 s) | precisa de um sinal de "fase deslizando" que o ruído não imite |
-| P7 | 4.7 contratempo | **Feito em DK-009** (seção 8): escolhe a fase da grade pelo punch (banda de 160 Hz, 30 ms) dos candidatos com click | baixo real com muito médio-grave pode ter punch de kick; kick ≤ −10 dB não é detectado |
+| P7 | 4.7 contratempo | **Feito em DK-009** (seção 8): escolhe a fase da grade pelo punch (banda de 160 Hz, 30 ms) dos candidatos com click | baixo real com muito médio-grave pode ter punch de kick (**aconteceu** com a 1ª faixa real: 4.10, R1); kick ≤ −10 dB não é detectado |
 | P8 | 4.9 pausa + faixa defasada | **Feito em DK-009** (4.9): salto de fase no kick forte fora da grade depois de ≥ 1 compasso sem kick/grave; recomeço pelos órfãos; nada de candidato 20 ms depois de silêncio digital | impacto forte fora do tempo depois do breakdown move a grade por ~1 compasso |
 | P5 | drift/real | Gravar 3–4 trechos reais (line-in e mic) rotulados no Rekordbox e acrescentar ao bench como fixtures opcionais (`examples/analyze` já lê mp3/wav) | tamanho do repo; licença das faixas (DEC-01) |
 

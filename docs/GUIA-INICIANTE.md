@@ -180,6 +180,9 @@ silêncio. Três ajustes fazem isso:
 - **parar**: fica parada;
 - **seguir o beat**: continua pulsando no tempo, como se a música não tivesse parado.
 
+Fora do *seguir o beat*, a logo pulsa nos tempos em que a música tem kick: se o kick vem a cada
+2 tempos, o pulso também. E o tamanho de cada pulso é o volume daquele kick.
+
 A **Sensibilidade do silêncio** diz o que conta como silêncio. Se uma introdução baixa já é
 tratada como silêncio, diminua; se o chiado da pausa ainda mexe a logo, aumente.
 
@@ -213,6 +216,8 @@ Tudo isso entra nas cenas: dá para ter uma cena "orgânica" para o breakdown e 
 | O BPM está na metade ou no dobro | Botões **½** ou **×2** no topo. |
 | A logo pulsa fora do tempo | Acerte o **Offset visual** olhando para o telão (passo 4). |
 | A logo pulsa no silêncio | **Na pausa** em **respirar** ou **parar** e suba a **Sensibilidade do silêncio**. |
+| A logo não mexe com **Sub** (ou Bass, Mid, Hats), a régua fica parada no 0 e a pílula DROP não acende, mas os kicks aparecem | O **Corte de ruído** está alto (a aba Áudio avisa). Dê duplo clique nele para voltar ao padrão e, se for calibrar, calibre com a música **parada**. |
+| No roteiro, a logo pulsa um pouco antes do kick ou 3 vezes por kick | Roteiro feito antes da versão 0.3.12: clique em **Analisar de novo** (ou crie o roteiro de novo, porque os pontos podem andar um pouco). |
 | O app pega o baixo rolante como kick | Na aba Áudio, diminua a **Sensibilidade** e deixe **Exigir o "click" do kick** ligado. |
 | O telão engasga | Aba Saída → abaixe a **Resolução de render** (ex.: 75%). |
 

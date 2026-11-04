@@ -826,6 +826,12 @@ beats no build, outro vídeo no breakdown, o rastro subindo devagar até o clím
      **−5ms / +5ms** arrastam a grade inteira; digitar um BPM troca o mapa por esse BPM fixo, e
      **Analisar de novo** refaz o mapa. Música de BPM constante e roteiros antigos ficam como
      sempre foram.
+   - A análise acha onde o kick cai de verdade pela subida do grave. No psy, com o baixo rolante,
+     a grade antes podia ficar ~¼ de beat adiantada, e a logo pulsava antes do kick. Um trecho
+     em tercina ou em meio tempo (ex.: intro com kick a cada ⅔ de tempo) não vira outro BPM: a
+     música toda fica no andamento principal. Roteiros analisados antes da 0.3.12 guardam a
+     análise antiga: clique em **Analisar de novo** (os pontos podem andar um pouco junto com a
+     grade).
 
 ### Marcar os pontos
 
