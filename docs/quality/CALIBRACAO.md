@@ -65,6 +65,22 @@ O estado que o show-engine teria escolhido não é refeito no replay em Rust: as
 
 | **D-28** (fase ao vivo no psy) | Ao vivo, a grade trava no kick ou na nota do baixo rolante antes dele? | Com a logo no telão: o pulso sai junto do kick ou ~¼ de beat antes? No diário, `kickRate` bem abaixo de 4 num groove 4/4 é sinal de kick perdido no refratário (ver `DETECCAO.md` §4.10) |
 
-Música tocada pelo app (roteiro) pode ser medida sem tocar: ver o método em `DETECCAO.md` §4.10.
+## Calibrar com um arquivo (sem tocar)
+
+Para música que o app toca (roteiro) ou para medir o detector ao vivo com uma faixa conhecida:
+
+```bash
+cd src-tauri && cargo run --release --example calib -- faixa.mp3 ../calib/faixa   # DK_MIC=1: ao vivo pelo "microfone"
+cd .. && node scripts/calib/sim.ts calib/faixa                                    # a logo a 60 fps (music.ts)
+python scripts/calib/draw.py calib/faixa 60 66                                    # trecho; 0 190 saida.png 8 = visão geral
+python scripts/calib/kicks.py calib/faixa                                         # acerto no roteiro; "60-180,270-370 live" = ao vivo
+python scripts/calib/livephase.py calib/faixa                                     # onde a grade ao vivo cai no kick
+python scripts/calib/pulse.py calib/faixa 60-180 186-211                          # tamanho do pulso por trecho
+```
+
+O desenho tem o espectrograma e, embaixo, a grade, a verdade (kick, baixo, chimbal), os kicks do detector, a subida do
+sub e o limiar, o DROP, os níveis e a logo. **Confira no desenho** quais trechos têm kick em todo beat antes de passar
+outros trechos ao `kicks.py` (o padrão, 60–180 e 270–370 s, é o de chapati.mp3). Método e resultados: `DETECCAO.md`
+§4.10 e §4.11.
 
 Com 3–4 sets de gêneros diferentes (psy, dark, hi-tech), e pelo menos um com microfone, dá para definir limites de regressão reais no lugar dos sintéticos.

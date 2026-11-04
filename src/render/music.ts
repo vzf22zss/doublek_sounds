@@ -9,13 +9,14 @@ export type Ring = { t: number; s: number };
 
 export type MusicState = {
   frame: Frame | null;
-  rxAt: number; lastT: number; lastKickRx: number; strength: number;
+  rxAt: number; lastT: number; lastKickRx: number; strength: number; // lastKickRx: último kick com grave (ver KICK_REAL)
   kickEnv: number; waveEnv: number; presence: number; black: number; dropEnv: number;
   prevPh: number; lastTrig: number; absBeat: number;
   paused: boolean; // sem kick há PAUSE_BEATS (fora do modo 'beat'): nada de disparo previsto
   sil: number;     // 0–1: silêncio (pausa + nível abaixo de pauseThr), já suavizado
   kickLvl: number; // volume do último kick: pico do sub (`levels`) logo depois do disparo
   kickPk: number;  // pico do sub desde o último disparo
+  detAt: number;   // último kick detectado (com ou sem grave)
   hits: number[];  // índices dos beats em que veio kick (os últimos 32)
   rings: Ring[];
   spec: Float32Array;
@@ -46,7 +47,7 @@ export type MusicUniforms = {
 export const musicState = (): MusicState => ({
   frame: null, rxAt: 0, lastT: 0, lastKickRx: -1e9, strength: 0.8,
   kickEnv: 0, waveEnv: 0, presence: 0, black: 0, dropEnv: 1,
-  prevPh: 0, lastTrig: -1e9, absBeat: 0, paused: false, sil: 0, kickLvl: 0.8, kickPk: 0, hits: [], rings: [], spec: new Float32Array(64),
+  prevPh: 0, lastTrig: -1e9, absBeat: 0, paused: false, sil: 0, kickLvl: 0.8, kickPk: 0, detAt: -1e9, hits: [], rings: [], spec: new Float32Array(64),
 });
 
 /** Pausa (Onda 10): nenhum kick há este tanto de beats. 2,5 e não 1,6 para um kick que faltou (2 beats) não cortar o pulso. */
@@ -61,6 +62,9 @@ export function predicting(st: MusicState, v: Visual) {
 
 /** Janela depois do disparo em que o pulso sobe até o volume do kick que chegou (o previsto sai antes do kick). */
 export const KICK_MS = 120;
+/** Kick "de verdade" para a pausa e o `presence`: o sub chega a isto (÷ pico do último minuto) na janela. Os "kicks" que
+ *  o detector aceita no ruído de um breakdown ficam em ~0,02 (chapati.mp3); os do drop, 0,45–0,8. */
+export const KICK_REAL = 0.1;
 
 function trigger(st: MusicState, now: number, s: number) {
   st.kickPk = 0;
@@ -77,7 +81,8 @@ export function musicFrame(st: MusicState, f: Frame, v: Visual, now: number) {
   if (f.kick > 0) {
     const back = st.paused; // o kick voltou: dispara na hora, sem esperar o próximo beat previsto
     st.paused = false;
-    st.lastKickRx = now;
+    st.detAt = now;
+    if (!f.levels) st.lastKickRx = now; // frame antigo: todo kick vale; com `levels`, só o que traz grave (em music())
     st.strength = f.levels ? st.kickLvl : f.kick; // frame sem `levels`: a força da detecção, como antes
     if (f.bpm > 0) {
       const i = f.beat + Math.round(f.beatPhase);
@@ -155,11 +160,13 @@ export function music(st: MusicState, v: Visual, now: number): MusicUniforms {
   // fontes e onda na régua de ~1 min (`levels`): na de 4 s (`bands`) o chiado de uma pausa vira ~100 %. Frame antigo: bands
   const lv = !stale && f && live ? f.levels ?? b : b;
   // o pulso do kick tem a altura do volume dele (sub ÷ pico do último minuto): kick fraco, pulso pequeno. A régua
-  // do Kick passa a falar de volume, não da certeza da detecção
+  // do Kick passa a falar de volume, não da certeza da detecção. Sem piso: um "kick" sem grave (ruído do pad num
+  // breakdown, que o detector às vezes aceita) não vira pulso
   if (f?.levels && live && !stale && now - st.lastTrig < KICK_MS) {
     st.kickPk = Math.max(st.kickPk, lv[0]);
     st.kickEnv = Math.max(st.kickEnv, lv[0]);
-    st.kickLvl = st.strength = Math.max(0.3, st.kickPk);
+    st.kickLvl = st.strength = st.kickPk;
+    if (lv[0] >= KICK_REAL && now - st.detAt < KICK_MS) st.lastKickRx = now; // kick detectado e com grave
   }
   const w = Math.max(lv[0], lv[1]) * 0.6 + lv[2] * 0.4;
   st.waveEnv += (w - st.waveEnv) * (1 - Math.exp(-dt / (w > st.waveEnv ? 0.012 : Math.max(0.02, v.rel * 0.8))));

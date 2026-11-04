@@ -158,6 +158,11 @@ impl Beat {
         Some((x - x.round()).abs() < TOL)
     }
 
+    /// Grade da análise do arquivo (o app tocando a faixa): conferida no áudio inteiro.
+    pub fn fixed(&self) -> bool {
+        self.fixed
+    }
+
     pub fn holding(&self, t: f64) -> bool {
         self.locked && !self.fixed && t - self.last > 1.5 * self.period
     }
