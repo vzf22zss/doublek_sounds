@@ -828,7 +828,7 @@
     </div>
 
     <div class="meter" class:clip title="Nível de entrada">
-      <div class="fill" style:width="{Math.max(0, (db + 60) / 60) * 100}%"></div>
+      <div class="fill" style:transform="scaleX({Math.max(0, (db + 60) / 60)})"></div>
       <span>{clip ? 'CLIP' : db > -60 ? db.toFixed(0) + ' dB' : '—'}</span>
     </div>
 
@@ -1215,7 +1215,8 @@
   .learnBar small { color: var(--muted); }
 
   .meter { position: relative; width: 92px; height: 26px; border-radius: 8px; background: rgba(255,255,255,.06); overflow: hidden; }
-  .meter .fill { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, var(--ok), #c6f24e); transition: width 60ms linear; }
+  /* nível por transform (não width): muda ~94×/s e width refazia estilo, layout e pintura a cada quadro */
+  .meter .fill { position: absolute; inset: 0; transform-origin: left; background: linear-gradient(90deg, var(--ok), #c6f24e); transition: transform 60ms linear; }
   .meter.clip .fill { background: var(--clip); }
   .meter span { position: relative; display: block; text-align: center; line-height: 26px; font-size: 12px; font-weight: 600; text-shadow: 0 1px 2px #000; }
 
