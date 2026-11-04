@@ -1166,7 +1166,8 @@
   main {
     height: 100vh;
     display: grid;
-    grid-template-columns: 1fr 320px;
+    /* painel lateral: 320 px até 2000 px de largura; em monitor grande (1440p) cresce até 420 em vez de sobrar tudo para o analisador */
+    grid-template-columns: 1fr clamp(320px, 16vw, 420px);
     grid-template-rows: auto 1fr auto auto;
     gap: 12px;
     padding: 12px;
