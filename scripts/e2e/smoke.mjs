@@ -309,8 +309,12 @@ async function session(current, M) {
     R.ok('celular', `porta livre ${port} no campo do celular`, await setPortOf('Celular', port));
     await click('Ligar celular');
     R.ok('celular', 'serviço ligado', !!(await until(async () => (await inv('remote_status')).v?.running, 5000)));
-    await click('Mostrar código');
-    const code = await until(() => c.evaluate(() => document.querySelector('.pair')?.textContent?.trim()), 3000);
+    // D-30: o `remote_status` do teste pode responder antes de a tela ver o serviço ligado; aí "Mostrar código" ainda
+    // não existia, o código nunca aparecia e o bloco caía com "text is not iterable" ao digitar `undefined`
+    const shown = await until(() => click('Mostrar código'), 10000);
+    const code = await until(() => c.evaluate(() => [...document.querySelectorAll('.pair')].map((x) => x.textContent.trim()).find((t) => /^\d{6}$/.test(t))), 10000);
+    R.ok('celular', 'app mostra o código de 6 dígitos', !!code, shown ? '' : 'botão "Mostrar código" não apareceu');
+    if (!code) return;
     const edge = await launchEdge();
     try {
       const ph = await edge.browser.newPage();
@@ -350,12 +354,65 @@ async function session(current, M) {
       let seen = NaN;
       const ok = await until(async () => { seen = await knob('Pulso'); return Math.abs(seen - 0.9) < 0.011; }, 8000, 300);
       R.ok('celular', 'arraste rápido do slider: o app termina no valor final', !!ok, `knob Pulso ${seen} (esperado 0,90 = 0,6 × 1,5)`);
+      // dois sliders juntos (dois dedos, 2 s): somados não passam do limite do app (20 pedidos/s por celular)
+      await ph.evaluate(() => { window.__st = []; const f = window.fetch; window.fetch = async (...a) => { const r = await f(...a); window.__st.push(r.status); return r; }; });
+      await ph.evaluate(async () => {
+        const a = document.querySelector('[data-knob="glow"]'), b = document.querySelector('[data-knob="fxFlash"]');
+        for (let i = 1; i <= 100; i++) {
+          for (const [el, end] of [[a, 0.2], [b, 0.8]]) { el.value = String(i === 100 ? end : Math.random()); el.dispatchEvent(new Event('input', { bubbles: true })); }
+          await new Promise((r) => setTimeout(r, 20));
+        }
+      });
+      let two = [];
+      const both = await until(async () => { two = [await knob('Glow'), await knob('Flash')]; return Math.abs(two[0] - 0.2) < 0.011 && Math.abs(two[1] - 0.8) < 0.011; }, 8000, 300);
+      const st = await ph.evaluate(() => window.__st);
+      R.ok('celular', 'dois sliders juntos: nenhum 429 e o app termina nos dois valores finais', !!both && !st.includes(429), `Glow ${two[0]} Flash ${two[1]} (esperado 0,20 e 0,80) · ${st.length} pedidos, ${st.filter((s) => s === 429).length} × 429`);
+      // toque no pad: o celular relê o /state logo que o comando volta (antes esperava a próxima leitura de 2 Hz, até
+      // 0,5 s) e o pad acende. Medido na página: `gap` = resposta do /cmd → próximo pedido do /state; `lit` = toque → aceso
+      await ph.evaluate(() => {
+        const ev = (window.__ev = []), taps = (window.__taps = []), pads = document.getElementById('pads'), f = window.fetch;
+        window.fetch = async (u, o) => { const p = String(u); if (p.endsWith('/state')) ev.push(['state', performance.now()]); const r = await f(u, o); if (p.endsWith('/cmd')) ev.push(['cmd', performance.now()]); return r; };
+        pads.addEventListener('click', (e) => { const b = e.target.closest('button'), t = performance.now(); taps.push({ b, click: t, lit: b.classList.contains('on') ? t : 0 }); }, true);
+        new MutationObserver(() => { for (const t of taps) if (!t.lit && t.b.classList.contains('on')) t.lit = performance.now(); }).observe(pads, { subtree: true, attributes: true, attributeFilter: ['class'] });
+      });
+      for (const k of [2, 4, 1, 3, 2]) { // os 4 primeiros pads têm cena no show padrão
+        const sel = `#pads button:nth-child(${k})`;
+        await ph.tap(sel);
+        await until(() => ph.$eval(sel, (x) => x.classList.contains('on')), 3000, 50);
+        await wait(300);
+      }
+      const taps = await ph.evaluate(() => window.__taps.map((t) => {
+        const cmd = window.__ev.find(([k, x]) => k === 'cmd' && x >= t.click)?.[1], st = cmd && window.__ev.find(([k, x]) => k === 'state' && x >= cmd)?.[1];
+        return { gap: st ? Math.round(st - cmd) : null, lit: t.lit ? Math.round(t.lit - t.click) : null };
+      }));
+      R.ok('celular', 'toque no pad: relê o estado ≤ 200 ms depois do comando e o pad acende (5 toques)', taps.length === 5 && taps.every((t) => t.gap !== null && t.gap <= 200 && t.lit !== null), JSON.stringify(taps));
+      // tela pequena: sem rolagem lateral, toques ≥ 44 px; deitada (640×360), o PÂNICO inteiro sem rolar
+      const fit = [];
+      for (const [w, h] of [[360, 640], [640, 360]]) {
+        await ph.setViewport({ width: w, height: h, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+        await wait(600);
+        fit.push(await ph.evaluate((w, h) => {
+          const small = [...document.querySelectorAll('#ctl button, #ctl input')].filter((e) => { const r = e.getBoundingClientRect(); return r.width < 44 || r.height < 44; }).length;
+          const panic = Math.round(document.getElementById('panic').getBoundingClientRect().bottom);
+          const hs = document.documentElement.scrollWidth - innerWidth;
+          return { size: `${w}×${h}`, ok: hs <= 0 && !small && (w < h || panic <= innerHeight), hs, small, panic };
+        }, w, h));
+      }
+      await ph.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+      R.ok('celular', 'tela pequena (360×640 e 640×360): sem rolagem lateral, toques ≥ 44 px, PÂNICO à vista deitado', fit.every((f) => f.ok), JSON.stringify(fit));
       const net = await ph.createCDPSession();
       await net.send('Network.enable');
       await net.send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
       R.ok('celular', 'sem rede: faixa "sem conexão" e controles desabilitados', !!(await until(async () => (await vis('offline')) && (await ph.$eval('#panic', (x) => x.disabled)), 5000)));
       await net.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
       R.ok('celular', 'rede voltou: faixa some', !!(await until(async () => !(await vis('offline')), 5000)));
+      // Wi-Fi que não entrega (conectado, mas nada volta): a faixa aparece no 1º pedido que estoura o prazo de 2 s
+      await net.send('Network.emulateNetworkConditions', { offline: false, latency: 10000, downloadThroughput: -1, uploadThroughput: -1 });
+      const tz = Date.now();
+      const dead = await until(() => vis('offline'), 9000, 100), dt = Date.now() - tz;
+      R.ok('celular', 'rede que não responde: faixa "sem conexão" em < 3,5 s', !!dead && dt < 3500, `${dt} ms`);
+      await net.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+      R.ok('celular', 'rede respondendo de novo: faixa some', !!(await until(async () => !(await vis('offline')), 5000)));
       await click('Desconectar todos');
       R.ok('celular', 'Desconectar todos → celular volta ao pareamento', !!(await until(() => vis('pair'), 5000)));
       R.ok('celular', 'console do celular sem erros/CSP', errs.celular.length === 0, errs.celular.join(' | '));

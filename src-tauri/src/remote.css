@@ -57,6 +57,8 @@ body.off .col, body.off .panic { filter: grayscale(1); }
   #ctl:not([hidden]) {
     display: grid; grid-template-columns: 1.15fr 1fr; column-gap: 10px; align-items: start;
     grid-template-areas: "banner banner" "top top" "status status" "left right" "panic right" "msg msg";
+    /* a sobra da coluna da direita fica embaixo do PÂNICO, não entre os pads e ele (em 640×360 ele saía da tela) */
+    grid-template-rows: auto auto auto auto 1fr auto;
   }
   .banner { grid-area: banner; }
   .top { grid-area: top; }
@@ -64,6 +66,11 @@ body.off .col, body.off .panic { filter: grayscale(1); }
   .cols { display: contents; }
   .col:first-child { grid-area: left; }
   .col:last-child { grid-area: right; }
-  .panic { grid-area: panic; margin-top: 8px; }
+  .panic { grid-area: panic; margin-top: 8px; align-self: start; }
   #msg { grid-area: msg; }
+}
+/* celular deitado (altura ~360 px): botões no mínimo de toque para o PÂNICO caber sem rolar */
+@media (orientation: landscape) and (min-width: 600px) and (max-height: 420px) {
+  button { min-height: 44px; }
+  .grid button, .panic { min-height: 52px; }
 }

@@ -1,6 +1,7 @@
 'use strict';
 // Celular do DoubleK (DK-082): pareia com o código mostrado no app e manda comandos /doublek/v1/... (os mesmos do
-// OSC, ver docs/OSC.md) por POST /cmd; lê /state a 2 Hz. Sem framework. Nada vindo do app vira HTML: só textContent.
+// OSC, ver docs/OSC.md) por POST /cmd; lê /state a 2 Hz e logo depois de cada toque. Sem framework. Nada vindo do
+// app vira HTML: só textContent.
 
 const $ = (id) => document.getElementById(id);
 const P = '/doublek/v1/';
@@ -16,7 +17,7 @@ function saveToken(t) {
   try { t ? sessionStorage.setItem(KEY, t) : sessionStorage.removeItem(KEY); } catch {}
 }
 
-/** fetch com tempo-limite de 2 s; status 0 = não chegou no app. */
+/** fetch com tempo-limite de 2 s; status 0 = não chegou no app (`timeout`: ficou 2 s sem resposta). */
 async function api(method, path, body) {
   const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 2000);
   try {
@@ -28,7 +29,7 @@ async function api(method, path, body) {
     try { j = await r.json(); } catch {}
     return { status: r.status, j };
   } catch {
-    return { status: 0, j: {} };
+    return { status: 0, j: {}, timeout: ctl.signal.aborted };
   } finally {
     clearTimeout(timer);
   }
@@ -91,13 +92,28 @@ function offline(on) {
   for (const el of document.querySelectorAll('#ctl button, #ctl input')) el.disabled = on;
 }
 
+let pollT = 0, pollAt = 0, again = false;
+/** Próxima leitura do /state daqui a `ms`, ou antes se já há uma marcada mais cedo (a de 100 ms de um toque não
+ *  pode virar 500 ms porque uma leitura em voo voltou nesse meio-tempo). */
+function pollIn(ms) {
+  const at = Date.now() + ms;
+  if (pollT && at >= pollAt) return;
+  clearTimeout(pollT);
+  pollAt = at;
+  pollT = setTimeout(() => { pollT = 0; poll(); }, ms);
+}
+
 async function poll() {
-  if (polling || !token) return;
+  if (!token) return;
+  if (polling) { again = true; return; } // a leitura em curso pode ter saído antes do comando: outra logo que ela voltar
   polling = true;
+  again = false;
   const r = await api('GET', '/state');
   polling = false;
+  pollIn(again ? 0 : 500);
   if (r.status === 401) return lost();
-  if (r.status !== 200) { if (++fails >= 3) offline(true); return; }
+  // recusa rápida (app fechado): na 3ª seguida; 2 s sem resposta (Wi-Fi que não entrega nada) já é sem conexão
+  if (r.status !== 200) { if (++fails >= 3 || r.timeout) offline(true); return; }
   fails = 0;
   offline(false);
   render(r.j);
@@ -168,21 +184,25 @@ $('ctl').addEventListener('click', async (e) => {
     if (!ok) { state[key] = !on; held[key] = 0; b.classList.toggle('on', !on); }
     return;
   }
-  if (b.dataset.addr) send(b.dataset.addr, b.dataset.arg ? [{ t: 'i', v: +b.dataset.arg }] : [], b);
+  // pad/banco/macro: lê o /state logo (o app já atualizou o estado) em vez de esperar até 0,5 s pela próxima leitura
+  if (b.dataset.addr && (await send(b.dataset.addr, b.dataset.arg ? [{ t: 'i', v: +b.dataset.arg }] : [], b))) pollIn(100);
 });
 
 // sliders: um envio em voo por knob e o último valor vence (envios paralelos chegavam fora de ordem e o
-// penúltimo podia ficar); no máximo 10 por segundo (o servidor corta em 20)
+// penúltimo podia ficar); no máximo 10 por segundo SOMANDO os sliders (o servidor corta em 20 com o /state: dois
+// dedos em dois sliders, a 10/s cada, levavam 429 e o valor final podia se perder)
+let slot = 0; // hora em que o próximo envio de slider pode sair
 for (const el of document.querySelectorAll('[data-knob]')) {
   let busy = false, sent = null;
   const flush = async () => {
     if (busy) return;
     busy = true;
     while (+el.value !== sent) {
-      const v = +el.value, t0 = Date.now();
-      sent = v;
-      await send(P + 'parameter/' + el.dataset.knob, [{ t: 'f', v }]);
-      await new Promise((r) => setTimeout(r, Math.max(0, 100 - (Date.now() - t0))));
+      const now = Date.now(), at = Math.max(now, slot);
+      slot = at + 100;
+      if (at > now) await new Promise((r) => setTimeout(r, at - now));
+      sent = +el.value; // o valor de agora, não o de quando entrou na fila
+      await send(P + 'parameter/' + el.dataset.knob, [{ t: 'f', v: sent }]);
     }
     busy = false;
   };
@@ -192,6 +212,5 @@ for (const el of document.querySelectorAll('[data-knob]')) {
   });
 }
 
-setInterval(poll, 500);
 show(!!token);
 if (token) poll();
