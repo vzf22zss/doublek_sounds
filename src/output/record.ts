@@ -17,7 +17,7 @@ export function initRecording(canvas: HTMLCanvasElement, log: (level: 'warn' | '
   let viaWebCodecs = false, noWebCodecs = false; // D-18: vertical por WebCodecs; depois de uma falha, só a cópia 2D
   // "Parar" chegando enquanto a gravação ainda começa (rec_start, ensaio do WebCodecs: até ~2 s sem `mr`) não pode
   // se perder: fica marcado e vale logo que o gravador existe (revisão 0.3.10). `cancelled` = parou antes de começar.
-  let starting = false, stopAsked = false, cancelled = false;
+  let starting = false, stopAsked = false, cancelled = false, pieces = 0;
   let chain: Promise<unknown> = Promise.resolve(); // pedaços saem na ordem em que chegaram
   let frame: Framing = { zoom: 1, offset: 0 }, copying = false; // vertical: recorte atual e laço de cópia ligado
 
@@ -44,7 +44,7 @@ export function initRecording(canvas: HTMLCanvasElement, log: (level: 'warn' | '
   listen<RecStart>('rec-start', async (e) => {
     if (mr || starting) return;
     const o = e.payload;
-    failed = false; reason = ''; bytesSoFar = 0; starting = true; stopAsked = false; cancelled = false;
+    failed = false; reason = ''; bytesSoFar = 0; starting = true; stopAsked = false; cancelled = false; pieces = 0;
     try {
       await invoke('rec_start', { id: o.id });
       id = o.id;
@@ -62,6 +62,7 @@ export function initRecording(canvas: HTMLCanvasElement, log: (level: 'warn' | '
           if (mp4 && !bytesSoFar && performance.now() - t0 > 3500) fail(new Error('o MP4 não está saindo em pedaços neste WebView; a próxima gravação usa WebM'));
           return;
         }
+        pieces++;
         const rid = id;
         chain = chain.then(async () => {
           if (failed || !rid) return;
@@ -138,6 +139,9 @@ export function initRecording(canvas: HTMLCanvasElement, log: (level: 'warn' | '
 
   listen('rec-stop', () => {
     if (!mr && starting) { stopAsked = true; return; } // ainda começando: para assim que o gravador existir
+    // D-29: gravador já de pé mas nenhum pedaço (~1 s) ainda = cancelar também; senão o resultado de "Parar logo no
+    // começo" dependia de quem ganhava a corrida com o rec_start/ensaio do WebCodecs (às vezes sobrava um .mp4 de 3 quadros)
+    if (!pieces) cancelled = true;
     try { if (mr?.state === 'recording') mr.stop(); } catch (err) { fail(err); }
   });
 

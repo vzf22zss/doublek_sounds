@@ -35,7 +35,7 @@
   import { load as storeLoad, save as storeSave, shaped } from '../lib/store';
   import { getVersion } from '@tauri-apps/api/app';
   import { captureErrors, log, logEntries, NO_TELEMETRY, type Telemetry } from '../lib/telemetry';
-  import { bugReport, issueUrl } from '../lib/bugreport';
+  import { bugReport, diagJson, issueUrl } from '../lib/bugreport';
   import { checkFile, EXT, ext } from '../lib/limits';
   import { OSC_PARAMS, oscToCommand, type OscArg } from '../lib/osc';
   import type { AnalysisLogStatus, Frame, Msg, SpoutStatus } from '../lib/types';
@@ -618,7 +618,7 @@
   async function diagnostics() {
     const data = await collectDiag();
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+    a.href = URL.createObjectURL(new Blob([diagJson(data)],{ type: 'application/json' }));
     a.download = `doublek-diagnostico-${data.when.slice(0, 19).replace(/[:T]/g, '-')}.json`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
