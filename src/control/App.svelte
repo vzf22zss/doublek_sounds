@@ -847,10 +847,10 @@
 
     <div class="group">
       <button onclick={() => dispatch({ type: 'TAP' }, 'ui')} title="Espaço" use:learnable={{ id: 'a:tap', label: 'TAP' }}>TAP</button>
-      <button onclick={() => dispatch({ type: 'TEMPO_HALF' }, 'ui')} title="Metade do BPM" use:learnable={{ id: 'a:half', label: '½ BPM' }}>½</button>
-      <button onclick={() => dispatch({ type: 'TEMPO_DOUBLE' }, 'ui')} title="Dobro do BPM" use:learnable={{ id: 'a:double', label: '×2 BPM' }}>×2</button>
-      <button onclick={() => dispatch({ type: 'NUDGE', ms: -5 }, 'ui')} title="Adiantar 5 ms (←)" use:learnable={{ id: 'a:nudge-', label: 'Adiantar fase' }}>◀</button>
-      <button onclick={() => dispatch({ type: 'NUDGE', ms: 5 }, 'ui')} title="Atrasar 5 ms (→)" use:learnable={{ id: 'a:nudge+', label: 'Atrasar fase' }}>▶</button>
+      <button onclick={() => dispatch({ type: 'TEMPO_HALF' }, 'ui')} title="Metade do BPM" aria-label="Metade do BPM" use:learnable={{ id: 'a:half', label: '½ BPM' }}>½</button>
+      <button onclick={() => dispatch({ type: 'TEMPO_DOUBLE' }, 'ui')} title="Dobro do BPM" aria-label="Dobro do BPM" use:learnable={{ id: 'a:double', label: '×2 BPM' }}>×2</button>
+      <button onclick={() => dispatch({ type: 'NUDGE', ms: -5 }, 'ui')} title="Adiantar 5 ms (←)" aria-label="Adiantar a fase 5 ms" use:learnable={{ id: 'a:nudge-', label: 'Adiantar fase' }}>◀</button>
+      <button onclick={() => dispatch({ type: 'NUDGE', ms: 5 }, 'ui')} title="Atrasar 5 ms (→)" aria-label="Atrasar a fase 5 ms" use:learnable={{ id: 'a:nudge+', label: 'Atrasar fase' }}>▶</button>
     </div>
 
     <div class="group">
@@ -995,7 +995,7 @@
             {#each videoList as x (x.id)}
               <div class="vid" class:on={vs.bgVideo === x.id}>
                 <button onclick={() => (vs.bgVideo = x.id)} title={x.name}>{x.name}</button>
-                <button class="x" onclick={() => dropVideo(x.id)} title="Remover da biblioteca">×</button>
+                <button class="x" onclick={() => dropVideo(x.id)} title="Remover da biblioteca" aria-label="Remover {x.name} da biblioteca">×</button>
               </div>
             {/each}
           </div>
@@ -1166,12 +1166,13 @@
   main {
     height: 100vh;
     display: grid;
-    grid-template-columns: 1fr 320px;
+    /* painel lateral: 320 px até 2000 px de largura; em monitor grande (1440p) cresce até 420 em vez de sobrar tudo para o analisador */
+    grid-template-columns: 1fr clamp(320px, 16vw, 420px);
     grid-template-rows: auto 1fr auto auto;
     gap: 12px;
     padding: 12px;
   }
-  .bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding: 10px 14px; flex-wrap: wrap; }
+  .bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding: 10px 14px; flex-wrap: wrap; anchor-name: --bar; }
   .panic { font-weight: 700; letter-spacing: .04em; font-size: 11px; padding: 7px 8px; color: #ffb84d; border-color: rgba(255,184,77,.45); }
   .panic:hover { background: rgba(255,184,77,.15); }
   .crop916 { position: absolute; border: 2px solid #22d3ee; box-shadow: 0 0 0 9999px rgba(0, 0, 0, .45); pointer-events: none; border-radius: 4px; }
@@ -1184,7 +1185,8 @@
   .brand { font-weight: 800; letter-spacing: 0.12em; font-size: 14px; }
   .group { display: flex; gap: 6px; align-items: center; }
   .group > button { padding: 7px 10px; }
-  .group select:first-child { max-width: 112px; }
+  /* entrada de áudio: 112 px no notebook; com folga no cabeçalho (≥ 1612 px) mostra mais do nome do dispositivo */
+  .group select:first-child { max-width: clamp(112px, 100vw - 1500px, 240px); }
   .black { padding: 7px 9px; }
   .primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink, #fff); font-weight: 600; }
   .black { font-weight: 700; letter-spacing: .06em; }
@@ -1203,7 +1205,8 @@
   .midiBtn i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.15); transition: background 60ms; }
   .midiBtn i.lit { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
   .learnBar {
-    position: fixed; top: 76px; left: 50%; translate: -50% 0; z-index: 20;
+    /* logo abaixo do cabeçalho; em janela estreita ele quebra em 2 linhas e um top fixo cobria PÂNICO/BLACKOUT */
+    position: fixed; top: 76px; top: calc(anchor(--bar bottom) + 8px); left: 50%; translate: -50% 0; z-index: 20;
     display: flex; align-items: center; gap: 12px; padding: 10px 14px; max-width: calc(100vw - 32px);
     background: rgba(20, 16, 36, .92); border: 1px solid var(--accent); border-radius: var(--radius);
     box-shadow: 0 10px 40px rgba(0,0,0,.5); backdrop-filter: blur(20px);

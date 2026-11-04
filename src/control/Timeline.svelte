@@ -158,11 +158,11 @@
     {:else}
       <button class="primary go" onclick={play} title="G: aperte no beat em que a música está no ponto GO" use:learnable={{ id: 'a:go', label: 'Roteiro: tocar/GO' }}>GO</button>
     {/if}
-    <button onclick={stop} title="Shift+G" use:learnable={{ id: 'a:stop', label: 'Roteiro: parar' }}>■</button>
-    <button onclick={() => nudge(-4)} title="; (−1 compasso)" use:learnable={{ id: 'a:bar-', label: 'Roteiro: −1 compasso' }}>«</button>
-    <button onclick={() => nudge(-1)} title=", (−1 beat)" use:learnable={{ id: 'a:beat-', label: 'Roteiro: −1 beat' }}>‹</button>
-    <button onclick={() => nudge(1)} title=". (+1 beat)" use:learnable={{ id: 'a:beat+', label: 'Roteiro: +1 beat' }}>›</button>
-    <button onclick={() => nudge(4)} title="' (+1 compasso)" use:learnable={{ id: 'a:bar+', label: 'Roteiro: +1 compasso' }}>»</button>
+    <button onclick={stop} title="Shift+G" aria-label="Parar o roteiro" use:learnable={{ id: 'a:stop', label: 'Roteiro: parar' }}>■</button>
+    <button onclick={() => nudge(-4)} title="; (−1 compasso)" aria-label="Voltar 1 compasso" use:learnable={{ id: 'a:bar-', label: 'Roteiro: −1 compasso' }}>«</button>
+    <button onclick={() => nudge(-1)} title=", (−1 beat)" aria-label="Voltar 1 beat" use:learnable={{ id: 'a:beat-', label: 'Roteiro: −1 beat' }}>‹</button>
+    <button onclick={() => nudge(1)} title=". (+1 beat)" aria-label="Avançar 1 beat" use:learnable={{ id: 'a:beat+', label: 'Roteiro: +1 beat' }}>›</button>
+    <button onclick={() => nudge(4)} title="' (+1 compasso)" aria-label="Avançar 1 compasso" use:learnable={{ id: 'a:bar+', label: 'Roteiro: +1 compasso' }}>»</button>
     <div class="ab" title="R: compara na hora como fica com o roteiro e só com o som" use:learnable={{ id: 'a:ab', label: 'Roteiro: A/B com × sem pontos' }}>
       <button class:on={rt.mode !== 'sound'} onclick={() => setMode(rt.back)}>Com roteiro</button>
       <button class:on={rt.mode === 'sound'} onclick={() => setMode('sound')}>Só o som</button>

@@ -335,10 +335,10 @@ ${refs} ponto(s) de roteiro/automação usam este banco: passam a usar o banco a
         <span ondblclick={() => (editingBank = true)}>{bank.name}</span>
       {/if}
       <div class="bk">
-        <button onclick={() => cmd({ type: 'BANK_STEP', delta: -1 })} title="Banco anterior ([)" use:learnable={{ id: 'a:bank-', label: 'Banco anterior' }}>‹</button>
-        <button onclick={() => cmd({ type: 'BANK_STEP', delta: 1 })} title="Banco seguinte (])" use:learnable={{ id: 'a:bank+', label: 'Banco seguinte' }}>›</button>
-        <button onclick={newBank} disabled={bk.banks.length >= MAX_BANKS} title="Novo banco vazio (até {MAX_BANKS})">+</button>
-        <button onclick={dropBank} disabled={bk.banks.length < 2} title="Apagar este banco">×</button>
+        <button onclick={() => cmd({ type: 'BANK_STEP', delta: -1 })} title="Banco anterior ([)" aria-label="Banco anterior" use:learnable={{ id: 'a:bank-', label: 'Banco anterior' }}>‹</button>
+        <button onclick={() => cmd({ type: 'BANK_STEP', delta: 1 })} title="Banco seguinte (])" aria-label="Banco seguinte" use:learnable={{ id: 'a:bank+', label: 'Banco seguinte' }}>›</button>
+        <button onclick={newBank} disabled={bk.banks.length >= MAX_BANKS} title="Novo banco vazio (até {MAX_BANKS})" aria-label="Novo banco">+</button>
+        <button onclick={dropBank} disabled={bk.banks.length < 2} title="Apagar este banco" aria-label="Apagar este banco">×</button>
       </div>
     </div>
     <div class="pads">
@@ -371,7 +371,7 @@ ${refs} ponto(s) de roteiro/automação usam este banco: passam a usar o banco a
       <span>Transição</span>
       <div class="seg">
         {#each [0, 1, 2, 4, 8] as b}
-          <button class:on={trans === b} onclick={() => (trans = b)} title={b ? `${b} beat${b > 1 ? 's' : ''}` : 'Sem crossfade'}>{b || 'corte'}</button>
+          <button class:on={trans === b} onclick={() => (trans = b)} title={b ? `${b} beat${b > 1 ? 's' : ''}` : 'Sem crossfade'} aria-label={b ? `Transição de ${b} beat${b > 1 ? 's' : ''}` : undefined}>{b || 'corte'}</button>
         {/each}
         <span class="unit">beats</span>
       </div>
@@ -379,7 +379,7 @@ ${refs} ponto(s) de roteiro/automação usam este banco: passam a usar o banco a
         title={staged ? `T: manda "${staged.name}" para o telão` : 'Nada em preview (Shift+1..8, ou ligue o modo Preview)'}
         use:learnable={{ id: 'a:take', label: 'TAKE' }}>TAKE · {trans ? trans + ' beat' + (trans > 1 ? 's' : '') : 'corte'}</button>
       <button class:on={previewMode} onclick={() => cmd({ type: 'PREVIEW_MODE' })} title="Modo preview: tocar um pad (ou o MIDI dele) prepara a cena em vez de chamar" use:learnable={{ id: 'a:previewMode', label: 'Modo preview' }}>Preview</button>
-      <button class:off={!staged} onclick={() => cmd({ type: 'PREVIEW_CLEAR' })} title="Shift+T: limpa o preview" use:learnable={{ id: 'a:previewClear', label: 'Limpar preview' }}>×</button>
+      <button class:off={!staged} onclick={() => cmd({ type: 'PREVIEW_CLEAR' })} title="Shift+T: limpa o preview" aria-label="Limpar o preview" use:learnable={{ id: 'a:previewClear', label: 'Limpar preview' }}>×</button>
     </div>
     <div class="row">
       <button onclick={exportFile} title="Salva visual e cenas num arquivo">Exportar</button>
@@ -434,6 +434,11 @@ ${refs} ponto(s) de roteiro/automação usam este banco: passam a usar o banco a
 <style>
   .perf { grid-column: 1 / -1; display: flex; gap: 18px; padding: 10px 14px; align-items: center; flex-wrap: wrap; }
   .knobs { display: flex; gap: 2px; flex-wrap: wrap; }
+  /* notebook (1366, 1280, 1920 a 125/150%): knobs numa fileira só espremiam os pads ("Psy …", "+ gr…"); em 2 fileiras de 5 os pads ganham ~330 px */
+  /* janela baixa (meia tela no notebook, mínimo 1000×640): knobs em cima dos pads deixavam o preview com 18–70 px de altura */
+  @media (min-width: 1100px) and (max-width: 1669px), (max-height: 760px) {
+    .knobs { display: grid; grid-template-columns: repeat(5, auto); }
+  }
   .scenes { flex: 1; min-width: 420px; display: flex; flex-direction: column; gap: 8px; }
   .pads { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; flex: 1; min-width: 0; }
   .bankrow { display: flex; gap: 6px; }
