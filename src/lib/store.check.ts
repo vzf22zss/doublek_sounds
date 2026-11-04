@@ -1,6 +1,8 @@
 // npm run check — armazenamento versionado: migração v0 → v1, dado inválido, versão futura, roundtrip (DK-002).
 import assert from 'node:assert/strict';
-import { load, save, useStorage, SCHEMA, shaped, migrate, type Key } from './store.ts';
+import { load, save, useStorage, SCHEMA, shaped, migrate, plain, type Key } from './store.ts';
+// @ts-ignore: runtime interno do Svelte (o mesmo $state/$state.snapshot do app), publicado sem tipos
+import { proxy, snapshot } from 'svelte/internal/client';
 import { loadVisual, loadScenes, saveScenes, validVisual, VISUAL } from './settings.ts';
 import { loadRoteiros, saveRoteiros, validRoteiros } from './roteiro.ts';
 import { mappedByDevice, validMidiMap } from './midimap.ts';
@@ -103,5 +105,25 @@ assert.equal(migrate('doublek.trans', '4'), 4);                         // v0 cr
 assert.deepEqual(migrate('doublek.visual', { v: 1, data: { size: 5 } }), { size: 5 });
 assert.deepEqual(migrate('doublek.scenes', [null]), [null]);           // v0 → v1 sem mudar o dado
 assert.throws(() => migrate('doublek.visual', { v: 99, data: {} }), /mais nova/);
+
+// --- plain(): cópia do $state do Svelte sem um structuredClone por campo (o visual muda a cada quadro numa transição) ---
+{
+  const sv = proxy(structuredClone({ ...VISUAL, range: { glow: [0.2, 0.8] } }));
+  const real = globalThis.structuredClone;
+  let calls = 0;
+  globalThis.structuredClone = ((x: unknown) => (calls++, real(x))) as typeof structuredClone;
+  const a = plain(sv), nPlain = calls;
+  calls = 0;
+  const b = snapshot(sv), nSnap = calls;
+  globalThis.structuredClone = real;
+  assert.deepEqual(a, b);                        // a mesma cópia que o $state.snapshot
+  assert.equal(nPlain, 0);                       // sem structuredClone
+  assert.ok(nSnap > 100, `snapshot: ${nSnap}`);  // o jeito antigo: um por campo
+  sv.size = 99; sv.layers[0].opacity = 0.1; sv.mod.glow = 'bass'; sv.range.glow[0] = 0.5;
+  assert.deepEqual([a.size, a.layers[0].opacity, a.mod.glow, a.range.glow[0]], [VISUAL.size, VISUAL.layers[0].opacity, VISUAL.mod.glow, 0.2]); // cópia, não referência
+  assert.equal(plain(3), 3);
+  assert.equal(plain(null), null);
+  assert.deepEqual(plain([1, [2, { x: 'a' }]]), [1, [2, { x: 'a' }]]);
+}
 
 console.log('store: ok');

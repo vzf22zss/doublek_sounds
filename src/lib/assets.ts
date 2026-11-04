@@ -94,8 +94,7 @@ async function prepareLogo(v: Visual, onBad?: () => void): Promise<Prepared> {
   return { image: c, glow: g, aspect: h / w };
 }
 
-async function prepareBg(v: Visual, onBad?: () => void): Promise<Prepared | null> {
-  const img = await imageFrom(await getAsset('bg'), undefined, onBad);
+function prepareBg(v: Visual, img: HTMLImageElement | null): Prepared | null {
   if (!img) return null;
   const s = Math.min(1, 2560 / Math.max(img.naturalWidth, img.naturalHeight));
   const w = Math.round(img.naturalWidth * s), h = Math.round(img.naturalHeight * s);
@@ -323,11 +322,32 @@ export type SyncOpts = {
   onImageFail?: (msg: string) => void;
 };
 
+/** Roda `job` sempre com o valor mais novo e um de cada vez: o que for pedido durante uma execução espera, e dos que
+ *  esperam só o último roda (os do meio não servem mais). A promise resolve quando a fila esvazia. */
+export function latest<T>(job: (x: T) => Promise<unknown>) {
+  let busy: Promise<void> | null = null, next: { x: T } | null = null;
+  return (x: T): Promise<void> => {
+    next = { x };
+    return (busy ??= (async () => {
+      try {
+        while (next) { const n = next; next = null; await job(n.x); }
+      } finally { busy = null; }
+    })());
+  };
+}
+
 /** Reprocessa logo/fundo só quando o arquivo ou um ajuste que os afeta mudou; troca o vídeo do fundo.
  *  Se o vídeo não abre, dá erro ou trava, o fundo volta sozinho para a foto/cor (nunca tela preta por vídeo)
  *  e só tenta de novo quando escolherem outro vídeo. */
 export function assetSync(r: { setLogo(p: Prepared): void; setBg(p: Prepared | null): void; setBgVideo(el: HTMLVideoElement | null): void }, o: SyncOpts = {}) {
   let logoKey = '', bgKey = '', vid = '', cur: HTMLVideoElement | null = null, failed = '', token = 0;
+  // foto do fundo: lida e decodificada uma vez por arquivo (force = arquivo novo); o desfoque é refeito a cada mudança
+  // do bgBlur, que no crossfade entre cenas muda a cada quadro: um de cada vez, sempre com o valor mais novo
+  let bgImg: Promise<HTMLImageElement | null> | null = null;
+  const bgImage = () => (bgImg ??= getAsset('bg')
+    .then((b) => imageFrom(b, undefined, () => o.onImageFail?.('Foto de fundo guardada inválida: o telão está usando a cor de fundo. Carregue a foto de novo.')))
+    .catch((e) => { bgImg = null; throw e; })); // falha de leitura não fica guardada
+  const bg = latest(async (v: Visual) => r.setBg(prepareBg(v, await bgImage())));
   let unwatch = () => {};
   const fallback = (id: string, why: string) => {
     if (vid !== id || failed === id) return;
@@ -343,8 +363,9 @@ export function assetSync(r: { setLogo(p: Prepared): void; setBg(p: Prepared | n
     const lk = `${v.rmWhite}|${v.white}`, bk = `${v.bgBlur}`;
     const doLogo = force || lk !== logoKey, doBg = force || bk !== bgKey;
     logoKey = lk; bgKey = bk;
+    if (force) bgImg = null;
     if (doLogo) r.setLogo(await prepareLogo(v, () => o.onImageFail?.('Logo guardada inválida: o telão está usando a logo padrão. Carregue a logo de novo.')));
-    if (doBg) r.setBg(await prepareBg(v, () => o.onImageFail?.('Foto de fundo guardada inválida: o telão está usando a cor de fundo. Carregue a foto de novo.')));
+    if (doBg) await bg(v);
     if (force || v.bgVideo !== vid) {
       const changed = v.bgVideo !== vid, my = ++token;
       vid = v.bgVideo;

@@ -19,6 +19,7 @@
   import { plan, quantizeDelay } from '../lib/show-engine/rules';
   import { loadAutomation, saveAutomation } from '../lib/show-engine/config';
   import { shiftAfterRemove } from '../lib/banks';
+  import { previewDue } from '../lib/preview';
   import AutomationPanel from './AutomationPanel.svelte';
   import FxEditor from './FxEditor.svelte';
   import { watchFxHealth } from './fxHealth';
@@ -32,7 +33,7 @@
   import { applyLayerParam } from '../render/layers';
   import { addVideo, assetSync, imageColors, listVideos, preloadVideo, probeVideo, removeVideo, setAsset, updateVideo, videoColors, type VideoInfo } from '../lib/assets';
   import { preloadChoice } from '../lib/videoloop';
-  import { load as storeLoad, save as storeSave, shaped } from '../lib/store';
+  import { load as storeLoad, plain, save as storeSave, shaped } from '../lib/store';
   import { getVersion } from '@tauri-apps/api/app';
   import { captureErrors, log, logEntries, NO_TELEMETRY, type Telemetry } from '../lib/telemetry';
   import { bugReport, diagJson, issueUrl } from '../lib/bugreport';
@@ -124,9 +125,11 @@
     });
   });
 
-  // ajustes visuais → telão + preview (e salvos)
+  // ajustes visuais → telão + preview (e salvos). Uma cópia do `vs` por mudança, dividida pelos dois efeitos e feita
+  // com plain(): numa transição de cena, macro ou rampa o `vs` muda a cada quadro, e cada $state.snapshot custava ~2 ms
+  const visual = $derived(plain(vs));
   $effect(() => {
-    const v = $state.snapshot(vs);
+    const v = visual;
     saveVisual(v);
     document.documentElement.style.setProperty('--accent', v.color);
     // texto em cima da cor de destaque: escuro se ela for clara (ex.: lima), branco se for escura
@@ -152,8 +155,8 @@
   });
   onEvent('output-ready', () => { if (lastPre) emitTo('output', 'preload', [lastPre]); }); // telão (re)aberto: a vaga de agora
   $effect(() => {
-    const v = $state.snapshot(vs), st = staged;
-    const pv = st ? { ...v, ...($state.snapshot(st.look) as object) } as typeof v : v;
+    const v = visual, st = staged;
+    const pv = st ? { ...v, ...plain(st.look) } as typeof v : v;
     preview?.setVisual({ ...pv, renderScale: 0.5 });
     sync?.(pv);
   });
@@ -166,10 +169,13 @@
     preview = new Renderer(previewCanvas, { ...v0, renderScale: 0.5 });
     sync = assetSync(preview, { beat: () => frame }); // a falha de vídeo quem avisa é o telão
     sync(v0, true);
-    let raf = 0, odd = false;
+    let raf = 0, last = -1e9;
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
-      if ((odd = !odd)) { preview!.render(now); if (live.open) live.S = preview!.lastS; } // régua aberta: nível ao vivo
+      if (!previewDue(now, last)) return; // ~30 fps em qualquer monitor (a 60 Hz, um rAF sim, um não)
+      last = now;
+      preview!.render(now);
+      if (live.open) live.S = preview!.lastS; // régua aberta: nível ao vivo
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
@@ -824,7 +830,7 @@
     </div>
 
     <div class="meter" class:clip title="Nível de entrada">
-      <div class="fill" style:width="{Math.max(0, (db + 60) / 60) * 100}%"></div>
+      <div class="fill" style:transform="scaleX({Math.max(0, (db + 60) / 60)})"></div>
       <span>{clip ? 'CLIP' : db > -60 ? db.toFixed(0) + ' dB' : '—'}</span>
     </div>
 
@@ -1214,7 +1220,8 @@
   .learnBar small { color: var(--muted); }
 
   .meter { position: relative; width: 92px; height: 26px; border-radius: 8px; background: rgba(255,255,255,.06); overflow: hidden; }
-  .meter .fill { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, var(--ok), #c6f24e); transition: width 60ms linear; }
+  /* nível por transform (não width): muda ~94×/s e width refazia estilo, layout e pintura a cada quadro */
+  .meter .fill { position: absolute; inset: 0; transform-origin: left; background: linear-gradient(90deg, var(--ok), #c6f24e); transition: transform 60ms linear; }
   .meter.clip .fill { background: var(--clip); }
   .meter span { position: relative; display: block; text-align: center; line-height: 26px; font-size: 12px; font-weight: 600; text-shadow: 0 1px 2px #000; }
 

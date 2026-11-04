@@ -1,7 +1,7 @@
 // npm run check — Program/Preview (DK-043): preparar, TAKE, banco trocado, regravar, apagar banco, PÂNICO/BLACKOUT.
 import assert from 'node:assert/strict';
 import { addBank, stepBank, validBanks, type Banks } from './banks.ts';
-import { afterCommand, afterRemoveBank, resolve, stage, take, type PreviewRef } from './preview.ts';
+import { afterCommand, afterRemoveBank, previewDue, resolve, stage, take, type PreviewRef } from './preview.ts';
 
 const eight = (...s: unknown[]) => [...s, ...Array(8 - s.length).fill(null)];
 let b: Banks = validBanks({ active: 0, banks: [
@@ -53,5 +53,27 @@ assert.equal(afterCommand(ref, 'PANIC'), null);
 assert.equal(afterCommand(ref, 'BLACKOUT'), ref);
 assert.equal(afterCommand(ref, 'SCENE_RECALL'), ref);
 assert.equal(afterCommand(ref, 'BANK_STEP'), ref);
+
+// cadência do canvas de preview: rAF de N Hz (com ±0,5 ms de jitter) por 10 s → quadros desenhados por segundo
+const drawn = (hz: number) => {
+  let last = -1e9, n = 0, alt = 0, same = true, odd = false;
+  for (let i = 0; i < hz * 10; i++) {
+    const now = 1000 + (i * 1000) / hz + ((i % 3) - 1) * 0.5;
+    const d = previewDue(now, last);
+    if (d) { last = now; n++; }
+    if ((odd = !odd)) alt++; // o jeito antigo: um rAF sim, um não
+    if (d !== odd) same = false;
+  }
+  return { fps: n / 10, alt: alt / 10, same };
+};
+// 60 Hz: exatamente o "um sim, um não" de antes, quadro a quadro
+assert.deepEqual(drawn(60), { fps: 30, alt: 30, same: true });
+assert.equal(drawn(75).fps, 37.5); // 75 Hz: como antes também
+// monitores rápidos: o preview fica em 30–40 fps (antes: metade da taxa do monitor)
+for (const hz of [100, 120, 144, 165, 240]) {
+  const r = drawn(hz);
+  assert.ok(r.fps >= 28 && r.fps <= 40, `${hz} Hz: ${r.fps} fps`);
+  assert.ok(r.alt >= 50, `${hz} Hz: o jeito antigo dava ${r.alt}`);
+}
 
 console.log('preview: ok');

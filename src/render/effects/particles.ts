@@ -10,6 +10,8 @@ import { hex, Pass, quality } from './pass';
 const MAX = 32;
 const scaleOf = (i: number) => 6 + i * 1.7;     // células por altura de tela na camada i
 const depthOf = (i: number) => 1 + i * 0.35;    // camadas mais fundas andam mais devagar
+const wrap = (x: number) => x - 1024 * Math.floor(x / 1024);
+
 
 export const PARTICLES = `#version 300 es
 precision highp float;
@@ -65,7 +67,9 @@ export class ParticlesEffect extends Pass {
     const layers = [8, 16, 32][quality(v)];
     for (let i = 0; i < layers; i++) {
       const k = (-this.dist * scaleOf(i)) / depthOf(i);
-      for (const [j, x] of [[0, k * dx], [1, k * dy]]) this.off[i * 2 + j] = x - 1024 * Math.floor(x / 1024);
+      // sem arrays por camada: este laço roda até 32× por quadro
+      this.off[i * 2] = wrap(k * dx);
+      this.off[i * 2 + 1] = wrap(k * dy);
     }
     const u = this.begin(ctx);
     gl.uniform2fv(u('uOff'), this.off);
