@@ -16,7 +16,7 @@ function saveToken(t) {
   try { t ? sessionStorage.setItem(KEY, t) : sessionStorage.removeItem(KEY); } catch {}
 }
 
-/** fetch com tempo-limite de 2 s; status 0 = não chegou no app. */
+/** fetch com tempo-limite de 2 s; status 0 = não chegou no app (`timeout`: ficou 2 s sem resposta). */
 async function api(method, path, body) {
   const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 2000);
   try {
@@ -28,7 +28,7 @@ async function api(method, path, body) {
     try { j = await r.json(); } catch {}
     return { status: r.status, j };
   } catch {
-    return { status: 0, j: {} };
+    return { status: 0, j: {}, timeout: ctl.signal.aborted };
   } finally {
     clearTimeout(timer);
   }
@@ -97,7 +97,8 @@ async function poll() {
   const r = await api('GET', '/state');
   polling = false;
   if (r.status === 401) return lost();
-  if (r.status !== 200) { if (++fails >= 3) offline(true); return; }
+  // recusa rápida (app fechado): na 3ª seguida; 2 s sem resposta (Wi-Fi que não entrega nada) já é sem conexão
+  if (r.status !== 200) { if (++fails >= 3 || r.timeout) offline(true); return; }
   fails = 0;
   offline(false);
   render(r.j);

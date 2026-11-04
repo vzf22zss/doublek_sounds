@@ -360,6 +360,13 @@ async function session(current, M) {
       R.ok('celular', 'sem rede: faixa "sem conexão" e controles desabilitados', !!(await until(async () => (await vis('offline')) && (await ph.$eval('#panic', (x) => x.disabled)), 5000)));
       await net.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
       R.ok('celular', 'rede voltou: faixa some', !!(await until(async () => !(await vis('offline')), 5000)));
+      // Wi-Fi que não entrega (conectado, mas nada volta): a faixa aparece no 1º pedido que estoura o prazo de 2 s
+      await net.send('Network.emulateNetworkConditions', { offline: false, latency: 10000, downloadThroughput: -1, uploadThroughput: -1 });
+      const tz = Date.now();
+      const dead = await until(() => vis('offline'), 9000, 100), dt = Date.now() - tz;
+      R.ok('celular', 'rede que não responde: faixa "sem conexão" em < 3,5 s', !!dead && dt < 3500, `${dt} ms`);
+      await net.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+      R.ok('celular', 'rede respondendo de novo: faixa some', !!(await until(async () => !(await vis('offline')), 5000)));
       await click('Desconectar todos');
       R.ok('celular', 'Desconectar todos → celular volta ao pareamento', !!(await until(() => vis('pair'), 5000)));
       R.ok('celular', 'console do celular sem erros/CSP', errs.celular.length === 0, errs.celular.join(' | '));
