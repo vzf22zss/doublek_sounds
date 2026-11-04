@@ -36,6 +36,9 @@ export function anonymize(s: string) {
     .replace(new RegExp(`[^\\s"“'\\\\/:<]+\\.(${MEDIA})\\b`, 'gi'), (_m, e) => `<arquivo .${e.toLowerCase()}>`);
 }
 
+/** O arquivo .json do Diagnóstico (vai anexado na issue pública): cada texto anonimizado, como no resumo (D-27). */
+export const diagJson = (d: unknown) => JSON.stringify(d, (_k, v) => (typeof v === 'string' ? anonymize(v) : v), 2);
+
 const cut = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 const n1 = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? +v.toFixed(1) : '—');
 

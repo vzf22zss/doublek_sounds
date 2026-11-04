@@ -1,6 +1,6 @@
 // npm run check — "Relatar problema": anonimização, corte de tamanho, só os campos escolhidos, URL da issue.
 import assert from 'node:assert/strict';
-import { anonymize, bugReport, issueUrl, MAX_CHARS, REPO, type Diag } from './bugreport.ts';
+import { anonymize, bugReport, diagJson, issueUrl, MAX_CHARS, REPO, type Diag } from './bugreport.ts';
 
 // caminhos: o usuário do Windows vira %USER% (barra invertida, barra normal, aspas, minúsculas)
 assert.equal(anonymize('Análise salva em C:\\Users\\Ana Souza\\AppData\\x'), 'Análise salva em C:\\Users\\%USER%\\AppData\\x', 'nome com espaço');
@@ -58,6 +58,14 @@ const edge = bugReport({ log: [{ t: '', level: 'warn', msg: 'z'.repeat(186) + ' 
 assert.ok(!/Ana|Souza|Sou…/.test(edge), edge.slice(-60));
 // Diagnóstico vazio/antigo não quebra
 assert.match(bugReport({}), /DoubleK Visuals \?\*\* · Windows \?/);
+
+// D-27: o arquivo .json do Diagnóstico (anexado na issue) também sai sem usuário do Windows nem nome de mídia
+const dj = diagJson({ ...DIAG, log: [...DIAG.log!, { t: '', level: 'error', msg: 'falhou:\nfaixa.mp3' }] });
+const back = JSON.parse(dj); // continua JSON válido (o \n escapado não vira "\<arquivo")
+for (const bad of ['\\\\dj\\\\', 'Faixa X', 'faixa.mp3']) assert.ok(!dj.includes(bad), `diagnóstico não pode ter: ${bad}`);
+assert.equal(back.recording.last, 'C:\\Users\\%USER%\\AppData\\Roaming\\com.doublek.visuals\\recordings\\<arquivo .mp4>');
+assert.equal(back.roteiro.name, 'Set do casamento da Ana', 'o resto do diagnóstico fica');
+assert.equal(back.log.at(-1).msg, 'falhou:\n<arquivo .mp3>');
 
 // URL: modelo de bug do repositório, título com a versão, corpo curto pedindo para colar
 const u = issueUrl('0.3.9');
