@@ -442,12 +442,14 @@ ${refs} ponto(s) de roteiro/automação usam este banco: passam a usar o banco a
   .scenes { flex: 1; min-width: 420px; display: flex; flex-direction: column; gap: 8px; }
   .pads { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; flex: 1; min-width: 0; }
   .bankrow { display: flex; gap: 6px; }
-  .bank { flex: none; width: 92px; height: 54px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; justify-content: space-between; background: rgba(124, 92, 255, .08); }
+  /* nome à esquerda, ‹ › + × em 2×2 à direita: alvos de 22 px com 2 px entre eles (regra dos 24 px) sem crescer a altura dos pads (D-32) */
+  .bank { flex: none; width: 132px; height: 54px; padding: 4px 4px 4px 6px; border: 1px solid var(--line); border-radius: 10px; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 1fr; column-gap: 4px; align-items: end; background: rgba(124, 92, 255, .08); }
+  .bank small { align-self: start; }
   .bank small { font-size: 10px; color: var(--muted); }
   .bank span { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: text; }
   .bank input { width: 100%; font-size: 12px; background: rgba(0,0,0,.4); border: 1px solid var(--accent); border-radius: 4px; padding: 0 4px; }
-  .bk { display: flex; gap: 2px; }
-  .bk button { flex: 1; min-width: 0; padding: 0 2px; font-size: 11px; line-height: 14px; border-radius: 5px; }
+  .bk { grid-column: 2; grid-row: 1 / 3; align-self: center; display: grid; grid-template-columns: 22px 22px; gap: 2px; }
+  .bk button { width: 22px; height: 22px; padding: 0; font-size: 13px; line-height: 1; border-radius: 5px; }
   .pad { position: relative; height: 54px; padding: 6px 8px; text-align: left; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; background: rgba(255,255,255,.05); }
   .pad small { font-size: 10px; color: var(--muted); }
   .pad span { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -461,6 +463,8 @@ ${refs} ponto(s) de roteiro/automação usam este banco: passam a usar o banco a
   .pad i { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--kick); }
   .pad input { width: 100%; font-size: 12px; background: rgba(0,0,0,.4); border: 1px solid var(--accent); border-radius: 4px; padding: 1px 4px; }
   .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+  .row > button { color: var(--text); } /* o cinza da linha é para os rótulos; botão cinza parecia desligado (D-32) */
+  .row > button:disabled { opacity: .5; }
   .seg { display: flex; gap: 4px; margin-right: auto; align-items: center; }
   .seg .unit { margin-left: 2px; }
   .seg button, .row > button, .btn { padding: 4px 9px; font-size: 12px; }
