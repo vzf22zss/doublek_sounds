@@ -309,8 +309,12 @@ async function session(current, M) {
     R.ok('celular', `porta livre ${port} no campo do celular`, await setPortOf('Celular', port));
     await click('Ligar celular');
     R.ok('celular', 'serviço ligado', !!(await until(async () => (await inv('remote_status')).v?.running, 5000)));
-    await click('Mostrar código');
-    const code = await until(() => c.evaluate(() => document.querySelector('.pair')?.textContent?.trim()), 3000);
+    // D-30: o `remote_status` do teste pode responder antes de a tela ver o serviço ligado; aí "Mostrar código" ainda
+    // não existia, o código nunca aparecia e o bloco caía com "text is not iterable" ao digitar `undefined`
+    const shown = await until(() => click('Mostrar código'), 10000);
+    const code = await until(() => c.evaluate(() => [...document.querySelectorAll('.pair')].map((x) => x.textContent.trim()).find((t) => /^\d{6}$/.test(t))), 10000);
+    R.ok('celular', 'app mostra o código de 6 dígitos', !!code, shown ? '' : 'botão "Mostrar código" não apareceu');
+    if (!code) return;
     const edge = await launchEdge();
     try {
       const ph = await edge.browser.newPage();
