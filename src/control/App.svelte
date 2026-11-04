@@ -1171,7 +1171,7 @@
     gap: 12px;
     padding: 12px;
   }
-  .bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding: 10px 14px; flex-wrap: wrap; }
+  .bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding: 10px 14px; flex-wrap: wrap; anchor-name: --bar; }
   .panic { font-weight: 700; letter-spacing: .04em; font-size: 11px; padding: 7px 8px; color: #ffb84d; border-color: rgba(255,184,77,.45); }
   .panic:hover { background: rgba(255,184,77,.15); }
   .crop916 { position: absolute; border: 2px solid #22d3ee; box-shadow: 0 0 0 9999px rgba(0, 0, 0, .45); pointer-events: none; border-radius: 4px; }
@@ -1203,7 +1203,8 @@
   .midiBtn i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.15); transition: background 60ms; }
   .midiBtn i.lit { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
   .learnBar {
-    position: fixed; top: 76px; left: 50%; translate: -50% 0; z-index: 20;
+    /* logo abaixo do cabeçalho; em janela estreita ele quebra em 2 linhas e um top fixo cobria PÂNICO/BLACKOUT */
+    position: fixed; top: 76px; top: calc(anchor(--bar bottom) + 8px); left: 50%; translate: -50% 0; z-index: 20;
     display: flex; align-items: center; gap: 12px; padding: 10px 14px; max-width: calc(100vw - 32px);
     background: rgba(20, 16, 36, .92); border: 1px solid var(--accent); border-radius: var(--radius);
     box-shadow: 0 10px 40px rgba(0,0,0,.5); backdrop-filter: blur(20px);
