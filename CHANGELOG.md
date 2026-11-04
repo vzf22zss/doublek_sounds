@@ -6,6 +6,23 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Não lançado]
 
+## [0.3.15] - 2026-11-04
+
+### Mudou
+
+- Janela de controle mais leve: o analisador não aloca memória a cada quadro e não redesenha quando nada muda (sem som, de 60–144 para 0 desenhos/s); o medidor de nível não refaz o layout da janela a cada quadro; transições de cena, macros e rampas custam ~⅓ do processamento por quadro. A imagem do telão, do preview e do analisador é a mesma.
+- Preview a ~30 fps em qualquer monitor (num monitor de 144 Hz ia a 72 fps e disputava a placa de vídeo com o telão).
+- Notebook (1280–1670 px de largura) e janela baixa: os knobs ficam em 2 fileiras, os pads mostram o nome inteiro e o preview não encolhe até sumir. Em monitor grande o painel lateral cresce até 420 px, e o seletor de entrada de áudio mostra o nome inteiro quando há espaço.
+- Celular: o pad acende logo depois do toque (antes, até 0,5 s); dois sliders arrastados juntos não são mais recusados pelo app; Wi-Fi que conecta mas não entrega nada mostra "sem conexão" em ~2 s (antes, ~7 s); com o celular deitado, o PÂNICO fica inteiro na tela.
+
+### Corrigido
+
+- Fundo com foto: o crossfade entre cenas com desfoque diferente travava as janelas (a foto era lida e desfocada de novo a cada quadro); agora é lida uma vez e o desfoque mais novo vence.
+- Parar uma gravação logo depois de começar às vezes deixava um vídeo de poucos quadros; parar antes do primeiro segundo sempre cancela e apaga o arquivo.
+- O arquivo do **Salvar diagnóstico** (o que vai anexado no relato) levava caminhos com o nome de usuário do Windows e nomes de músicas; agora é anonimizado como o resumo.
+- A barra do MIDI learn cobria PÂNICO e BLACKOUT em janela estreita.
+- Botões só com ícone (½, ×2, ◀ ▶, timeline, banco) agora têm nome para leitor de tela.
+
 ## [0.3.14] - 2026-11-03
 
 ### Corrigido
@@ -265,7 +282,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 - Crossfade de cena, barra do topo em 1280px e selo MIDI nos pads.
 
-[Não lançado]: https://github.com/vzf22zss/doublek_sounds/compare/52ef718...main
+[Não lançado]: https://github.com/vzf22zss/doublek_sounds/compare/HASH0315...main
+[0.3.15]: https://github.com/vzf22zss/doublek_sounds/compare/52ef718...HASH0315
 [0.3.14]: https://github.com/vzf22zss/doublek_sounds/compare/dc01dd8...52ef718
 [0.3.13]: https://github.com/vzf22zss/doublek_sounds/compare/353b128...dc01dd8
 [0.3.12]: https://github.com/vzf22zss/doublek_sounds/compare/8e9ebc4...353b128
