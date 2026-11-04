@@ -953,6 +953,7 @@ Cada lote de integração (`integ/onda-N`) vira uma versão; publica-se quando o
 | 0.3.11 | onda 10 | "Logo orgânica": pausa/silêncio + `levels` (30), régua por efeito e na logo (06), mapa de andamento + UX do BPM (c4), revisão (40 + coordenador) | **publicada** 2026-11-03 19:34 UTC (`prod` @ `c246aec`; MSI, .sig, latest.json, SHA256SUMS); smoke e2e 49/0/1 |
 | 0.3.12 | onda 11 | Logo calibrada com faixa real de psy (fase do kick no mapa, tercina/meio tempo, pulso no padrão do kick, volume do kick, sem pausa com grave) | **publicada** 2026-11-03 23:04 UTC (`prod` @ `6ba6581`; MSI, .sig, latest.json, SHA256SUMS); smoke e2e 47/1/2 (falha = D-29, preexistente) |
 | 0.3.13 | onda 12 | Corte de ruído em pico (níveis, drop e trend), roteiro sem corte, calibração que recusa som, aviso de corte alto | **publicada** 2026-11-03 23:57 UTC (`prod` @ `f9f5cc2`; MSI, .sig, latest.json, SHA256SUMS); smoke e2e 38/2/2 (celular instável = D-30) |
+| 0.3.14 | onda 13 | Calibração geral com faixa real: kick (janela do click 45 ms, grade do arquivo sem click), mapa sem trechos espúrios, pulso sem kick falso; ferramenta `calib` | **publicada** 2026-11-04 01:41 UTC (`prod` @ `ae1e28e`; MSI, .sig, latest.json, SHA256SUMS); smoke e2e 47/1/2 (falha = D-29) |
 | 0.4.0 | fechamento M0 | depois de D-01 e DK-141 | bloqueada (D-09) |
 
 ---
