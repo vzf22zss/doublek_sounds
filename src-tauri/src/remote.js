@@ -1,6 +1,7 @@
 'use strict';
 // Celular do DoubleK (DK-082): pareia com o código mostrado no app e manda comandos /doublek/v1/... (os mesmos do
-// OSC, ver docs/OSC.md) por POST /cmd; lê /state a 2 Hz. Sem framework. Nada vindo do app vira HTML: só textContent.
+// OSC, ver docs/OSC.md) por POST /cmd; lê /state a 2 Hz e logo depois de cada toque. Sem framework. Nada vindo do
+// app vira HTML: só textContent.
 
 const $ = (id) => document.getElementById(id);
 const P = '/doublek/v1/';
@@ -91,11 +92,21 @@ function offline(on) {
   for (const el of document.querySelectorAll('#ctl button, #ctl input')) el.disabled = on;
 }
 
+let pollT = 0, again = false;
+/** Próxima leitura do /state daqui a `ms` (substitui a que estava marcada). */
+function pollIn(ms) {
+  clearTimeout(pollT);
+  pollT = setTimeout(poll, ms);
+}
+
 async function poll() {
-  if (polling || !token) return;
+  if (!token) return;
+  if (polling) { again = true; return; } // a leitura em curso pode ter saído antes do comando: outra logo que ela voltar
   polling = true;
+  again = false;
   const r = await api('GET', '/state');
   polling = false;
+  pollIn(again ? 0 : 500);
   if (r.status === 401) return lost();
   // recusa rápida (app fechado): na 3ª seguida; 2 s sem resposta (Wi-Fi que não entrega nada) já é sem conexão
   if (r.status !== 200) { if (++fails >= 3 || r.timeout) offline(true); return; }
@@ -169,7 +180,8 @@ $('ctl').addEventListener('click', async (e) => {
     if (!ok) { state[key] = !on; held[key] = 0; b.classList.toggle('on', !on); }
     return;
   }
-  if (b.dataset.addr) send(b.dataset.addr, b.dataset.arg ? [{ t: 'i', v: +b.dataset.arg }] : [], b);
+  // pad/banco/macro: lê o /state logo (o app já atualizou o estado) em vez de esperar até 0,5 s pela próxima leitura
+  if (b.dataset.addr && (await send(b.dataset.addr, b.dataset.arg ? [{ t: 'i', v: +b.dataset.arg }] : [], b))) pollIn(100);
 });
 
 // sliders: um envio em voo por knob e o último valor vence (envios paralelos chegavam fora de ordem e o
@@ -196,6 +208,5 @@ for (const el of document.querySelectorAll('[data-knob]')) {
   });
 }
 
-setInterval(poll, 500);
 show(!!token);
 if (token) poll();

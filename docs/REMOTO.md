@@ -12,7 +12,7 @@ Controle do show pelo celular/tablet no Wi-Fi do palco: o app serve uma página 
 
 ![Celular em retrato](img/celular-retrato.png) ![Celular em paisagem](img/celular-paisagem.png)
 
-A página tem ~14 KB (HTML, `/app.js`, `/app.css` embutidos no app), funciona sem internet e não usa nada de fora. Comandos têm tempo-limite de 2 s; o estado é lido a 2 Hz.
+A página tem ~14 KB (HTML, `/app.js`, `/app.css` embutidos no app), funciona sem internet e não usa nada de fora. Comandos têm tempo-limite de 2 s; o estado é lido a 2 Hz e logo depois de cada toque num pad, banco, macro ou PÂNICO (o pad acende ~0,1 s depois de o comando chegar, sem esperar a próxima leitura).
 
 ## Ligar na tela
 
