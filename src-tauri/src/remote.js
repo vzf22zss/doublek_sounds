@@ -173,17 +173,20 @@ $('ctl').addEventListener('click', async (e) => {
 });
 
 // sliders: um envio em voo por knob e o último valor vence (envios paralelos chegavam fora de ordem e o
-// penúltimo podia ficar); no máximo 10 por segundo (o servidor corta em 20)
+// penúltimo podia ficar); no máximo 10 por segundo SOMANDO os sliders (o servidor corta em 20 com o /state: dois
+// dedos em dois sliders, a 10/s cada, levavam 429 e o valor final podia se perder)
+let slot = 0; // hora em que o próximo envio de slider pode sair
 for (const el of document.querySelectorAll('[data-knob]')) {
   let busy = false, sent = null;
   const flush = async () => {
     if (busy) return;
     busy = true;
     while (+el.value !== sent) {
-      const v = +el.value, t0 = Date.now();
-      sent = v;
-      await send(P + 'parameter/' + el.dataset.knob, [{ t: 'f', v }]);
-      await new Promise((r) => setTimeout(r, Math.max(0, 100 - (Date.now() - t0))));
+      const now = Date.now(), at = Math.max(now, slot);
+      slot = at + 100;
+      if (at > now) await new Promise((r) => setTimeout(r, at - now));
+      sent = +el.value; // o valor de agora, não o de quando entrou na fila
+      await send(P + 'parameter/' + el.dataset.knob, [{ t: 'f', v: sent }]);
     }
     busy = false;
   };

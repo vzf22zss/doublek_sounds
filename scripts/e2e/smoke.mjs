@@ -354,6 +354,19 @@ async function session(current, M) {
       let seen = NaN;
       const ok = await until(async () => { seen = await knob('Pulso'); return Math.abs(seen - 0.9) < 0.011; }, 8000, 300);
       R.ok('celular', 'arraste rápido do slider: o app termina no valor final', !!ok, `knob Pulso ${seen} (esperado 0,90 = 0,6 × 1,5)`);
+      // dois sliders juntos (dois dedos, 2 s): somados não passam do limite do app (20 pedidos/s por celular)
+      await ph.evaluate(() => { window.__st = []; const f = window.fetch; window.fetch = async (...a) => { const r = await f(...a); window.__st.push(r.status); return r; }; });
+      await ph.evaluate(async () => {
+        const a = document.querySelector('[data-knob="glow"]'), b = document.querySelector('[data-knob="fxFlash"]');
+        for (let i = 1; i <= 100; i++) {
+          for (const [el, end] of [[a, 0.2], [b, 0.8]]) { el.value = String(i === 100 ? end : Math.random()); el.dispatchEvent(new Event('input', { bubbles: true })); }
+          await new Promise((r) => setTimeout(r, 20));
+        }
+      });
+      let two = [];
+      const both = await until(async () => { two = [await knob('Glow'), await knob('Flash')]; return Math.abs(two[0] - 0.2) < 0.011 && Math.abs(two[1] - 0.8) < 0.011; }, 8000, 300);
+      const st = await ph.evaluate(() => window.__st);
+      R.ok('celular', 'dois sliders juntos: nenhum 429 e o app termina nos dois valores finais', !!both && !st.includes(429), `Glow ${two[0]} Flash ${two[1]} (esperado 0,20 e 0,80) · ${st.length} pedidos, ${st.filter((s) => s === 429).length} × 429`);
       const net = await ph.createCDPSession();
       await net.send('Network.enable');
       await net.send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
