@@ -10,6 +10,11 @@
   const HIST = 560; // ~6 s de frames
   const flux: number[] = [], thr: number[] = [], kicks: number[] = [];
   const BANDS = [['SUB', 35, 100], ['BASS', 100, 250], ['MID', 250, 2000], ['CLICK', 2000, 6000], ['AIR', 6000, 16000]] as const;
+  // rótulos prontos: o desenho roda a cada quadro e não deve criar string nem array (GC na janela de controle)
+  const TICKS = [50, 100, 200, 500, 1000, 2000, 5000, 10000].map((hz) => [hz, hz >= 1000 ? hz / 1000 + 'k' : String(hz)] as const);
+  const SHORT = BANDS.map(([name]) => name.slice(0, 3));
+  const DASH = [4, 4], SOLID: number[] = [];
+  let grad: CanvasGradient | null = null, gradH = -1;
   const xOf = (hz: number, w: number) => (Math.log(hz / 30) / Math.log(16000 / 30)) * w;
 
   $effect(() => {
@@ -43,22 +48,22 @@
     const k = Math.max(0, 1 - (performance.now() - kickAt) / 220);
 
     // faixas das bandas
-    BANDS.forEach(([name, a, b], i) => {
-      const x0 = xOf(a, sw), x1 = xOf(b, sw);
+    for (let i = 0; i < BANDS.length; i++) {
+      const x0 = xOf(BANDS[i][1], sw), x1 = xOf(BANDS[i][2], sw);
       if (i % 2 === 0) { ctx.fillStyle = 'rgba(255,255,255,.025)'; ctx.fillRect(x0, 0, x1 - x0, sh); }
-      ctx.fillStyle = col.muted; ctx.fillText(name, x0 + 6, 14);
-    });
-    ctx.fillStyle = col.muted;
-    for (const hz of [50, 100, 200, 500, 1000, 2000, 5000, 10000]) {
-      ctx.fillText(hz >= 1000 ? hz / 1000 + 'k' : String(hz), xOf(hz, sw) - 8, sh + 14);
+      ctx.fillStyle = col.muted; ctx.fillText(BANDS[i][0], x0 + 6, 14);
     }
+    ctx.fillStyle = col.muted;
+    for (let i = 0; i < TICKS.length; i++) ctx.fillText(TICKS[i][1], xOf(TICKS[i][0], sw) - 8, sh + 14);
 
     // espectro
     if (f) {
       const n = f.spectrum.length, bw = sw / n;
-      const g = ctx.createLinearGradient(0, sh, 0, 20);
-      g.addColorStop(0, col.accent); g.addColorStop(1, col.kick);
-      ctx.fillStyle = g;
+      if (gradH !== sh || !grad) {
+        grad = ctx.createLinearGradient(0, sh, 0, 20); gradH = sh;
+        grad.addColorStop(0, col.accent); grad.addColorStop(1, col.kick);
+      }
+      ctx.fillStyle = grad;
       for (let i = 0; i < n; i++) {
         const h = f.spectrum[i] * (sh - 24);
         ctx.fillRect(i * bw + 1, sh - h, Math.max(1, bw - 2), h);
@@ -67,24 +72,28 @@
 
     // medidores por banda
     const mw = meterW / 5;
-    BANDS.forEach(([name], i) => {
+    for (let i = 0; i < BANDS.length; i++) {
       const x = sw + 20 + i * mw, v = f ? f.bands[i] : 0, h = v * (sh - 24);
       ctx.fillStyle = 'rgba(255,255,255,.06)'; ctx.fillRect(x + 4, 20, mw - 8, sh - 24);
       ctx.fillStyle = i === 0 && k > 0 ? col.kick : col.accent; ctx.fillRect(x + 4, sh - h, mw - 8, h);
-      ctx.fillStyle = col.muted; ctx.fillText(name.slice(0, 3), x + 4, sh + 14);
-    });
+      ctx.fillStyle = col.muted; ctx.fillText(SHORT[i], x + 4, sh + 14);
+    }
 
     // histórico: subida do sub × limiar, kicks aceitos
     ctx.fillStyle = 'rgba(255,255,255,.03)'; ctx.fillRect(0, hy, W, hh);
     ctx.fillStyle = col.muted; ctx.fillText('SUBIDA DO SUB  ·  limiar (tracejado)  ·  kick aceito (rosa)', 6, hy - 8);
-    const max = Math.max(3, ...thr) * 1.4, step = W / HIST, y = (v: number) => hy + hh - (v / max) * hh;
+    let top = 3;
+    for (let i = 0; i < thr.length; i++) if (thr[i] > top) top = thr[i];
+    const max = top * 1.4, step = W / HIST;
     ctx.strokeStyle = col.kick; ctx.lineWidth = 2;
-    kicks.forEach((kv, i) => { if (kv > 0) { ctx.beginPath(); ctx.moveTo(i * step, hy); ctx.lineTo(i * step, hy + hh); ctx.stroke(); } });
+    for (let i = 0; i < kicks.length; i++) if (kicks[i] > 0) { ctx.beginPath(); ctx.moveTo(i * step, hy); ctx.lineTo(i * step, hy + hh); ctx.stroke(); }
     ctx.lineWidth = 1.5; ctx.strokeStyle = col.accent; ctx.beginPath();
-    flux.forEach((v, i) => (i ? ctx.lineTo(i * step, y(v)) : ctx.moveTo(0, y(v)))); ctx.stroke();
-    ctx.setLineDash([4, 4]); ctx.strokeStyle = col.muted; ctx.beginPath();
-    thr.forEach((v, i) => (i ? ctx.lineTo(i * step, y(v)) : ctx.moveTo(0, y(v)))); ctx.stroke();
-    ctx.setLineDash([]);
+    for (let i = 0; i < flux.length; i++) (i ? ctx.lineTo(i * step, hy + hh - (flux[i] / max) * hh) : ctx.moveTo(0, hy + hh - (flux[i] / max) * hh));
+    ctx.stroke();
+    ctx.setLineDash(DASH); ctx.strokeStyle = col.muted; ctx.beginPath();
+    for (let i = 0; i < thr.length; i++) (i ? ctx.lineTo(i * step, hy + hh - (thr[i] / max) * hh) : ctx.moveTo(0, hy + hh - (thr[i] / max) * hh));
+    ctx.stroke();
+    ctx.setLineDash(SOLID);
 
     if (k > 0) {
       ctx.strokeStyle = col.kick; ctx.globalAlpha = k; ctx.lineWidth = 3;
