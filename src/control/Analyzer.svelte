@@ -15,12 +15,15 @@
   const SHORT = BANDS.map(([name]) => name.slice(0, 3));
   const DASH = [4, 4], SOLID: number[] = [];
   let grad: CanvasGradient | null = null, gradH = -1;
+  // último desenho: o rAF segue o monitor (até 144+ Hz) e os Frames chegam a ~94 Hz (nenhum sem "Ouvir").
+  // `pushed` conta as entradas do histórico (o efeito abaixo pode rodar depois de um desenho com o mesmo Frame)
+  let drawn: Frame | null | undefined, drawnK = -1, pushed = 0, drawnN = -1;
   const xOf = (hz: number, w: number) => (Math.log(hz / 30) / Math.log(16000 / 30)) * w;
 
   $effect(() => {
     const f = frame;
     if (!f) return;
-    flux.push(f.flux); thr.push(f.thr); kicks.push(f.kick);
+    flux.push(f.flux); thr.push(f.thr); kicks.push(f.kick); pushed++;
     if (flux.length > HIST) { flux.shift(); thr.shift(); kicks.shift(); }
   });
 
@@ -36,7 +39,12 @@
 
   function paint(ctx: CanvasRenderingContext2D, col: { accent: string; kick: string; muted: string }) {
     const dpr = devicePixelRatio, W = canvas.clientWidth, H = canvas.clientHeight;
-    if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
+    const f = frame;
+    const k = Math.max(0, 1 - (performance.now() - kickAt) / 220);
+    const resize = canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr);
+    if (!resize && f === drawn && k === drawnK && pushed === drawnN) return; // nada mudou: o canvas já mostra isto
+    drawn = f; drawnK = k; drawnN = pushed;
+    if (resize) {
       canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -44,8 +52,6 @@
     ctx.font = '11px "Segoe UI", system-ui';
 
     const meterW = 150, sw = W - meterW - 20, sh = Math.round(H * 0.6), hy = sh + 34, hh = H - hy - 8;
-    const f = frame;
-    const k = Math.max(0, 1 - (performance.now() - kickAt) / 220);
 
     // faixas das bandas
     for (let i = 0; i < BANDS.length; i++) {
