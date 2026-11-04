@@ -320,6 +320,33 @@ Resultado na mesma faixa (beats dos trechos 4/4 como verdade, pulso = alvo `amou
 **Não resolvido:** o R1 só existe na análise da faixa inteira; na entrada ao vivo a grade pode travar no baixo do mesmo
 jeito (D-28). O recall do detector nessa faixa (~60–75 %) fica escondido pela memória do padrão, não corrigido.
 
+### 4.11. Calibração geral com a ferramenta `calib` (mesma faixa) — **0.3.14**
+
+Ferramenta permanente (ver `CALIBRACAO.md`, "Calibrar com um arquivo"): grava os quadros do roteiro, os do detector ao
+vivo (opcionalmente pelo "microfone" simulado), a verdade tirada do áudio inteiro e um espectrograma; o desenho põe tudo
+em faixas paralelas, e `kicks.py` mede o acerto contra os beats dos trechos 4/4 (±60 ms; o detector dispara na subida,
+~10–20 ms antes do pico usado pela grade).
+
+| Medida (60–180 s e 270–370 s, 531 kicks) | 0.3.13 | 0.3.14 |
+|---|---:|---:|
+| Roteiro: kicks detectados | 62 % | **98,5 %** |
+| Roteiro: falsos | 2 | 2 |
+| Ao vivo (sem mapa, arquivo limpo): kicks detectados | 10 % (grade no baixo) | **77 %** (grade no kick) |
+| Ao vivo pelo microfone simulado (passa-altas 150 Hz, −15 dB) | — | **93 %** |
+| Mapa de andamento | 145 / 146,5 / 145 (ou 147,4) | **145 único** |
+| Pulso da logo no breakdown sem kick (pico por beat) | 0,26 | **0,03** (segue a onda do pad) |
+
+| # | Achado | Correção |
+|---|---|---|
+| C1 | O click do kick vem ~21 ms antes da subida do sub; a janela era 17 ms. O kick real era recusado e a nota do baixo (click e sub juntos) passava: ao vivo a grade travava nela; no roteiro, a grade interna fixa deixava o kick "sem click". | Janela de 45 ms (bench sintético igual; 1 linha do estresse 1,000 → 0,999). Com a grade do arquivo (roteiro), a subida do sub no beat é kick mesmo sem click. |
+| C2 | Mapa: trechos espúrios de 146,5 e 147,4 BPM num breakdown (o ajuste de poucos kicks sai torto, e o detector pegava kick num trecho e nota do baixo no outro). | Andamento principal = o de mais tempo somado; sai o trecho que o período principal explica (em qualquer fase) ≥ 80 % tão bem quanto o dele; sobrando um trecho só, é ele (a grade global partia do período do fim da faixa: 148). |
+| C3 | No ruído do pad de um breakdown o detector aceita "kick" (49 na 0.3.13 em 26 s sem kick). Separar pelo nível no instante da detecção perde 10–45 % dos kicks reais (o sub ainda está começando a subir). | No `music.ts`: a altura do pulso é o sub depois do disparo, sem piso (fica ~0,02), e só kick detectado **com** grave (sub ≥ 0,1) conta para a pausa e o `presence`. Os anéis já escalam com essa força. |
+
+Conferidos sem mudança: **Hats** (banda 2–6 kHz) sobe 4,7× mais no chimbal do que no kick (> 6 kHz: 3,8×); **DROP**
+desliga nos breakdowns e nas viradas e volta junto com o grave (~150 ms); níveis Sub/Bass/Mid pulsam no ritmo e mudam
+entre as seções. **Não verificado:** outras faixas e gêneros (só há uma faixa real), microfone de verdade (a simulação
+não tem sala nem compressão), atraso até o telão.
+
 ## 5. Latência captura → evento (conta analítica)
 
 Não há hardware nesta tarefa. A cadeia e o que se sabe de cada elo:

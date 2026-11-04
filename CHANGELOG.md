@@ -6,6 +6,16 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Não lançado]
 
+### Corrigido
+
+- Kick muito mais certo com música de psy real: o estalo do kick vem ~21 ms antes do grave dele e o app só aceitava até 17 ms, então recusava o kick e pegava a nota do baixo. Na música tocada pelo app (roteiro), de 62 % para 98,5 % dos kicks; ao vivo, de 10 % para 77 % (93 % pelo microfone de um headset ouvindo a caixa), com a batida no kick e não ~¼ de tempo antes.
+- Mapa de andamento sem trechos falsos de 146–148 BPM em breakdowns de uma música a 145.
+- No breakdown sem kick, a logo segue a onda da música em vez de pular com "kicks" que o app achava no ruído do pad.
+
+### Adicionado
+
+- Ferramenta de calibração com um arquivo de música (`cargo run --example calib` e `scripts/calib/`): mede o detector no roteiro e ao vivo contra a música e desenha tudo junto (ver `docs/quality/CALIBRACAO.md`).
+
 ## [0.3.13] - 2026-11-03
 
 ### Corrigido
