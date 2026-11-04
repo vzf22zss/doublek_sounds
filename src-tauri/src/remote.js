@@ -92,11 +92,15 @@ function offline(on) {
   for (const el of document.querySelectorAll('#ctl button, #ctl input')) el.disabled = on;
 }
 
-let pollT = 0, again = false;
-/** Próxima leitura do /state daqui a `ms` (substitui a que estava marcada). */
+let pollT = 0, pollAt = 0, again = false;
+/** Próxima leitura do /state daqui a `ms`, ou antes se já há uma marcada mais cedo (a de 100 ms de um toque não
+ *  pode virar 500 ms porque uma leitura em voo voltou nesse meio-tempo). */
 function pollIn(ms) {
+  const at = Date.now() + ms;
+  if (pollT && at >= pollAt) return;
   clearTimeout(pollT);
-  pollT = setTimeout(poll, ms);
+  pollAt = at;
+  pollT = setTimeout(() => { pollT = 0; poll(); }, ms);
 }
 
 async function poll() {
