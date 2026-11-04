@@ -88,6 +88,22 @@ function backup(key: Key, text: string) {
   try { storage.setItem(key + '.bak', text); } catch {}
 }
 
+/** Cópia profunda de dado JSON (objeto simples, array, primitivo), também através do $state do Svelte, registrando a
+ *  leitura de cada campo como o $state.snapshot. O snapshot faz um structuredClone por campo primitivo e passa pelo
+ *  getOwnPropertyDescriptor do proxy em cada chave: no visual (~150 campos), que muda a cada quadro numa transição de
+ *  cena, macro ou rampa, era o grosso dos ~4 ms de script por mudança na janela de controle. */
+export function plain<T>(x: T): T {
+  if (typeof x !== 'object' || x === null) return x;
+  if (Array.isArray(x)) {
+    const a = new Array(x.length);
+    for (let i = 0; i < x.length; i++) a[i] = plain(x[i]);
+    return a as T;
+  }
+  const o: Record<string, unknown> = {};
+  for (const k of Reflect.ownKeys(x)) if (typeof k === 'string') o[k] = plain((x as Record<string, unknown>)[k]);
+  return o as T;
+}
+
 // ---------- validadores reutilizáveis ----------
 export const isObj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object' && !Array.isArray(x);
 export const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? v : d);

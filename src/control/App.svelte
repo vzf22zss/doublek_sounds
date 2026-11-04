@@ -33,7 +33,7 @@
   import { applyLayerParam } from '../render/layers';
   import { addVideo, assetSync, imageColors, listVideos, preloadVideo, probeVideo, removeVideo, setAsset, updateVideo, videoColors, type VideoInfo } from '../lib/assets';
   import { preloadChoice } from '../lib/videoloop';
-  import { load as storeLoad, save as storeSave, shaped } from '../lib/store';
+  import { load as storeLoad, plain, save as storeSave, shaped } from '../lib/store';
   import { getVersion } from '@tauri-apps/api/app';
   import { captureErrors, log, logEntries, NO_TELEMETRY, type Telemetry } from '../lib/telemetry';
   import { bugReport, issueUrl } from '../lib/bugreport';
@@ -125,9 +125,11 @@
     });
   });
 
-  // ajustes visuais → telão + preview (e salvos)
+  // ajustes visuais → telão + preview (e salvos). Uma cópia do `vs` por mudança, dividida pelos dois efeitos e feita
+  // com plain(): numa transição de cena, macro ou rampa o `vs` muda a cada quadro, e cada $state.snapshot custava ~2 ms
+  const visual = $derived(plain(vs));
   $effect(() => {
-    const v = $state.snapshot(vs);
+    const v = visual;
     saveVisual(v);
     document.documentElement.style.setProperty('--accent', v.color);
     // texto em cima da cor de destaque: escuro se ela for clara (ex.: lima), branco se for escura
@@ -153,8 +155,8 @@
   });
   onEvent('output-ready', () => { if (lastPre) emitTo('output', 'preload', [lastPre]); }); // telão (re)aberto: a vaga de agora
   $effect(() => {
-    const v = $state.snapshot(vs), st = staged;
-    const pv = st ? { ...v, ...($state.snapshot(st.look) as object) } as typeof v : v;
+    const v = visual, st = staged;
+    const pv = st ? { ...v, ...plain(st.look) } as typeof v : v;
     preview?.setVisual({ ...pv, renderScale: 0.5 });
     sync?.(pv);
   });
