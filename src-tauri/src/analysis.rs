@@ -13,10 +13,10 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 pub const HOP: usize = 256;
-/// Click do kick até este tanto antes da subida do sub. No beat previsto, mais: num kick de corpo longo (psy real,
-/// chapati.mp3) o click vem ~21 ms antes e o kick era recusado, enquanto a nota do baixo (click e sub juntos) passava.
-const CLICK_WIN: f64 = 0.017;
-const CLICK_WIN_GRID: f64 = 0.045;
+/// Click do kick até este tanto antes da subida do sub. Era 17 ms: num kick de corpo longo (psy real, chapati.mp3) o
+/// click vem ~21 ms antes e o kick era recusado, enquanto a nota do baixo (click e sub juntos) passava, e ao vivo a grade
+/// travava nela (10 % dos kicks; com 45 ms, 77 % e a grade no kick). Bench sintético igual (DETECCAO.md §4.11).
+const CLICK_WIN: f64 = 0.045;
 const FFT: usize = 2048;
 const SPEC_BINS: usize = 64;
 const MIN_RISE: f32 = 0.7; // ~3 dB: abaixo disso nunca é ataque
@@ -478,13 +478,12 @@ impl Analyzer {
         if !rising || pk < p.gate || t - self.last_kick < 0.6 * 60.0 / hi || t - self.last_quiet < 0.02 {
             return None;
         }
-        let win = if grid == Some(true) { CLICK_WIN_GRID } else { CLICK_WIN };
-        let click_ok = !p.need_click || t - self.last_click < win;
+        let click_ok = !p.need_click || click_now;
         let strong = ds > 2.0 * ts;
         let accept = match grid {
             // no beat previsto aceita click mais fraco: com ruído alto o click do kick fica perto do piso
             // grade do arquivo (o app tocando a faixa), conferida no áudio inteiro: a subida do sub no beat é o kick
-            Some(true) => click_ok || strong || (p.need_click && t - self.last_soft_click < win) || self.beat.fixed(),
+            Some(true) => click_ok || strong || (p.need_click && t - self.last_soft_click < CLICK_WIN) || self.beat.fixed(),
             Some(false) => click_ok && strong,
             None => click_ok,
         };
@@ -962,7 +961,7 @@ mod tests {
             }
             k += p;
         }
-        let run = |map: bool| {
+        let run = |x: &[f32], map: bool| {
             let mut an = Analyzer::new(sr);
             if map {
                 an.beat.set_map(vec![(0.0, 0.5, p)]);
@@ -971,10 +970,22 @@ mod tests {
             x.chunks_exact(HOP).filter(|c| an.process(c, &prm).is_some()).count()
         };
         let beats = ((secs - 0.8) / p) as usize;
-        let (com, sem) = (run(true), run(false));
+        let (com, sem) = (run(&x, true), run(&x, false));
         println!("kicks só de corpo: com a grade do arquivo {com} de {beats}, ao vivo {sem}");
         assert!(com + 2 >= beats, "grade do arquivo: {com} de {beats}");
         assert!(sem <= 2, "ao vivo sem click virou kick: {sem}");
+        // o mesmo kick com o click 25 ms antes do corpo (como em chapati.mp3): ao vivo é kick (com a janela de 17 ms, não)
+        let mut k = 0.5;
+        while k < secs - 0.3 {
+            let i0 = ((k - 0.025) * sr as f64) as usize;
+            for i in 0..(0.003 * sr) as usize {
+                x[i0 + i] += if i % 2 == 0 { 0.5 } else { -0.5 };
+            }
+            k += p;
+        }
+        let vivo = run(&x, false);
+        println!("com click 25 ms antes: ao vivo {vivo} de {beats}");
+        assert!(vivo * 10 >= beats * 8, "click 25 ms antes do corpo: ao vivo {vivo} de {beats}");
     }
 
     /// Corte de ruído calibrado (em pico, `f.peak` × 1,3) abaixo do pico da música mas acima do rms dela: os níveis e o
