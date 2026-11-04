@@ -6,6 +6,15 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Não lançado]
 
+### Adicionado
+
+- **Na pausa** pelo celular (parar, respirar ou beat), por MIDI learn (cada toque passa ao próximo modo) e por OSC (`/doublek/v1/pause/stop|breathe|beat`).
+
+### Mudou
+
+- Celular em pé: o **PÂNICO** fica preso no rodapé da tela e não some ao rolar.
+- Janela de controle: Exportar, Catálogo e Salvar show em branco como os outros botões (o cinza parecia desligado); os botões ‹ › + × do banco ficam maiores (22 px, em 2×2 ao lado do nome).
+
 ## [0.3.15] - 2026-11-04
 
 ### Mudou
