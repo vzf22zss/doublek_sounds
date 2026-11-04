@@ -435,7 +435,8 @@ ${refs} ponto(s) de roteiro/automação usam este banco: passam a usar o banco a
   .perf { grid-column: 1 / -1; display: flex; gap: 18px; padding: 10px 14px; align-items: center; flex-wrap: wrap; }
   .knobs { display: flex; gap: 2px; flex-wrap: wrap; }
   /* notebook (1366, 1280, 1920 a 125/150%): knobs numa fileira só espremiam os pads ("Psy …", "+ gr…"); em 2 fileiras de 5 os pads ganham ~330 px */
-  @media (min-width: 1100px) and (max-width: 1669px) {
+  /* janela baixa (meia tela no notebook, mínimo 1000×640): knobs em cima dos pads deixavam o preview com 18–70 px de altura */
+  @media (min-width: 1100px) and (max-width: 1669px), (max-height: 760px) {
     .knobs { display: grid; grid-template-columns: repeat(5, auto); }
   }
   .scenes { flex: 1; min-width: 420px; display: flex; flex-direction: column; gap: 8px; }
