@@ -847,10 +847,10 @@
 
     <div class="group">
       <button onclick={() => dispatch({ type: 'TAP' }, 'ui')} title="Espaço" use:learnable={{ id: 'a:tap', label: 'TAP' }}>TAP</button>
-      <button onclick={() => dispatch({ type: 'TEMPO_HALF' }, 'ui')} title="Metade do BPM" use:learnable={{ id: 'a:half', label: '½ BPM' }}>½</button>
-      <button onclick={() => dispatch({ type: 'TEMPO_DOUBLE' }, 'ui')} title="Dobro do BPM" use:learnable={{ id: 'a:double', label: '×2 BPM' }}>×2</button>
-      <button onclick={() => dispatch({ type: 'NUDGE', ms: -5 }, 'ui')} title="Adiantar 5 ms (←)" use:learnable={{ id: 'a:nudge-', label: 'Adiantar fase' }}>◀</button>
-      <button onclick={() => dispatch({ type: 'NUDGE', ms: 5 }, 'ui')} title="Atrasar 5 ms (→)" use:learnable={{ id: 'a:nudge+', label: 'Atrasar fase' }}>▶</button>
+      <button onclick={() => dispatch({ type: 'TEMPO_HALF' }, 'ui')} title="Metade do BPM" aria-label="Metade do BPM" use:learnable={{ id: 'a:half', label: '½ BPM' }}>½</button>
+      <button onclick={() => dispatch({ type: 'TEMPO_DOUBLE' }, 'ui')} title="Dobro do BPM" aria-label="Dobro do BPM" use:learnable={{ id: 'a:double', label: '×2 BPM' }}>×2</button>
+      <button onclick={() => dispatch({ type: 'NUDGE', ms: -5 }, 'ui')} title="Adiantar 5 ms (←)" aria-label="Adiantar a fase 5 ms" use:learnable={{ id: 'a:nudge-', label: 'Adiantar fase' }}>◀</button>
+      <button onclick={() => dispatch({ type: 'NUDGE', ms: 5 }, 'ui')} title="Atrasar 5 ms (→)" aria-label="Atrasar a fase 5 ms" use:learnable={{ id: 'a:nudge+', label: 'Atrasar fase' }}>▶</button>
     </div>
 
     <div class="group">
@@ -995,7 +995,7 @@
             {#each videoList as x (x.id)}
               <div class="vid" class:on={vs.bgVideo === x.id}>
                 <button onclick={() => (vs.bgVideo = x.id)} title={x.name}>{x.name}</button>
-                <button class="x" onclick={() => dropVideo(x.id)} title="Remover da biblioteca">×</button>
+                <button class="x" onclick={() => dropVideo(x.id)} title="Remover da biblioteca" aria-label="Remover {x.name} da biblioteca">×</button>
               </div>
             {/each}
           </div>

@@ -335,10 +335,10 @@ ${refs} ponto(s) de roteiro/automação usam este banco: passam a usar o banco a
         <span ondblclick={() => (editingBank = true)}>{bank.name}</span>
       {/if}
       <div class="bk">
-        <button onclick={() => cmd({ type: 'BANK_STEP', delta: -1 })} title="Banco anterior ([)" use:learnable={{ id: 'a:bank-', label: 'Banco anterior' }}>‹</button>
-        <button onclick={() => cmd({ type: 'BANK_STEP', delta: 1 })} title="Banco seguinte (])" use:learnable={{ id: 'a:bank+', label: 'Banco seguinte' }}>›</button>
-        <button onclick={newBank} disabled={bk.banks.length >= MAX_BANKS} title="Novo banco vazio (até {MAX_BANKS})">+</button>
-        <button onclick={dropBank} disabled={bk.banks.length < 2} title="Apagar este banco">×</button>
+        <button onclick={() => cmd({ type: 'BANK_STEP', delta: -1 })} title="Banco anterior ([)" aria-label="Banco anterior" use:learnable={{ id: 'a:bank-', label: 'Banco anterior' }}>‹</button>
+        <button onclick={() => cmd({ type: 'BANK_STEP', delta: 1 })} title="Banco seguinte (])" aria-label="Banco seguinte" use:learnable={{ id: 'a:bank+', label: 'Banco seguinte' }}>›</button>
+        <button onclick={newBank} disabled={bk.banks.length >= MAX_BANKS} title="Novo banco vazio (até {MAX_BANKS})" aria-label="Novo banco">+</button>
+        <button onclick={dropBank} disabled={bk.banks.length < 2} title="Apagar este banco" aria-label="Apagar este banco">×</button>
       </div>
     </div>
     <div class="pads">
@@ -371,7 +371,7 @@ ${refs} ponto(s) de roteiro/automação usam este banco: passam a usar o banco a
       <span>Transição</span>
       <div class="seg">
         {#each [0, 1, 2, 4, 8] as b}
-          <button class:on={trans === b} onclick={() => (trans = b)} title={b ? `${b} beat${b > 1 ? 's' : ''}` : 'Sem crossfade'}>{b || 'corte'}</button>
+          <button class:on={trans === b} onclick={() => (trans = b)} title={b ? `${b} beat${b > 1 ? 's' : ''}` : 'Sem crossfade'} aria-label={b ? `Transição de ${b} beat${b > 1 ? 's' : ''}` : undefined}>{b || 'corte'}</button>
         {/each}
         <span class="unit">beats</span>
       </div>
@@ -379,7 +379,7 @@ ${refs} ponto(s) de roteiro/automação usam este banco: passam a usar o banco a
         title={staged ? `T: manda "${staged.name}" para o telão` : 'Nada em preview (Shift+1..8, ou ligue o modo Preview)'}
         use:learnable={{ id: 'a:take', label: 'TAKE' }}>TAKE · {trans ? trans + ' beat' + (trans > 1 ? 's' : '') : 'corte'}</button>
       <button class:on={previewMode} onclick={() => cmd({ type: 'PREVIEW_MODE' })} title="Modo preview: tocar um pad (ou o MIDI dele) prepara a cena em vez de chamar" use:learnable={{ id: 'a:previewMode', label: 'Modo preview' }}>Preview</button>
-      <button class:off={!staged} onclick={() => cmd({ type: 'PREVIEW_CLEAR' })} title="Shift+T: limpa o preview" use:learnable={{ id: 'a:previewClear', label: 'Limpar preview' }}>×</button>
+      <button class:off={!staged} onclick={() => cmd({ type: 'PREVIEW_CLEAR' })} title="Shift+T: limpa o preview" aria-label="Limpar o preview" use:learnable={{ id: 'a:previewClear', label: 'Limpar preview' }}>×</button>
     </div>
     <div class="row">
       <button onclick={exportFile} title="Salva visual e cenas num arquivo">Exportar</button>
