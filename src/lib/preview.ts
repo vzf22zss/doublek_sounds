@@ -35,3 +35,10 @@ export function afterRemoveBank(ref: PreviewRef, i: number): PreviewRef {
 
 /** PÂNICO limpa o preview; BLACKOUT (e o resto) não mexe nele. */
 export const afterCommand = (ref: PreviewRef, type: string): PreviewRef => (type === 'PANIC' ? null : ref);
+
+/** Intervalo mínimo entre dois quadros do canvas de PREVIEW (ms). A 60 Hz dá um rAF sim, um não (30 fps, como sempre);
+ *  num monitor de 120/144/165 Hz segura o preview em 30–40 fps. O "um sim, um não" sozinho seguia o monitor (72 fps a
+ *  144 Hz) e o preview, que é o mesmo renderer do telão, disputava a placa de vídeo com ele. */
+export const PREVIEW_MIN_MS = 25;
+/** Desenha o preview neste rAF? `last` = hora do último quadro desenhado. */
+export const previewDue = (now: number, last: number) => now - last >= PREVIEW_MIN_MS;

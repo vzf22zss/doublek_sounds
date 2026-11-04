@@ -19,6 +19,7 @@
   import { plan, quantizeDelay } from '../lib/show-engine/rules';
   import { loadAutomation, saveAutomation } from '../lib/show-engine/config';
   import { shiftAfterRemove } from '../lib/banks';
+  import { previewDue } from '../lib/preview';
   import AutomationPanel from './AutomationPanel.svelte';
   import FxEditor from './FxEditor.svelte';
   import { watchFxHealth } from './fxHealth';
@@ -166,10 +167,13 @@
     preview = new Renderer(previewCanvas, { ...v0, renderScale: 0.5 });
     sync = assetSync(preview, { beat: () => frame }); // a falha de vídeo quem avisa é o telão
     sync(v0, true);
-    let raf = 0, odd = false;
+    let raf = 0, last = -1e9;
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
-      if ((odd = !odd)) { preview!.render(now); if (live.open) live.S = preview!.lastS; } // régua aberta: nível ao vivo
+      if (!previewDue(now, last)) return; // ~30 fps em qualquer monitor (a 60 Hz, um rAF sim, um não)
+      last = now;
+      preview!.render(now);
+      if (live.open) live.S = preview!.lastS; // régua aberta: nível ao vivo
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
