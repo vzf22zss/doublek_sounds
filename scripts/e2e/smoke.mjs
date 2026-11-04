@@ -386,6 +386,20 @@ async function session(current, M) {
         return { gap: st ? Math.round(st - cmd) : null, lit: t.lit ? Math.round(t.lit - t.click) : null };
       }));
       R.ok('celular', 'toque no pad: relê o estado ≤ 200 ms depois do comando e o pad acende (5 toques)', taps.length === 5 && taps.every((t) => t.gap !== null && t.gap <= 200 && t.lit !== null), JSON.stringify(taps));
+      // tela pequena: sem rolagem lateral, toques ≥ 44 px; deitada (640×360), o PÂNICO inteiro sem rolar
+      const fit = [];
+      for (const [w, h] of [[360, 640], [640, 360]]) {
+        await ph.setViewport({ width: w, height: h, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+        await wait(600);
+        fit.push(await ph.evaluate((w, h) => {
+          const small = [...document.querySelectorAll('#ctl button, #ctl input')].filter((e) => { const r = e.getBoundingClientRect(); return r.width < 44 || r.height < 44; }).length;
+          const panic = Math.round(document.getElementById('panic').getBoundingClientRect().bottom);
+          const hs = document.documentElement.scrollWidth - innerWidth;
+          return { size: `${w}×${h}`, ok: hs <= 0 && !small && (w < h || panic <= innerHeight), hs, small, panic };
+        }, w, h));
+      }
+      await ph.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+      R.ok('celular', 'tela pequena (360×640 e 640×360): sem rolagem lateral, toques ≥ 44 px, PÂNICO à vista deitado', fit.every((f) => f.ok), JSON.stringify(fit));
       const net = await ph.createCDPSession();
       await net.send('Network.enable');
       await net.send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
