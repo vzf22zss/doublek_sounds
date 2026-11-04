@@ -6,6 +6,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Não lançado]
 
+## [0.3.14] - 2026-11-03
+
 ### Corrigido
 
 - Kick muito mais certo com música de psy real: o estalo do kick vem ~21 ms antes do grave dele e o app só aceitava até 17 ms, então recusava o kick e pegava a nota do baixo. Na música tocada pelo app (roteiro), de 62 % para 98,5 % dos kicks; ao vivo, de 10 % para 77 % (93 % pelo microfone de um headset ouvindo a caixa), com a batida no kick e não ~¼ de tempo antes.
@@ -263,7 +265,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 - Crossfade de cena, barra do topo em 1280px e selo MIDI nos pads.
 
-[Não lançado]: https://github.com/vzf22zss/doublek_sounds/compare/dc01dd8...main
+[Não lançado]: https://github.com/vzf22zss/doublek_sounds/compare/HASH0314...main
+[0.3.14]: https://github.com/vzf22zss/doublek_sounds/compare/dc01dd8...HASH0314
 [0.3.13]: https://github.com/vzf22zss/doublek_sounds/compare/353b128...dc01dd8
 [0.3.12]: https://github.com/vzf22zss/doublek_sounds/compare/8e9ebc4...353b128
 [0.3.11]: https://github.com/vzf22zss/doublek_sounds/compare/cc2cf94...8e9ebc4
