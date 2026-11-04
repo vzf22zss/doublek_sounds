@@ -4,6 +4,7 @@
 import type { MacroId, ShowCommand } from './commands.ts';
 import { KNOBS } from './roteiro.ts';
 import { MAX_BANKS } from './banks.ts';
+import { PAUSES, type Pause } from './settings.ts';
 
 export type OscArg = { t: 'i' | 'f' | 's' | 'b' | 'T' | 'F'; v?: unknown };
 export type OscResult = { cmd: ShowCommand } | { error: string };
@@ -81,6 +82,9 @@ export function oscToCommand(addr: string, args: OscArg[] = []): OscResult {
       return ms === undefined ? err('nudge precisa de ms (número)') : { cmd: { type: 'NUDGE', ms } };
     }
     case 'panic': return noSub ? { cmd: { type: 'PANIC' } } : err('endereço desconhecido');
+    case 'pause': // Na pausa (D-25): /pause/stop|breathe|beat; sem modo = o próximo
+      if (noSub) return { cmd: { type: 'PAUSE_MODE' } };
+      return Object.hasOwn(PAUSES, sub) ? { cmd: { type: 'PAUSE_MODE', mode: sub as Pause } } : err(`na pausa: use ${Object.keys(PAUSES).join(', ')}`);
     case 'macro':
       return OSC_MACROS.includes(sub as MacroId) ? { cmd: { type: 'MACRO', id: sub as MacroId } } : err(`macro desconhecida (use ${OSC_MACROS.join(', ')})`);
     case 'parameter': {

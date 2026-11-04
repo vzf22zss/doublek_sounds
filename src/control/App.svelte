@@ -12,7 +12,7 @@
   import { saveRoteiros } from '../lib/roteiro';
   import { midi, keyOf, bindArmed, clearArmed, keyLabel, learnable, type MidiMsg } from './midi.svelte';
   import { Renderer } from '../render/renderer';
-  import { PAUSES, VISUAL, loadVisual, saveVisual } from '../lib/settings';
+  import { PAUSES, VISUAL, loadVisual, saveVisual, type Pause } from '../lib/settings';
   import { SAFE_LOOK, strobeRate } from '../lib/safety';
   import { GATE_HIGH, noiseGate } from '../lib/preshow';
   import { createMusicState, type StateName } from '../lib/show-engine/state';
@@ -304,6 +304,11 @@
       if (src === 'roteiro') return roteiroRamp(c.key, c.to, c.beats);
       liveFx = startRamp(liveFx, vs as any, c.key, c.to, liveBeat(), c.beats);
     },
+    PAUSE_MODE: (c) => {
+      const order = Object.keys(PAUSES) as Pause[];
+      vs.pause = c.mode ?? order[(order.indexOf(vs.pause) + 1) % order.length];
+      status = `Na pausa: ${PAUSES[vs.pause]}.`;
+    },
     AUTOMATION_MODE: (c) => {
       const order = ['MANUAL', 'ASSIST', 'AUTO'] as const;
       automationMode = c.mode ?? order[(order.indexOf(automationMode) + 1) % order.length]; // sem modo = o próximo (tecla A, MIDI a:autoMode)
@@ -538,7 +543,7 @@
     const c = perf?.current(), p = perf as any;
     return {
       state: status, bpm: frame?.bpm ? +frame.bpm.toFixed(1) : null, music: tempoState, drop: !!frame?.low,
-      scene: c && c.scene >= 0 ? c.scene + 1 : null, bank: c ? c.bank + 1 : null, blackout: vs.blackout, logoOnly: vs.logoOnly,
+      scene: c && c.scene >= 0 ? c.scene + 1 : null, bank: c ? c.bank + 1 : null, blackout: vs.blackout, logoOnly: vs.logoOnly, pause: vs.pause,
       sceneNames: perf?.sceneNames() ?? null,
       bankNames: typeof p?.bankNames === 'function' ? p.bankNames() : null, // onda-5: Performance.bankNames()
       knobs: Object.fromEntries(PHONE_KNOBS.map((k) => { const [lo, hi] = OSC_PARAMS[k]; return [k, +((vs[k] - lo) / (hi - lo)).toFixed(3)]; })),
@@ -976,7 +981,7 @@
         <Slider label="Seguir a música sem kick" bind:value={vs.wave} learn="wave" min={0} max={1} step={0.01} def={VISUAL.wave} fmt={f2} />
         <div class="files">
           <span>Na pausa</span>
-          <select bind:value={vs.pause} aria-label="Na pausa">
+          <select bind:value={vs.pause} aria-label="Na pausa" use:learnable={{ id: 'a:pauseMode', label: 'Na pausa (próximo)' }}>
             {#each Object.entries(PAUSES) as [k, name]}<option value={k}>{name}</option>{/each}
           </select>
         </div>

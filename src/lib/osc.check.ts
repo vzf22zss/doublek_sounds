@@ -43,6 +43,8 @@ const ok: [string, OscArg[], ShowCommand][] = [
   ['roteiro/nudge', [f(1)], { type: 'ROTEIRO_NUDGE', beats: 1 }], // fader que manda float inteiro
   ['parameter/trail', [f(0.5)], { type: 'SET_PARAMETER', key: 'trail', value: 0.5 }],
   ...MACROS.map((id): [string, OscArg[], ShowCommand] => [`macro/${id}`, [], { type: 'MACRO', id }]),
+  ['pause', [], { type: 'PAUSE_MODE' }], // D-25
+  ['pause/stop', [], { type: 'PAUSE_MODE', mode: 'stop' }], ['pause/breathe', [], { type: 'PAUSE_MODE', mode: 'breathe' }], ['pause/beat', [], { type: 'PAUSE_MODE', mode: 'beat' }],
 ];
 for (const [a, args, want] of ok) assert.deepEqual(cmd(P + a, args), want, a);
 for (let n = 1; n <= 8; n++) assert.deepEqual(cmd(`${P}scene/${n}`), { type: 'SCENE_RECALL', index: n - 1 });
@@ -64,6 +66,7 @@ const bad: [string, OscArg[], RegExp][] = [
   [P + 'logo', [{ t: 'b', v: [1] }], /i, T ou F/],
   [P + 'tap/x', [], /desconhecido/], [P + 'nudge', [], /ms/], [P + 'nudge', [T], /ms/], [P + 'nudge/1', [], /desconhecido/], [P + 'panic/now', [], /desconhecido/],
   [P + 'macro/drop', [], /macro desconhecida/], [P + 'macro', [], /macro desconhecida/],
+  [P + 'pause/parar', [], /na pausa/], [P + 'pause/__proto__', [], /na pausa/], [P + 'pause/beat/1', [], /desconhecido/],
   [P + 'parameter/naoExiste', [f(0.5)], /sem faixa/],
   [P + 'parameter/__proto__', [f(0.5)], /sem faixa/],
   [P + 'parameter/color', [f(0.5)], /sem faixa/],

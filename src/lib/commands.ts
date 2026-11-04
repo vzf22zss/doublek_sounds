@@ -1,7 +1,7 @@
 // Protocolo de comandos único (DK-042 / ADR 0003): teclado, MIDI, botões, roteiro e (no futuro) automação, OSC e
 // celular chegam todos como `ShowCommand` em `dispatch(cmd, source)`. Aqui só regras, sem Svelte nem navegador:
 // validação, autorização por fonte, BLACKOUT/PÂNICO na frente, override manual, histórico; e as curvas das macros.
-import { VISUAL } from './settings.ts';
+import { PAUSES, VISUAL, type Pause } from './settings.ts';
 import { MAX_BANKS } from './banks.ts';
 import { SAFE_FLASH_MAX, SAFE_STROBE_MAX } from './safety.ts';
 import { FX_KINDS, type FxKind } from './roteiro-fx.ts';
@@ -35,6 +35,7 @@ export type ShowCommand =
   | { type: 'ROTEIRO_AB' }
   | { type: 'MACRO'; id: MacroId }
   | { type: 'AUTOMATION_MODE'; mode?: AutomationMode } // sem `mode` = próximo (Manual → Assistido → Automático → Manual)
+  | { type: 'PAUSE_MODE'; mode?: Pause }               // Na pausa (D-25); sem `mode` = próximo (parar → respirar → seguir o beat)
   // DK-143: o que o roteiro faz além de cena. O roteiro desfaz o efeito e avança a rampa; o dispatcher valida e registra.
   | { type: 'FX_BURST'; fx: FxKind; beats: number; div?: number } // strobe/flash/blackout/só logo por N beats
   | { type: 'VIDEO_SET'; id: string }                             // '' = sem vídeo
@@ -98,6 +99,7 @@ export function validate(c: unknown): string | null {
     case 'ROTEIRO_NUDGE': return int(x.beats, -16, 16) && x.beats !== 0 ? null : 'ROTEIRO_NUDGE: beats inteiro de -16 a 16, diferente de 0';
     case 'MACRO': return (MACROS as readonly string[]).includes(x.id) ? null : `MACRO: desconhecida (${String(x.id)})`;
     case 'AUTOMATION_MODE': return x.mode === undefined || (AUTOMATION_MODES as readonly string[]).includes(x.mode) ? null : 'AUTOMATION_MODE: modo desconhecido';
+    case 'PAUSE_MODE': return x.mode === undefined || Object.hasOwn(PAUSES, x.mode) ? null : 'PAUSE_MODE: modo desconhecido (stop, breathe ou beat)';
     case 'FX_BURST':
       if (!FX_KINDS.includes(x.fx)) return `FX_BURST: efeito desconhecido (${String(x.fx)})`;
       if (!(fin(x.beats) && x.beats > 0 && x.beats <= 64)) return 'FX_BURST: beats entre 0 e 64';
@@ -201,6 +203,7 @@ export const LEGACY_ACTIONS: Record<string, ShowCommand> = {
   'a:previewMode': { type: 'PREVIEW_MODE' },
   'a:previewClear': { type: 'PREVIEW_CLEAR' },
   'a:autoMode': { type: 'AUTOMATION_MODE' },   // DK-044: alterna Manual → Assistido → Automático
+  'a:pauseMode': { type: 'PAUSE_MODE' },       // D-25: Na pausa, próximo modo
   ...Object.fromEntries([0, 1, 2, 3].map((i) => [`a:bank:${i + 1}`, { type: 'BANK_SET', index: i } as ShowCommand])), // ir direto ao banco
   ...Object.fromEntries(MACROS.map((id) => [`a:macro:${id}`, { type: 'MACRO', id } as ShowCommand])),
   // DK-053: botão/pad liga-desliga uma camada (−1 = alterna). A opacidade vai pelo caminho de knob:

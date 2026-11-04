@@ -45,6 +45,7 @@ Todos começam com `/doublek/v1/`. Cenas, bancos e pré-visualização contam **
 | `/doublek/v1/tap` | — | `TAP` |
 | `/doublek/v1/nudge` | `i`/`f` = ms (−50 a 50, ≠ 0) | `NUDGE` (fase do beat, como ← →) |
 | `/doublek/v1/panic` | — | `PANIC` |
+| `/doublek/v1/pause/{stop\|breathe\|beat}` | — | `PAUSE_MODE` (Na pausa: parar, respirar, seguir o beat); `/doublek/v1/pause` sem modo = o próximo |
 | `/doublek/v1/macro/{BUILD_UP\|DROP\|CHAOS\|RESET}` | — | `MACRO` |
 | `/doublek/v1/parameter/{chave}` | `f` (ou `i`) de **0 a 1** | `SET_PARAMETER` na faixa da chave |
 | `/doublek/v1/roteiro/go` · `/stop` · `/ab` | — | `ROTEIRO_GO` · `ROTEIRO_STOP` · `ROTEIRO_AB` |
