@@ -6,6 +6,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Não lançado]
 
+## [0.3.16] - 2026-11-04
+
 ### Corrigido
 
 - Música tocada pelo app (roteiro): em faixas de andamento constante, o mapa podia sair com o BPM um pouco errado (Peyote, a 148, saía 148,64; Invasion, a 145, saía 146,45) e a grade escorregava um beat a cada ~40 s: a logo pulsava fora do kick em 3 de cada 4 batidas. Agora o mapa acerta o andamento nas 4 faixas reais testadas e a logo pulsa em 100 % dos kicks no roteiro. O roteiro guarda o BPM da primeira análise: num roteiro já criado com uma música assim, clique **Analisar de novo** (os pontos ficam nos mesmos beats, agora no lugar certo).
@@ -295,7 +297,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 - Crossfade de cena, barra do topo em 1280px e selo MIDI nos pads.
 
-[Não lançado]: https://github.com/vzf22zss/doublek_sounds/compare/7d0fb47...main
+[Não lançado]: https://github.com/vzf22zss/doublek_sounds/compare/HASH0316...main
+[0.3.16]: https://github.com/vzf22zss/doublek_sounds/compare/7d0fb47...HASH0316
 [0.3.15]: https://github.com/vzf22zss/doublek_sounds/compare/52ef718...7d0fb47
 [0.3.14]: https://github.com/vzf22zss/doublek_sounds/compare/dc01dd8...52ef718
 [0.3.13]: https://github.com/vzf22zss/doublek_sounds/compare/353b128...dc01dd8
