@@ -831,7 +831,9 @@ beats no build, outro vídeo no breakdown, o rastro subindo devagar até o clím
      em tercina ou em meio tempo (ex.: intro com kick a cada ⅔ de tempo) não vira outro BPM: a
      música toda fica no andamento principal. Roteiros analisados antes da 0.3.12 guardam a
      análise antiga: clique em **Analisar de novo** (os pontos podem andar um pouco junto com a
-     grade).
+     grade). Antes da 0.3.16, algumas músicas de BPM constante saíam com o BPM um pouco errado
+     (ex.: 148,64 numa música a 148) e a grade escorregava ao longo da faixa, com a logo pulsando
+     fora do kick: se as linhas vão se afastando dos kicks, clique em **Analisar de novo**.
 
 ### Marcar os pontos
 

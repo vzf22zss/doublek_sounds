@@ -6,6 +6,10 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Não lançado]
 
+### Corrigido
+
+- Música tocada pelo app (roteiro): em faixas de andamento constante, o mapa podia sair com o BPM um pouco errado (Peyote, a 148, saía 148,64; Invasion, a 145, saía 146,45) e a grade escorregava um beat a cada ~40 s: a logo pulsava fora do kick em 3 de cada 4 batidas. Agora o mapa acerta o andamento nas 4 faixas reais testadas e a logo pulsa em 100 % dos kicks no roteiro. O roteiro guarda o BPM da primeira análise: num roteiro já criado com uma música assim, clique **Analisar de novo** (os pontos ficam nos mesmos beats, agora no lugar certo).
+
 ### Adicionado
 
 - **Na pausa** pelo celular (parar, respirar ou beat), por MIDI learn (cada toque passa ao próximo modo) e por OSC (`/doublek/v1/pause/stop|breathe|beat`).
