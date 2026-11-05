@@ -294,7 +294,7 @@ Pulso, Brilho e Aberração têm o seletor da fonte e a régua **faixa** (seçã
 |---|---|
 | **Duração do pulso** | Quanto tempo o pulso leva para voltar. Curto = seco; longo = macio. |
 | **Seguir a música sem kick** | Nos trechos sem kick, a logo continua respirando com a música. |
-| **Na pausa** | Quando a música silencia (sem kick e com o som baixo): **respirar** (padrão: sem pulso nem anéis, a logo respira devagar), **parar** (fica parada) ou **seguir o beat** (continua pulsando em todo beat previsto, como nas versões antigas). Fora do *seguir o beat*, a logo pulsa nos tempos em que a música tem kick (kick a cada 2 tempos = pulso a cada 2 tempos), e o kick fora do tempo (contratempo) também pulsa. Enquanto o grave toca não é pausa: um kick que o app deixou de ouvir não apaga o pulso. Um breakdown sem kick mas com música não é silêncio: a logo segue a onda. Quando o kick volta, o pulso volta na hora. |
+| **Na pausa** | Quando a música silencia (sem kick e com o som baixo): **respirar** (padrão: sem pulso nem anéis, a logo respira devagar), **parar** (fica parada) ou **seguir o beat** (continua pulsando em todo beat previsto, como nas versões antigas). Fora do *seguir o beat*, a logo pulsa nos tempos em que a música tem kick (kick a cada 2 tempos = pulso a cada 2 tempos), e o kick fora do tempo (contratempo) também pulsa. Enquanto o grave toca não é pausa: um kick que o app deixou de ouvir não apaga o pulso. Um breakdown sem kick mas com música não é silêncio: a logo segue a onda. Quando o kick volta, o pulso volta na hora. Aceita MIDI learn (cada toque passa ao próximo modo), OSC (`/doublek/v1/pause/...`) e o celular. |
 | **Sensibilidade do silêncio** | Só aparece com **Na pausa** em *respirar* ou *parar*. Abaixo deste nível (em % do mais alto que tocou no último minuto; de 0% a 30%, padrão 8%), sem kick, é silêncio. Se um trecho baixo da música vira silêncio, diminua; se o chiado de uma pausa ainda mexe a logo, aumente. Aceita MIDI learn. Se você usa **TAP** ou **MIDI Clock** numa música em que o kick não é detectado, escolha **seguir o beat**. |
 
 ![O seletor Na pausa e a Sensibilidade do silêncio, na seção Reação da aba Logo](img/na-pausa.png)
@@ -831,7 +831,9 @@ beats no build, outro vídeo no breakdown, o rastro subindo devagar até o clím
      em tercina ou em meio tempo (ex.: intro com kick a cada ⅔ de tempo) não vira outro BPM: a
      música toda fica no andamento principal. Roteiros analisados antes da 0.3.12 guardam a
      análise antiga: clique em **Analisar de novo** (os pontos podem andar um pouco junto com a
-     grade).
+     grade). Antes da 0.3.16, algumas músicas de BPM constante saíam com o BPM um pouco errado
+     (ex.: 148,64 numa música a 148) e a grade escorregava ao longo da faixa, com a logo pulsando
+     fora do kick: se as linhas vão se afastando dos kicks, clique em **Analisar de novo**.
 
 ### Marcar os pontos
 

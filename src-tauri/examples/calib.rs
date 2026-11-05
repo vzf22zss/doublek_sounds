@@ -11,7 +11,7 @@
 use doublek_lib::analysis::{Analyzer, Params, HOP};
 use std::io::Write;
 
-const BLK: f64 = 0.002; // s: resolução dos envelopes da verdade
+const BLK: f64 = 0.002; // s: resolução pedida dos envelopes da verdade (a real é `blk`: inteiro de amostras)
 const SPEC_DT: f64 = 0.01; // s: coluna do espectrograma
 const SPEC_BANDS: usize = 48; // 30 Hz–16 kHz, log
 
@@ -118,11 +118,14 @@ fn main() {
     let srf = sr as f32;
     let (mut s1, mut s2, mut b1, mut c1, mut c2, mut a1) =
         (Lp::new(100.0, srf), Lp::new(100.0, srf), Lp::new(250.0, srf), Lp::new(2000.0, srf), Lp::new(6000.0, srf), Lp::new(6000.0, srf));
-    let n = (BLK * sr as f64) as usize;
+    // 2 ms a 44,1 kHz = 88,2 amostras: o bloco tem 88 (1,9955 ms) e o tempo da verdade tem que contar com isso
+    // (contando 2 ms, a verdade saía 0,23 % esticada: 180 BPM viravam 179,6)
+    let n = (BLK * sr as f64).round() as usize;
+    let blk = n as f64 / sr as f64;
     let mut env: Vec<[f32; 5]> = vec![];
     let mut sm = [0f32; 5];
-    let att = 1.0 - (-(BLK as f32) / 0.004).exp();
-    let rel = 1.0 - (-(BLK as f32) / 0.03).exp();
+    let att = 1.0 - (-(blk as f32) / 0.004).exp();
+    let rel = 1.0 - (-(blk as f32) / 0.03).exp();
     for c in mono.chunks(n) {
         let mut e = [0f32; 5];
         for &x in c {
@@ -151,16 +154,16 @@ fn main() {
         s.get(((s.len() as f32 * q) as usize).min(s.len().saturating_sub(1))).copied().unwrap_or(1e-6)
     };
     // kick: subida do sub com click junto (±12 ms); baixo: subida de 100–250 sem click; chimbal: subida do ar
-    let sub_on = onsets(&rs, BLK, 0.06, 2.0, 0.05 * pct(&rs, 0.99));
+    let sub_on = onsets(&rs, blk, 0.06, 2.0, 0.05 * pct(&rs, 0.99));
     let click_near = |t: f64| {
-        let i = (t / BLK) as usize;
+        let i = (t / blk) as usize;
         rc[i.saturating_sub(6)..(i + 6).min(rc.len())].iter().fold(0f32, |m, &x| m.max(x))
     };
     let cref = pct(&rc, 0.99);
     let sref = pct(&rs, 0.99);
     let kicks: Vec<(f64, f32, f32)> = sub_on.iter().map(|&(t, r)| (t, r / sref, click_near(t) / cref)).collect();
-    let bass = onsets(&rb, BLK, 0.04, 2.0, 0.05 * pct(&rb, 0.99));
-    let hats = onsets(&ra, BLK, 0.03, 2.5, 0.05 * pct(&ra, 0.99));
+    let bass = onsets(&rb, blk, 0.04, 2.0, 0.05 * pct(&rb, 0.99));
+    let hats = onsets(&ra, blk, 0.03, 2.5, 0.05 * pct(&ra, 0.99));
     let bref = pct(&rb, 0.99);
     let aref = pct(&ra, 0.99);
 
@@ -190,14 +193,15 @@ fn main() {
         );
         i += hop;
     }
-    let bands: Vec<[f32; 5]> = env.iter().step_by((SPEC_DT / BLK) as usize).copied().collect();
+    let step = (SPEC_DT / blk).round() as usize;
+    let bands: Vec<[f32; 5]> = env.iter().step_by(step).copied().collect();
 
     let j = serde_json::json!({
         "sr": sr, "duration": mono.len() as f64 / sr as f64, "tempo": info.tempo,
         "kicks": kicks.iter().map(|k| [k.0, k.1 as f64, k.2 as f64]).collect::<Vec<_>>(),
         "bass": bass.iter().map(|b| [b.0, (b.1 / bref) as f64]).collect::<Vec<_>>(),
         "hats": hats.iter().map(|h| [h.0, (h.1 / aref) as f64]).collect::<Vec<_>>(),
-        "specDt": SPEC_DT, "spec": spec, "bandsDt": SPEC_DT, "bands": bands,
+        "specDt": SPEC_DT, "spec": spec, "bandsDt": step as f64 * blk, "bands": bands,
     });
     std::fs::write(out.join("truth.json"), j.to_string()).unwrap();
     eprintln!("verdade: {} inícios de sub, {} de baixo, {} de chimbal", kicks.len(), bass.len(), hats.len());

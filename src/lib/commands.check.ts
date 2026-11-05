@@ -19,6 +19,7 @@ const reason = (r: { ok: boolean; reason?: string }) => (r.ok ? '' : (r as any).
     { type: 'TAP' }, { type: 'NUDGE', ms: -5 }, { type: 'BLACKOUT' }, { type: 'BLACKOUT', on: true }, { type: 'SCENE_RECALL', index: 7, fade: 4, now: true },
     { type: 'SCENE_SAVE', index: 0 }, { type: 'BANK_STEP', delta: -1 }, { type: 'BANK_SET', index: 3 }, { type: 'SET_PARAMETER', key: 'trail', value: 0.5 },
     { type: 'ROTEIRO_NUDGE', beats: 4 }, { type: 'MACRO', id: 'DROP' }, { type: 'AUTOMATION_MODE', mode: 'AUTO' },
+    { type: 'PAUSE_MODE' }, { type: 'PAUSE_MODE', mode: 'beat' },
   ] as ShowCommand[]) assert.equal(validate(c), null, JSON.stringify(c));
   const bad: [unknown, RegExp][] = [
     [null, /sem tipo/], [{ type: 'FOO' }, /desconhecido \(FOO\)/],
@@ -33,6 +34,7 @@ const reason = (r: { ok: boolean; reason?: string }) => (r.ok ? '' : (r as any).
     [{ type: 'SET_PARAMETER', key: 'toString', value: 1 }, /desconhecido/],                   // herdado, não é ajuste
     [{ type: 'SET_PARAMETER', key: 'trail', value: NaN }, /número/],
     [{ type: 'ROTEIRO_NUDGE', beats: 0.5 }, /beats/], [{ type: 'MACRO', id: 'FOO' }, /desconhecida/], [{ type: 'AUTOMATION_MODE', mode: 'x' }, /modo/],
+    [{ type: 'PAUSE_MODE', mode: 'toString' }, /modo/], [{ type: 'PAUSE_MODE', mode: 'parar' }, /modo/],
   ];
   for (const [c, re] of bad) {
     assert.match(validate(c)!, re);
@@ -173,7 +175,8 @@ const reason = (r: { ok: boolean; reason?: string }) => (r.ok ? '' : (r as any).
   for (const m of MACROS) assert.deepEqual(fromTarget({ id: `a:macro:${m}` }), { type: 'MACRO', id: m });
   const novos = ['a:take', 'a:previewMode', 'a:previewClear']; // DK-043
   const dk044 = ['a:autoMode', 'a:bank:1', 'a:bank:2', 'a:bank:3', 'a:bank:4'];
-  assert.equal(Object.keys(LEGACY_ACTIONS).length, ids.length + MACROS.length + novos.length + dk044.length + LAYER_IDS.length);
+  assert.deepEqual(fromTarget({ id: 'a:pauseMode' }), { type: 'PAUSE_MODE' }); // D-25
+  assert.equal(Object.keys(LEGACY_ACTIONS).length, ids.length + MACROS.length + novos.length + dk044.length + LAYER_IDS.length + 1);
   assert.deepEqual(dk044.map((id) => fromTarget({ id })), [{ type: 'AUTOMATION_MODE' }, ...[0, 1, 2, 3].map((index) => ({ type: 'BANK_SET', index }))]);
   for (const id of dk044) assert.equal(validate(fromTarget({ id })), null, id);
   assert.deepEqual(novos.map((id) => fromTarget({ id })), [{ type: 'SCENE_TAKE' }, { type: 'PREVIEW_MODE' }, { type: 'PREVIEW_CLEAR' }]);

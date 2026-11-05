@@ -136,6 +136,7 @@ function render(s) {
   $('status').textContent = s.state || '';
   $('blackout').classList.toggle('on', !!s.blackout);
   $('logo').classList.toggle('on', !!s.logoOnly);
+  for (const b of $('pause').children) b.classList.toggle('on', b.dataset.pause === s.pause);
   const names = Array.isArray(s.bankNames) && s.bankNames.length ? s.bankNames : null;
   buttons($('banks'), names ? names.length : 4, (b, i) => {
     b.textContent = names ? `${i + 1} · ${names[i]}` : `Banco ${i + 1}`;

@@ -35,6 +35,11 @@
         <button id="blackout" class="tog">BLACKOUT</button>
         <button id="logo" class="tog">Só logo</button>
       </div>
+      <div id="pause" class="row" role="group" aria-label="Na pausa (sem kick e som baixo)">
+        <button data-addr="/doublek/v1/pause/stop" data-pause="stop">Pausa: parar</button>
+        <button data-addr="/doublek/v1/pause/breathe" data-pause="breathe">respirar</button>
+        <button data-addr="/doublek/v1/pause/beat" data-pause="beat">beat</button>
+      </div>
       <div class="row">
         <button data-addr="/doublek/v1/macro/BUILD_UP">Build-up</button>
         <button data-addr="/doublek/v1/macro/DROP">Drop</button>

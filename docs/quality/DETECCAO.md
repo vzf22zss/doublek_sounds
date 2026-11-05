@@ -347,6 +347,38 @@ desliga nos breakdowns e nas viradas e volta junto com o grave (~150 ms); nívei
 entre as seções. **Não verificado:** outras faixas e gêneros (só há uma faixa real), microfone de verdade (a simulação
 não tem sala nem compressão), atraso até o telão.
 
+### 4.12. Mais três faixas reais (psy 148 e 145, hi-tech 180) — **mapa corrigido na 0.3.16**
+
+Faixas do mantenedor (WAV 44,1 kHz): *Aardvarkk – Peyote (GMS Remix)*, *Invasion – Abdução (Macedo BR & InterVoid
+Remix)*, *Involved Mind – Hitech Hero*. Verdade do andamento sem depender do app: o BPM em que a subida do sub (e, à
+parte, a do click) do áudio inteiro mais se concentra em fase. Controle: chapati.mp3 dá 145,00 pelos dois.
+
+| Faixa | Verdade | Mapa 0.3.15 | Mapa 0.3.16 | Kicks com pulso no roteiro (0.3.15 → 0.3.16) |
+|---|---|---|---|---|
+| chapati | 145,00 | 145,00 | 145,00 | igual |
+| Peyote | 148,00 | **148,64** | 148,00 | 23,7 % → 100 % (grade da 0.3.15 a ~100 ms do beat, 73 % dos beats a mais de 50 ms) |
+| Invasion | 145,00 | **146,45** | 145,00 | 25,8 % → 100 % |
+| Hitech | 180,00 | 180,00 | 180,00 | 99,2 % |
+
+Causa: com um trecho só, `tempo_map` devolvia `None` e o app usava a grade global, uma regressão que cresce a partir da
+intro partindo do período do detector no **fim** da faixa (outro). Os kicks do detector sustentavam o andamento certo
+(concentração de fase 0,76 em 148,00 contra 0,09 em 148,64), mas a regressão travava torta e explicava 1 kick em 4. Agora
+um trecho só sai do próprio mapa, e a grade de cada trecho vem da fase em que os kicks dele mais se concentram (±1 % em
+volta do período do trecho), refinada pela regressão (`track::lock`). Teste `mapa_de_um_trecho_usa_a_grade_dos_kicks_dele`
+com os kicks reais da Peyote: 148,64 no código antigo, 148,00 agora.
+
+Detector nas 4 faixas, contra a grade certa (trechos 4/4 achados pela subida do sub no beat; Hitech, à mão):
+
+| Faixa | Roteiro | Ao vivo | Microfone simulado |
+|---|---|---|---|
+| chapati | 99,4 % · 0 falsos | 79,8 % · 102 falsos | 94,9 % · 5 falsos |
+| Peyote | 100 % · 1 | 96,3 % · 28 | 92,4 % · 54 |
+| Invasion | 100 % · 1 | 95,3 % · 27 | 94,5 % · 78 |
+| Hitech | 99,2 % · 1 | 84,2 % · 31 | 89,9 % · 56 |
+
+A ferramenta `calib` tinha um erro a 44,1 kHz: o bloco de 2 ms tem 88 amostras (1,9955 ms) e a verdade saía 0,23 %
+esticada (180 BPM viravam 179,6); corrigido. NÃO VERIFICADO: microfone real, outros gêneros (techno, trance).
+
 ## 5. Latência captura → evento (conta analítica)
 
 Não há hardware nesta tarefa. A cadeia e o que se sabe de cada elo:
